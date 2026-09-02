@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY runmapper_engine ./runmapper_engine
-RUN pip install --no-cache-dir . && mkdir -p /cache
+RUN pip install --no-cache-dir ".[serve]" && mkdir -p /cache
 
 EXPOSE 8000
 # One request can take a minute or two; keep the worker timeout generous.

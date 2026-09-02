@@ -14,4 +14,4 @@ else
   python -m ensurepip --upgrade >/dev/null 2>&1 || true
   python -m pip install --disable-pip-version-check --no-cache-dir "$SPEC"
 fi
-python -c "import runmapper_engine, numpy, scipy, skimage; print('runmapper engine', runmapper_engine.__version__, 'installed')"
+python -c "import runmapper_engine, numpy, scipy; print('runmapper engine', runmapper_engine.__version__, 'installed')"

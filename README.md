@@ -17,11 +17,12 @@ Everything is plain geometry and graph search on OpenStreetMap data. **No AI API
 |---|---|
 | `engine/` | Python package `runmapper_engine`: the route engine, a CLI, and a FastAPI service |
 | `engine/runmapper_engine/font.py` | The grid font for typed phrases and the walk optimiser that draws each letter as one retraced line |
-| `engine/runmapper_engine/image.py`, `svgin.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is |
+| `engine/runmapper_engine/image.py`, `svgin.py`, `raster.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is (thinning and contour tracing in plain numpy) |
 | `engine/runmapper_engine/pipeline.py` | The end-to-end plan: sizes from the distance bucket, street fetch, placement scan, snapping, verdict |
 | `engine/runmapper_engine/api.py` | `POST /api/plan` streams progress then the result; `POST /api/estimate`; `GET /api/health` |
-| `engine/Dockerfile`, `engine/modal_app.py` | Two ways to host the engine |
 | `web/` | Next.js 16 app: the form, the MapLibre map, progress, result card, GPX download |
+| `web/api/index.py`, `web/scripts/vercel-install.sh`, `web/vercel.json` | The engine as a Vercel Python function inside the same project |
+| `engine/Dockerfile`, `engine/modal_app.py` | Optional: host the engine somewhere else |
 
 ## Run it on your computer
 
@@ -43,11 +44,10 @@ Check it: open http://localhost:8000/api/health.
 ```bash
 cd web
 npm install
-cp .env.example .env.local        # points the app at http://localhost:8000
-npm run dev
+npm run dev                       # proxies /api to the engine on port 8000
 ```
 
-Open http://localhost:3000, type `RUN`, search a place (or click the map), pick ~5K, and hit **Map my run**.
+Open http://localhost:3000, type `RUN`, search a place (or click the map), pick ~5K, and hit **Map my run**. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
 
 **Command line, no web app**
 
@@ -69,53 +69,33 @@ cd web && npm run lint && npx tsc --noEmit && npm run build
 
 ## Put it on the internet (runmapper.run)
 
-Two pieces: the Python engine on a host that allows a request to run for a couple of minutes, and the Next.js app on Vercel. Pick **one** of the engine options.
+One Vercel project runs both halves: the Next.js app, and the engine as a Python function behind `/api`. (Vercel allows Python functions a 500 MB bundle, streamed responses and 300 s per request, which is what the engine needs.)
 
-### Engine, option A: Railway (Dockerfile, click-through)
+1. In Vercel: **Add New → Project**, import this repo, set **Root Directory** to `web`. Nothing else to configure.
+2. Deploy. Every push to `main` redeploys.
+3. **Settings → Domains → add `runmapper.run`** and point the domain's DNS at Vercel as it instructs.
 
-1. Push this repo to GitHub.
-2. In Railway: **New Project → Deploy from GitHub repo**, choose the repo.
-3. In the service settings set **Root Directory** to `engine`. Railway builds `engine/Dockerfile`.
-4. Add a **Volume** mounted at `/cache` (keeps fetched street data between requests).
-5. Under **Networking**, generate a public domain. That URL is your `API_URL`, e.g. `https://runmapper-engine.up.railway.app`.
+What happens in the build: Vercel's Python step reads `web/pyproject.toml`, which runs `web/scripts/vercel-install.sh`; that script installs the engine package from this repository at the commit being built, so the function and the page always match. `web/vercel.json` sets the function's time limit. Street data is cached in the function's `/tmp` while an instance stays warm; the first request in a new area waits for Overpass.
 
-Render and Fly.io work the same way with the same Dockerfile (Fly: `fly launch` inside `engine/`).
-
-### Engine, option B: Modal (one command, scales to zero)
-
-```bash
-pip install modal
-modal setup                          # once; logs you in
-modal deploy engine/modal_app.py     # prints the URL, ends in .modal.run
-```
-
-That URL is your `API_URL`.
-
-No laptop needed: the workflow in `.github/workflows/deploy-engine.yml` runs the same command on every push that touches `engine/`. Create a token at modal.com → Settings → API tokens, add it to the GitHub repo as the secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, then run the workflow once from the Actions tab; the URL is in the job summary.
-
-### Why the engine isn't a Vercel function
-
-Its Python dependencies (numpy, scipy, scikit-image, Pillow) unpack to about 320 MB, above Vercel's 250 MB limit for a function, and a route can take a minute of CPU with a street cache that should outlive one request. Hence a separate host. The Next.js app itself is a normal Vercel project.
-
-### Web app on Vercel
-
-1. In Vercel: **Add New → Project**, import the repo, set **Root Directory** to `web`.
-2. Environment variable: `NEXT_PUBLIC_API_URL` = your `API_URL` (no trailing slash).
-3. Deploy. Then **Settings → Domains → add `runmapper.run`** and point the domain's DNS at Vercel as it instructs.
-
-Deployed the web app before the engine? The page shows an amber notice saying no engine is configured. `NEXT_PUBLIC_API_URL` is baked in at build time, so after adding it under **Settings → Environment Variables** trigger a new deployment (**Deployments → ⋯ → Redeploy**); a saved variable alone changes nothing.
-
-Optional engine environment variables:
+The engine settings below can be set as environment variables on the Vercel project (**Settings → Environment Variables**, then redeploy).
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `RUNMAPPER_CORS_ORIGINS` | `*` | Comma-separated origins allowed to call the API; set to `https://runmapper.run` once live |
+| `RUNMAPPER_CORS_ORIGINS` | `*` | Comma-separated origins allowed to call the API (only matters when the API is on another host) |
 | `RUNMAPPER_MAX_JOBS` | `2` | Routes computed at the same time per instance; extra requests wait |
-| `RUNMAPPER_CACHE` | `.cache` | Directory for cached street data |
+| `RUNMAPPER_CACHE` | `.cache` (`/tmp/runmapper-cache` on Vercel) | Directory for cached street data |
 | `RUNMAPPER_OVERPASS_MIRRORS` | four public mirrors | Comma-separated Overpass endpoints, tried in order |
 | `RUNMAPPER_ELEVATION` | `1` | Set `0` to skip the elevation lookup |
 
-The web app accepts `NEXT_PUBLIC_MAP_STYLE` to swap the basemap (default: OpenFreeMap's Positron, no key).
+The web app accepts `NEXT_PUBLIC_MAP_STYLE` to swap the basemap (default: OpenFreeMap's Positron, no key) and `NEXT_PUBLIC_API_URL` to talk to an engine hosted elsewhere instead of its own function.
+
+### Hosting the engine elsewhere (optional)
+
+Useful for a bigger machine or a street cache that survives between requests. Either way, set `NEXT_PUBLIC_API_URL` on the Vercel project to the engine's URL and redeploy.
+
+**Railway (Dockerfile, click-through)**: New Project → Deploy from GitHub repo → set **Root Directory** to `engine` (Railway builds `engine/Dockerfile`) → add a **Volume** at `/cache` → under **Networking** generate a public domain. Render and Fly.io work the same way with the same Dockerfile.
+
+**Modal (scales to zero)**: `pip install modal && modal setup && modal deploy engine/modal_app.py` prints the URL. Or run the workflow in `.github/workflows/deploy-engine.yml` from the Actions tab after adding `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` as repository secrets.
 
 ## How it decides
 
@@ -144,6 +124,7 @@ Neither is needed for words or for logos that are already clean shapes.
 
 - Public Overpass mirrors are rate-limited and occasionally slow or down; the engine retries across mirrors and caches each area for 30 days. For serious traffic, self-host Overpass or point `RUNMAPPER_OVERPASS_MIRRORS` at a paid instance.
 - The public opentopodata instance allows one call per second; the engine uses at most three per route.
+- On Vercel a request may take at most 300 s and carry at most 4.5 MB, so uploads are downscaled in the browser before they are sent, and a route that needs several slow Overpass mirrors in a row can time out; try again a minute later.
 - Diagonal letters (K N Q R V X Y Z 0 7) need bigger letters than rectilinear ones to read on a grid. A word full of them may need the next distance up.
 - Cities without a grid (old European centres) rarely produce crisp text; the app will tell you.
 - Map tiles are OpenFreeMap; street data © OpenStreetMap contributors (ODbL).

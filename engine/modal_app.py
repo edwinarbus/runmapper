@@ -14,8 +14,8 @@ app = modal.App("runmapper")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
-        "numpy>=1.26", "scipy>=1.11", "scikit-image>=0.22", "pillow>=10",
-        "svgpathtools>=1.6", "fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9",
+        "numpy>=1.26", "scipy>=1.11", "pillow>=10",
+        "svgpathtools>=1.6", "fastapi>=0.110", "python-multipart>=0.0.9",
     )
     .add_local_python_source("runmapper_engine")
 )

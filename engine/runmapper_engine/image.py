@@ -16,6 +16,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
+from .raster import find_contours, skeletonize
 from .strokes import Stroke, rdp, normalize
 
 MASK_SIZE = 512
@@ -101,7 +102,6 @@ def _pad(mask, frac=0.06):
 def thickness(mask):
     """Median stroke thickness of the shape as a fraction of its larger
     dimension, measured on the skeleton with a distance transform."""
-    from skimage.morphology import skeletonize
     sk = skeletonize(mask)
     if sk.sum() == 0:
         return 0.0
@@ -113,8 +113,7 @@ def thickness(mask):
 
 def outline_strokes(mask, simplify=0.004, min_len_frac=0.06):
     """Closed contour strokes of the mask, normalised (y-up)."""
-    from skimage.measure import find_contours
-    cs = find_contours(mask.astype(float), 0.5)
+    cs = find_contours(mask)
     if not cs:
         raise ImageError("Couldn't trace an outline from that image.")
     polys = [np.c_[c[:, 1], -c[:, 0]] for c in cs]      # (x, y-up)
@@ -190,7 +189,6 @@ def centerline_strokes(mask, simplify=0.006, spur_frac=0.10, rounds=3, min_frac=
     Short spurs (the forks a skeleton grows at rounded ends) are pruned, and
     what remains is kept only if it is at least `min_frac` of the longest line.
     """
-    from skimage.morphology import skeletonize
     sk = skeletonize(mask)
     span = float(max(mask.shape))
     for _ in range(rounds):

@@ -7,20 +7,21 @@ name = "runmapper-engine"
 version = "0.1.0"
 description = "Turn a phrase or a picture into a running route whose GPS trace draws it."
 requires-python = ">=3.11"
+# Kept lean on purpose: the same package is bundled into a Vercel function
+# (see web/scripts/vercel-install.sh), which has a hard size limit.
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
-    "scikit-image>=0.22",
     "pillow>=10",
     "svgpathtools>=1.6",
     "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
     "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
+serve = ["uvicorn[standard]>=0.29"]
 preview = ["matplotlib>=3.8"]
-dev = ["pytest>=8", "matplotlib>=3.8"]
+dev = ["pytest>=8", "matplotlib>=3.8", "uvicorn[standard]>=0.29"]
 
 [project.scripts]
 runmapper = "runmapper_engine.cli:main"

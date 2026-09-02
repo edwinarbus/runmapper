@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+engine/.cache/
+engine/out/
+engine/build/
+engine/dist/
+.pytest_cache/
+
+# web
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/.env*.local
+web/.vercel
+
+# local
+.env
+.DS_Store
+*.log

@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --strava: #fc5200;
+}
+
+@theme inline {
+  --color-strava: var(--strava);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background: #ffffff;
+  color: #18181b;
+  font-family: var(--font-sans);
+}
+
+/* MapLibre's attribution sits on the map's bottom-right; keep it small. */
+.maplibregl-ctrl-attrib {
+  font-size: 10px;
+}

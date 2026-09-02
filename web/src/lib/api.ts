@@ -2,9 +2,9 @@
 // One POST /api/plan request streams newline-delimited JSON: progress events,
 // then a single result or error line.
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
-/** False when the build had no NEXT_PUBLIC_API_URL and fell back to localhost. */
-export const API_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_API_URL);
+// Empty means same-origin: /api/* is the Python function on Vercel, or the
+// dev-server proxy to uvicorn (next.config.ts). NEXT_PUBLIC_API_URL overrides.
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 /** True when GET /api/health answers within a few seconds. */
 export async function checkHealth(timeoutMs = 6000): Promise<boolean> {
@@ -137,11 +137,7 @@ export async function planRun(
     res = await fetch(`${API_URL}/api/plan`, { method: "POST", body: fd, signal });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new PlanError(
-      API_CONFIGURED
-        ? `Couldn't reach the route engine at ${API_URL}. Is it running?`
-        : "This site has no route engine configured (NEXT_PUBLIC_API_URL is unset), so it is looking for one on localhost:8000.",
-    );
+    throw new PlanError(`Couldn't reach the route engine at ${API_URL || "/api"}. Is it running?`);
   }
   if (!res.ok || !res.body) {
     let msg = `The route engine answered ${res.status}.`;

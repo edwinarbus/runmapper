@@ -1,0 +1,12 @@
+# Python side of the Vercel project: the route engine served by api/index.py.
+# Vercel's Python build step runs the vercel-install script below inside its
+# virtualenv instead of installing a dependency list, and that script installs
+# the engine package from this repository at the commit being deployed.
+[project]
+name = "runmapper-web"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.vercel.scripts]
+vercel-install = "sh scripts/vercel-install.sh"

@@ -1,13 +1,11 @@
-# Deploys the engine API to Modal whenever engine/ changes on main.
-# Needs two repository secrets from https://modal.com/settings/tokens:
-#   MODAL_TOKEN_ID, MODAL_TOKEN_SECRET
-# The public URL is printed in the job summary; put it in Vercel as NEXT_PUBLIC_API_URL.
-name: Deploy engine to Modal
+# Optional: deploys the engine API to Modal, for running it outside Vercel.
+# Run it by hand from the Actions tab. Needs two repository secrets from
+# https://modal.com/settings/tokens: MODAL_TOKEN_ID, MODAL_TOKEN_SECRET.
+# The public URL is printed in the job summary; put it in Vercel as
+# NEXT_PUBLIC_API_URL to make the web app use it instead of its own function.
+name: Deploy engine to Modal (optional)
 
 on:
-  push:
-    branches: [main]
-    paths: ["engine/**", ".github/workflows/deploy-engine.yml"]
   workflow_dispatch:
 
 jobs:

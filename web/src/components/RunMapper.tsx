@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  API_CONFIGURED,
   API_URL,
   BUCKETS,
   type Bucket,
@@ -21,6 +20,7 @@ import {
   planRun,
 } from "@/lib/api";
 import { type Place, searchPlaces } from "@/lib/geocode";
+import { prepareUpload } from "@/lib/image";
 import type { LatLon } from "./MapView";
 
 const MapView = dynamic(() => import("./MapView"), {
@@ -162,10 +162,11 @@ export default function RunMapper() {
     );
   };
 
-  const onImage = (f: File | null) => {
+  const onImage = async (f: File | null) => {
     if (imageUrl) URL.revokeObjectURL(imageUrl);
-    setImage(f);
-    setImageUrl(f ? URL.createObjectURL(f) : null);
+    const g = f ? await prepareUpload(f) : null;
+    setImage(g);
+    setImageUrl(g ? URL.createObjectURL(g) : null);
   };
 
   const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? est.ok : true);
@@ -293,11 +294,11 @@ export default function RunMapper() {
                     type="file"
                     accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
                     className="hidden"
-                    onChange={(e) => onImage(e.target.files?.[0] ?? null)}
+                    onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
                   />
                 </label>
                 {image && (
-                  <button type="button" onClick={() => onImage(null)} className="mt-1 text-xs text-zinc-500 underline">
+                  <button type="button" onClick={() => void onImage(null)} className="mt-1 text-xs text-zinc-500 underline">
                     Remove image
                   </button>
                 )}
@@ -407,17 +408,10 @@ export default function RunMapper() {
 
           {engine === "offline" && status !== "error" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {API_CONFIGURED ? (
-                <p>
-                  The route engine at <span className="font-mono text-xs">{API_URL}</span> isn&apos;t answering. Runs can&apos;t be
-                  mapped until it is back.
-                </p>
-              ) : (
-                <p>
-                  No route engine is configured for this site: the build had no <span className="font-mono text-xs">NEXT_PUBLIC_API_URL</span>, so it
-                  looks for one on localhost. Deploy the engine (README: &ldquo;Put it on the internet&rdquo;), set that variable in Vercel, and redeploy.
-                </p>
-              )}
+              <p>
+                The route engine at <span className="font-mono text-xs">{API_URL || "/api"}</span> isn&apos;t answering, so runs
+                can&apos;t be mapped right now. Reload in a minute; if it keeps happening, check the engine logs.
+              </p>
             </div>
           )}
 

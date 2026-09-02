@@ -293,7 +293,7 @@ export default function RunMapper() {
           {/* Where */}
           <section>
             <div className="mb-1.5 flex items-baseline justify-between">
-              <label className="text-sm font-medium">Where</label>
+              <label className="text-sm font-medium">Start address or place</label>
               <button type="button" onClick={useMyLocation} className="text-xs text-[#FC5200] hover:underline">
                 Use my location
               </button>
@@ -302,7 +302,13 @@ export default function RunMapper() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search a neighbourhood or address"
+                onKeyDown={async (e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
+                  if (list[0]) pickPlace(list[0]);
+                }}
+                placeholder="Type an address, then press Enter"
                 className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-[#FC5200] focus:ring-2 focus:ring-orange-100"
               />
               {(places.length > 0 || searching) && query.trim().length >= 3 && (
@@ -326,10 +332,10 @@ export default function RunMapper() {
             <p className="mt-1.5 text-xs text-zinc-500">
               {pin ? (
                 <>
-                  <span className="font-medium text-zinc-700">Start near:</span> {pinLabel}. Drag the pin or click the map to move it.
+                  <span className="font-medium text-zinc-700">Starts at:</span> {pinLabel}. The drawing goes on the streets nearby. Drag the pin or click the map to move it.
                 </>
               ) : (
-                "Search, or click the map to drop a pin where you want to start."
+                "Type your address, or click the map to drop a pin where the run should start."
               )}
             </p>
           </section>
@@ -427,10 +433,18 @@ export default function RunMapper() {
                 <div className="col-span-2">
                   <dt className="text-xs text-zinc-500">Start</dt>
                   <dd className="font-semibold">
-                    {result.route.start_desc}{" "}
+                    {result.route.starts_at_pin ? "Your pin" : result.route.start_desc}
+                    {result.route.starts_at_pin && (
+                      <span className="font-normal text-zinc-500"> ({result.route.start_desc})</span>
+                    )}{" "}
                     <span className="font-normal text-zinc-500">
                       · {result.route.loop ? "loop" : "one way"} · head {result.route.start_bearing}°
                     </span>
+                    {result.route.approach_mi > 0.04 && (
+                      <div className="text-xs font-normal text-zinc-500">
+                        includes {fmtDist(result.route.approach_mi, units)} getting to the drawing{result.route.loop ? " and back" : ""}
+                      </div>
+                    )}
                   </dd>
                 </div>
               </dl>

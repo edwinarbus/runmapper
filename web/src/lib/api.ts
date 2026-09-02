@@ -70,6 +70,8 @@ export interface PlanResult {
     start: [number, number];
     start_desc: string;
     start_bearing: number;
+    starts_at_pin: boolean;
+    approach_mi: number;
     width_mi: number;
     n_points: number;
   };

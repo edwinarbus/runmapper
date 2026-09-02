@@ -216,7 +216,10 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None):
                         aligned.append(sz)
         # Biggest letters first, but squat or spindly proportions cost a lot:
         # a letter twice as wide as tall reads worse than a smaller square one.
-        aligned.sort(key=lambda s: -s["area"] * math.exp(-2.0 * s["shape"]) * s["orient"])
+        # Level text first (a tilted word only wins when level fails the
+        # corner check), then biggest letters, with squat or spindly
+        # proportions costing a lot.
+        aligned.sort(key=lambda s: (-s["orient"], -s["area"] * math.exp(-2.0 * s["shape"])))
         out.extend(aligned[:3])
     # Free-floating fallback: only when there is no grid to align to, or when
     # the letters would still be comfortably bigger than a block.
@@ -544,7 +547,8 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         v = _capped_verdict(r)
         order = ["bad", "rough", "good", "great"]
         aligned = 1 if r["cand"]["size"]["kind"] == "aligned" else 0
-        return (order.index(v), aligned, round(r["iou"], 2), r["cand"]["width_ft"])
+        level = r["cand"]["size"].get("orient", 1.0)      # a word you can read without tilting your head
+        return (order.index(v), aligned, level, round(r["iou"], 2), r["cand"]["width_ft"])
 
     best = max(pool, key=rank)
 
@@ -699,11 +703,41 @@ def _snap_one(sn, cand, choice, loop, cap_ft):
                 iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen, graph=g)
 
 
+MAX_APPROACH_FT = 0.6 * FT_PER_MI   # longest walk-on from the pin to the drawing
+
+
+def _start_at_pin(g, nodes, px, py, loop):
+    """Begin the run where the user asked. The drawing is entered at its node
+    nearest the pin; if the pin itself is off the drawing, the shortest street
+    path from the pin's corner leads onto it (and, for a loop, back off it at
+    the end, retraced so it adds no ink). Returns (nodes, approach_ft, on_pin)."""
+    body = nodes[:-1] if loop else list(nodes)
+    R = route_xy(g, body)
+    k = int(np.argmin(np.hypot(R[:, 0] - px, R[:, 1] - py)))
+    if loop:
+        nodes = body[k:] + body[:k] + [body[k]]
+    pin_node, pin_d = g.nearest_node(px, py)
+    entry = nodes[0]
+    if pin_node == entry:
+        return nodes, 0.0, True
+    r = Snapper(g).shortest_hug(pin_node, entry)
+    if r is None:
+        return nodes, 0.0, False
+    path = list(r[0])
+    L = path_len_ft(g, path)
+    if L > MAX_APPROACH_FT:
+        return nodes, 0.0, False
+    out = path + list(nodes[1:])
+    if loop:
+        out = out + path[::-1][1:]
+    return out, L * (2 if loop else 1), True
+
+
 def _finish(g, proj, best, choice, req, bucket):
     nodes = best["nodes"]
-    if req.loop and nodes[0] == nodes[-1]:
-        px, py = proj.to_xy(req.lat, req.lon)
-        nodes = best_start(g, nodes, prefer_xy=(float(px), float(py)))
+    px, py = proj.to_xy(req.lat, req.lon)
+    loop_in = bool(req.loop and nodes[0] == nodes[-1])
+    nodes, approach_ft, on_pin = _start_at_pin(g, nodes, float(px), float(py), loop_in)
     latlon = route_latlon(g, nodes)
     xy = route_xy(g, nodes)
     keep = dedupe(latlon, (xy[:, 0], xy[:, 1]), min_ft=6.0)
@@ -757,6 +791,7 @@ def _finish(g, proj, best, choice, req, bucket):
                    loop=bool(req.loop and nodes[0] == nodes[-1]),
                    start=[round(float(ll[0, 0]), 6), round(float(ll[0, 1]), 6)],
                    start_desc=start, start_bearing=round(b0),
+                   starts_at_pin=bool(on_pin), approach_mi=round(approach_ft / FT_PER_MI, 2),
                    width_mi=round(best["cand"]["width_ft"] / FT_PER_MI, 2),
                    n_points=int(len(ll))),
         drawing=dict(kind=choice["kind"], label=label, strokes=len(best["ideal"]), ideal=ideal_ll),

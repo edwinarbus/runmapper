@@ -3,6 +3,24 @@
 // then a single result or error line.
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+/** False when the build had no NEXT_PUBLIC_API_URL and fell back to localhost. */
+export const API_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_API_URL);
+
+/** True when GET /api/health answers within a few seconds. */
+export async function checkHealth(timeoutMs = 6000): Promise<boolean> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/api/health`, { signal: ctl.signal, cache: "no-store" });
+    if (!res.ok) return false;
+    const j = await res.json();
+    return j?.ok === true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export type Bucket = "5k" | "10k" | "long";
 
@@ -119,7 +137,11 @@ export async function planRun(
     res = await fetch(`${API_URL}/api/plan`, { method: "POST", body: fd, signal });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new PlanError("Couldn't reach the route engine. Is the API running?");
+    throw new PlanError(
+      API_CONFIGURED
+        ? `Couldn't reach the route engine at ${API_URL}. Is it running?`
+        : "This site has no route engine configured (NEXT_PUBLIC_API_URL is unset), so it is looking for one on localhost:8000.",
+    );
   }
   if (!res.ok || !res.body) {
     let msg = `The route engine answered ${res.status}.`;

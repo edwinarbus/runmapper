@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  API_CONFIGURED,
+  API_URL,
   BUCKETS,
   type Bucket,
   type EstimateResult,
@@ -10,6 +12,7 @@ import {
   type ProgressEvent,
   type Units,
   PlanError,
+  checkHealth,
   detectUnits,
   downloadGpx,
   estimate,
@@ -58,6 +61,7 @@ export default function RunMapper() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
   const [units, setUnits] = useState<Units>("km");
+  const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const abort = useRef<AbortController | null>(null);
   const searchAbort = useRef<AbortController | null>(null);
   const focusKey = useRef(0);
@@ -74,6 +78,17 @@ export default function RunMapper() {
       () => undefined,
       { maximumAge: 600000, timeout: 8000 },
     );
+  }, []);
+
+  // Is there an engine to talk to? Say so up front instead of after a failed run.
+  useEffect(() => {
+    let live = true;
+    checkHealth().then((ok) => {
+      if (live) setEngine(ok ? "online" : "offline");
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   // Miles only where people actually use them; everyone else gets kilometres.
@@ -388,6 +403,22 @@ export default function RunMapper() {
             >
               Map my run
             </button>
+          )}
+
+          {engine === "offline" && status !== "error" && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {API_CONFIGURED ? (
+                <p>
+                  The route engine at <span className="font-mono text-xs">{API_URL}</span> isn&apos;t answering. Runs can&apos;t be
+                  mapped until it is back.
+                </p>
+              ) : (
+                <p>
+                  No route engine is configured for this site: the build had no <span className="font-mono text-xs">NEXT_PUBLIC_API_URL</span>, so it
+                  looks for one on localhost. Deploy the engine (README: &ldquo;Put it on the internet&rdquo;), set that variable in Vercel, and redeploy.
+                </p>
+              )}
+            </div>
           )}
 
           {status === "error" && error && (

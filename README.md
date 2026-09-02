@@ -91,11 +91,19 @@ modal deploy engine/modal_app.py     # prints the URL, ends in .modal.run
 
 That URL is your `API_URL`.
 
+No laptop needed: the workflow in `.github/workflows/deploy-engine.yml` runs the same command on every push that touches `engine/`. Create a token at modal.com → Settings → API tokens, add it to the GitHub repo as the secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, then run the workflow once from the Actions tab; the URL is in the job summary.
+
+### Why the engine isn't a Vercel function
+
+Its Python dependencies (numpy, scipy, scikit-image, Pillow) unpack to about 320 MB, above Vercel's 250 MB limit for a function, and a route can take a minute of CPU with a street cache that should outlive one request. Hence a separate host. The Next.js app itself is a normal Vercel project.
+
 ### Web app on Vercel
 
 1. In Vercel: **Add New → Project**, import the repo, set **Root Directory** to `web`.
 2. Environment variable: `NEXT_PUBLIC_API_URL` = your `API_URL` (no trailing slash).
 3. Deploy. Then **Settings → Domains → add `runmapper.run`** and point the domain's DNS at Vercel as it instructs.
+
+Deployed the web app before the engine? The page shows an amber notice saying no engine is configured. `NEXT_PUBLIC_API_URL` is baked in at build time, so after adding it under **Settings → Environment Variables** trigger a new deployment (**Deployments → ⋯ → Redeploy**); a saved variable alone changes nothing.
 
 Optional engine environment variables:
 

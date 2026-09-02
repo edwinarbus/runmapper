@@ -1,0 +1,38 @@
+# Deploys the engine API to Modal whenever engine/ changes on main.
+# Needs two repository secrets from https://modal.com/settings/tokens:
+#   MODAL_TOKEN_ID, MODAL_TOKEN_SECRET
+# The public URL is printed in the job summary; put it in Vercel as NEXT_PUBLIC_API_URL.
+name: Deploy engine to Modal
+
+on:
+  push:
+    branches: [main]
+    paths: ["engine/**", ".github/workflows/deploy-engine.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check for Modal credentials
+        run: |
+          if [ -z "$MODAL_TOKEN_ID" ] || [ -z "$MODAL_TOKEN_SECRET" ]; then
+            echo "::error::Add MODAL_TOKEN_ID and MODAL_TOKEN_SECRET as repository secrets (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      - name: Deploy
+        working-directory: engine
+        run: |
+          pip install --quiet modal
+          modal deploy modal_app.py 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.modal\.run' deploy.log | head -1)
+          echo "## Engine deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "API URL: \`$URL\` — set this as \`NEXT_PUBLIC_API_URL\` in the Vercel project and redeploy the web app." >> "$GITHUB_STEP_SUMMARY"

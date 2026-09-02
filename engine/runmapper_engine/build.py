@@ -17,6 +17,11 @@ def stroke_corners(pts):
 def snap_strokes(sn, strokes, center_xy, width_ft, rot_deg, aspect=1.0, k=3, radius=450.0, **kw):
     """Snap every stroke of a placed drawing. Returns a list of dicts or None."""
     polys = transform(strokes, center_xy, width_ft, rot_deg, aspect)
+    return snap_polys(sn, strokes, polys, k=k, radius=radius, **kw)
+
+
+def snap_polys(sn, strokes, polys, k=3, radius=450.0, **kw):
+    """Snap already-placed polylines (feet), one per stroke."""
     out = []
     for s, poly in zip(strokes, polys):
         corners, closed = stroke_corners(poly)

@@ -48,9 +48,18 @@ def test_limits_and_charset():
     assert font.check_text("  hello   world ") == "HELLO WORLD"
 
 
-def test_connectors_prefer_bars_the_letters_have():
-    # T has a top bar and no bottom bar; L the reverse. The chain should
-    # enter T from the top and leave L along the bottom.
+def test_connectors_run_along_the_bottom():
+    # One underline for the whole word: every connector sits on the bottom edge.
     lay = font.layout("TL")
-    assert lay["sides"][0] == "t"
-    assert lay["sides"][-1] == "b"
+    assert all(s == "b" for s in lay["sides"])
+    P = lay["points"]
+    assert P[0].tolist() == [0.0, 0.0] and P[-1][1] == 0.0
+
+
+def test_staircase_keeps_lattice_points_and_removes_diagonals():
+    pts = [(0, 0), (2, 3), (2, 0)]
+    out = font.staircase(pts, 1, 1)
+    d = np.abs(np.diff(out, axis=0))
+    assert np.all((d[:, 0] < 1e-9) | (d[:, 1] < 1e-9))     # every step is axis-aligned
+    assert out[0].tolist() == [0.0, 0.0] and out[-1].tolist() == [2.0, 0.0]
+    assert any(np.allclose(p, (2, 3)) for p in out)

@@ -261,6 +261,23 @@ class StreetGraph:
         sc, cc = _period(pc, wc, lag_range, bin_ft)
         return dict(spacing_along=sa, conf_along=ca, spacing_across=sc, conf_across=cc)
 
+    def filtered(self, classes):
+        """A copy of the graph keeping only ways of the given highway classes,
+        e.g. street centrelines without sidewalks and park paths. Node indices
+        differ from the parent graph's."""
+        g = StreetGraph(self.proj)
+        used = set()
+        for n, lst in self.adj.items():
+            for (m, d, mult, wid) in lst:
+                if self.way_tags.get(wid, {}).get("highway") in classes:
+                    g.adj[n].append((m, d, mult, wid))
+                    used.add(n)
+                    used.add(m)
+        g.node_ll = {n: self.node_ll[n] for n in used}
+        g.way_name = self.way_name
+        g.way_tags = self.way_tags
+        return g.finalize()
+
     def nearest_node(self, x, y, ok_only=True):
         d, i = self.tree.query([x, y], k=min(16, len(self.ids)))
         for dd, ii in zip(np.atleast_1d(d), np.atleast_1d(i)):

@@ -3,6 +3,12 @@
     request -> strokes -> sizes from the distance bucket -> streets around the
     pin -> placement scan -> snap the best few -> pick -> finish (elevation,
     GPX, cues) -> verdict
+
+Text gets special treatment. Once the local block spacing is known, every
+letter is laid on the block lattice (two blocks wide, two tall, middle bar on
+the street between), diagonals are pre-staircased on that lattice, and the
+snap runs on street centrelines only. That is what makes a word read as a
+word on a map; free-floating letters smaller than the blocks never do.
 """
 import math
 import os
@@ -10,18 +16,19 @@ import time
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from . import font, image as img, svgin
-from .build import assemble, path_len_ft, route_latlon, route_xy, snap_strokes
+from .build import assemble, path_len_ft, route_latlon, route_xy, snap_polys, snap_strokes
 from .cues import best_start, cue_sheet, describe_point
 from .elevation import grade_stats, profile, query as elev_query
 from .geo import FT_PER_MI, Projection, haversine_segments_ft
 from .gpx import dedupe, gpx_string
 from .graph import GRID_CLASSES, StreetGraph
 from .osm import fetch_bbox
-from .place import dedupe as dedupe_places, refine, scan
+from .place import dedupe as dedupe_places, refine, scan, transform
 from .snap import Snapper
-from .strokes import connector_estimate, ink_length, order_greedy
+from .strokes import Stroke, connector_estimate, ink_length, order_greedy
 from .vismatch import vis_match
 
 BUCKETS = {
@@ -29,18 +36,22 @@ BUCKETS = {
     "10k": dict(cap_mi=6.8, label="~10K", target_mi=6.2),
     "long": dict(cap_mi=13.5, label="Longer", target_mi=10.0),
 }
+BUCKET_ORDER = ["5k", "10k", "long"]
 INFLATION = 1.22          # snapped length / ideal length, free placement
-INFLATION_ALIGNED = 1.12  # same, when letters sit on the block grid
+INFLATION_ALIGNED = 1.08  # same, letters on the block lattice (paths are near exact)
+ALIGNED_OVER_CAP = 1.08   # lattice text may run this much over the bucket cap
 UNIT_MIN_FT = 230.0       # smallest font unit that still reads after GPS wobble
 LOGO_MIN_WIDTH_FT = 1900.0
 THICK_MIN_FT = 300.0      # two edges closer than this land on the same street
 VERDICTS = [(0.66, "great"), (0.50, "good"), (0.36, "rough")]
 IRREGULAR_STREETS = 0.60        # grid regularity below this caps the verdict at "good"
 VERY_IRREGULAR_STREETS = 0.50   # ...and below this at "rough"
+LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
+FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
 MAX_SNAPS = 5
 TIME_BUDGET_S = 90.0
-PLACE_CLASSES = GRID_CLASSES | {"cycleway"}   # streets that count when judging a placement
-DIAGONAL_GLYPHS = set("KNQRVXYZ07")           # glyphs with slanted strokes
+PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
+STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
 
 
 @dataclass
@@ -57,7 +68,12 @@ class PlanRequest:
 
 
 class PlanError(ValueError):
-    """A request that cannot work, with a message meant for the user."""
+    """A request that cannot work, with a message meant for the user and,
+    when a bigger distance would fix it, which bucket to suggest."""
+
+    def __init__(self, message, suggest=None):
+        super().__init__(message)
+        self.suggest = suggest
 
 
 def _progress(cb, stage, pct, msg):
@@ -134,72 +150,93 @@ def size_for(rep, cap_ft):
     return cap_ft / max(per_width, 1e-9)
 
 
-def text_size_candidates(rep, cap_ft, g, r0, regularity, log=None):
-    """Sizes to try for text: letters stretched onto the block grid (two
-    blocks wide, two tall, with the middle bar on the street between) at a few
-    multiples, plus a free-floating fallback."""
+# ------------------------------------------------------------------ text sizes
+
+def _lattice_layout(rep, kx, ky, dx, dy, loop):
+    """The phrase on a block lattice: staircased points, a normalised stroke,
+    and the exact Manhattan length of the run in feet."""
     lay = rep["layout"]
-    upn = rep["units_per_width"]
-    wx, wy = lay["walk_xy"]
-    rx, ry = lay["return_xy"]
+    ux, uy = kx * dx, (2.0 / 3.0) * ky * dy         # feet per font unit, x and y
+    P = font.staircase(lay["points"], kx, ky)
+    d = np.abs(np.diff(P, axis=0))
+    walk_ft = float(d[:, 0].sum() * ux + d[:, 1].sum() * uy)
+    switches = sum(1 for a, b in zip(lay["sides"][:-1], lay["sides"][1:]) if a != b)
+    ret_ft = (lay["units_wide"] * ux + font.H * uy * (1 + switches)) if loop else 0.0
+    lo, hi = P.min(0), P.max(0)
+    ctr = (lo + hi) / 2.0
+    scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
+    stroke = Stroke((P - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
+    return dict(strokes=[stroke], width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
+                unit_ft=min(ux, uy), est_ft=(walk_ft + ret_ft) * INFLATION_ALIGNED,
+                units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
+
+
+def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None):
+    """Sizes to try for text: letters on the block lattice at whole-block
+    multiples (biggest first), plus a free-floating fallback only where the
+    letters would still span well over a block. Returns (sizes, need_ft) where
+    need_ft is the smallest lattice layout's length, for the suggestion when
+    nothing fits."""
     out = []
     bs = g.block_spacing(90.0 - r0)
     dx, dy = bs["spacing_along"], bs["spacing_across"]
+    has_grid = (regularity >= LATTICE_MIN_REGULARITY and dx and dy
+                and bs["conf_along"] >= 0.15 and bs["conf_across"] >= 0.15)
     if log:
         log(f"  grid rot={r0:+.1f} regularity={regularity:.2f} block along={dx} across={dy} "
-            f"conf={bs['conf_along']:.2f}/{bs['conf_across']:.2f}")
-    # Diagonal strokes staircase on a grid; at two blocks per letter a single
-    # step is all they get and an N turns into a hump. Those letters need
-    # three blocks each way.
-    k_min = 2 if any(ch in DIAGONAL_GLYPHS for ch in lay["text"]) else 1
-    rep["k_min"] = k_min
-    if regularity >= 0.45 and dx and dy and bs["conf_along"] >= 0.15 and bs["conf_across"] >= 0.15:
+            f"conf={bs['conf_along']:.2f}/{bs['conf_across']:.2f} lattice={has_grid}")
+    need_ft = None
+    if has_grid:
         aligned = []
-        # Whole blocks only: a letter's middle column (x = 1 unit) and middle
-        # bar (y = 1.5 units) must land on streets, so the horizontal unit is
-        # kx blocks and the vertical unit two thirds of ky blocks.
-        for kx in (4, 3, 2, 1):
-            ux = kx * dx
-            if ux < UNIT_MIN_FT * 0.9 or kx < k_min:
-                continue
-            for ky in (1, 2, 3, 4, 5, 6):
-                uy = (2.0 / 3.0) * ky * dy
-                aspect = uy / ux
-                if uy < UNIT_MIN_FT * 0.55 or ky < k_min or not (0.6 <= aspect <= 1.5):
-                    continue
-                est = ((wx + rx) * ux + (wy + ry) * uy) * INFLATION_ALIGNED
-                if est <= cap_ft:
-                    aligned.append(dict(width_ft=ux * upn, aspect=aspect, rots=[round(r0, 1)],
-                                        kind="aligned", kx=kx, ky=ky, unit_ft=min(ux, uy),
-                                        ux=ux, uy=uy, est_ft=est, area=ux * uy,
-                                        shape=abs(math.log(aspect / 0.9))))
-        aligned.sort(key=lambda s: (-s["area"], s["shape"]))
-        seen = set()
-        for s in aligned:
-            key = (s["kx"], s["ky"])
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(s)
-            if len(out) >= 2:
-                break
+        # Two ways to lay the word on the grid: along the axis nearest east-west
+        # (reads level) or along the other one (reads tilted, but on long
+        # rectangular blocks like Manhattan's it is the only way the letters'
+        # stems land on streets). The tilted one carries a ranking penalty.
+        r90 = r0 + 90.0 if r0 <= 0 else r0 - 90.0
+        for rot, ddx, ddy, orient_pen in ((r0, dx, dy, 1.0), (r90, dy, dx, 0.6)):
+            # Whole blocks only: a letter's middle column (x = 1 unit) and middle
+            # bar (y = 1.5 units) must land on streets, so the horizontal unit is
+            # kx blocks and the vertical unit two thirds of ky blocks.
+            for kx in (3, 2, 1):
+                for ky in (1, 2, 3, 4, 5):
+                    sz = _lattice_layout(rep, kx, ky, ddx, ddy, loop)
+                    if sz["ux"] < UNIT_MIN_FT * 0.9 or sz["uy"] < UNIT_MIN_FT * 0.5:
+                        continue
+                    if not (0.4 <= sz["aspect"] <= 1.6):
+                        continue
+                    if need_ft is None or sz["est_ft"] < need_ft:
+                        need_ft = sz["est_ft"]
+                    if sz["est_ft"] <= cap_ft * ALIGNED_OVER_CAP:
+                        sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy,
+                                  orient=orient_pen)
+                        if sz["aspect"] < 0.6 or orient_pen < 1.0:
+                            # squat letters, or a word you read with your head
+                            # tilted, are compromises: never call them "great"
+                            sz["max_verdict"] = "good"
+                        aligned.append(sz)
+        # Biggest letters first, but squat or spindly proportions cost a lot:
+        # a letter twice as wide as tall reads worse than a smaller square one.
+        aligned.sort(key=lambda s: -s["area"] * math.exp(-2.0 * s["shape"]) * s["orient"])
+        out.extend(aligned[:3])
+    # Free-floating fallback: only when there is no grid to align to, or when
+    # the letters would still be comfortably bigger than a block.
     wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
     rots = {round(r0, 1), 0.0}
     if abs(r0) > 6.0:
         rots.add(round(r0 / 2.0, 1))
     rots = sorted(rots, key=abs)
-    for f in (1.0, 0.82):
-        if wmax * f >= rep["min_width_ft"]:
-            unit = wmax * f / upn
-            sz = dict(width_ft=wmax * f, aspect=1.0, rots=rots, kind="free", unit_ft=unit, est_ft=None)
-            # Small letters that float free on a regular grid get squared off
-            # by it; never call that better than rough.
-            if regularity >= 0.45 and dx and dy and unit < 0.9 * k_min * min(dx, dy):
-                sz["max_verdict"] = "rough"
-            out.append(sz)
-        if len([o for o in out if o["kind"] == "free"]) >= (1 if len(out) > 1 else 2):
-            break
-    return out
+    unit = wmax / rep["units_per_width"]
+    if wmax >= rep["min_width_ft"]:
+        free = dict(strokes=rep["strokes"], width_ft=wmax, aspect=1.0, rots=rots, kind="free",
+                    unit_ft=unit, est_ft=None, units_per_width=rep["units_per_width"])
+        if has_grid and unit < FREE_TEXT_MIN_BLOCKS * min(dx, dy):
+            # Letters smaller than the blocks only get used if no lattice
+            # fits at all, and then never called better than rough.
+            free.update(fallback_only=True, max_verdict="rough")
+        out.append(free)
+        if not out[:-1]:
+            out.append(dict(free, width_ft=wmax * 0.82, unit_ft=unit * 0.82))
+    return out, need_ft
 
 
 def image_size_candidates(rep, cap_ft, r0):
@@ -211,8 +248,17 @@ def image_size_candidates(rep, cap_ft, r0):
     out = []
     for f in (1.0, 0.86, 0.74):
         if wmax * f >= rep["min_width_ft"] or not out:
-            out.append(dict(width_ft=wmax * f, aspect=1.0, rots=rots, kind="free", est_ft=None))
+            out.append(dict(strokes=rep["strokes"], width_ft=wmax * f, aspect=1.0, rots=rots,
+                            kind="free", est_ft=None))
     return out
+
+
+def suggest_bucket(need_ft, current):
+    """The smallest bucket whose cap covers `need_ft`, if any bigger one does."""
+    for key in BUCKET_ORDER[BUCKET_ORDER.index(current) + 1:]:
+        if need_ft <= BUCKETS[key]["cap_mi"] * FT_PER_MI * ALIGNED_OVER_CAP:
+            return key
+    return None
 
 
 # ------------------------------------------------------------------ verdict
@@ -234,6 +280,18 @@ def _message(v):
                 "longer distance so it can be drawn bigger, would sharpen it.")
     return ("Hm, the streets here don't line up with that shape. Try a different "
             "location, a shorter phrase, or a simpler image.")
+
+
+def _capped_verdict(r):
+    """The IoU verdict, held down by whatever the size or placement knows
+    about itself (squat letters, a tilted word, a bent lattice, wandering
+    streets)."""
+    order = ["bad", "rough", "good", "great"]
+    v = verdict_for(r["iou"])
+    for cap_v in (r["cand"].get("size", {}).get("max_verdict"), r["cand"].get("max_verdict")):
+        if cap_v and order.index(v) > order.index(cap_v):
+            v = cap_v
+    return v
 
 
 def match_tolerance(width_ft):
@@ -269,22 +327,22 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     fitting = [r for r in reps if r["fits"]]
     if not fitting:
         rep = max(reps, key=lambda r: r["width_max_ft"] / r["min_width_ft"])
-        need_mi = rep["min_width_ft"] * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
+        need_ft = rep["min_width_ft"] * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION
+        sug = suggest_bucket(need_ft, req.bucket)
         if req.text:
             raise PlanError(
-                f"“{rep['label']}” needs about {need_mi:.1f} mi to stay readable, more than the "
-                f"{bucket['label']} option allows. Pick a longer distance or a shorter phrase.")
+                f"“{rep['label']}” needs about {need_ft / FT_PER_MI:.1f} mi to stay readable, more than the "
+                f"{bucket['label']} option allows. Pick a longer distance or a shorter phrase.", suggest=sug)
         raise PlanError(
-            f"That image needs about {need_mi:.1f} mi to keep its detail, more than the "
-            f"{bucket['label']} option allows. Pick a longer distance or a simpler image.")
+            f"That image needs about {need_ft / FT_PER_MI:.1f} mi to keep its detail, more than the "
+            f"{bucket['label']} option allows. Pick a longer distance or a simpler image.", suggest=sug)
     choice = fitting[0]
     if len(fitting) > 1 and choice["kind"] == "outline":
         # a thin mark reads better as a single line even when the outline "fits"
         if choice["thick"] * choice["width_max_ft"] < THICK_MIN_FT * 1.15:
             choice = fitting[1]
-    strokes = choice["strokes"]
     width_max = min(choice["width_max_ft"], 2.4 * FT_PER_MI)
-    allp = np.vstack([s.pts for s in strokes])
+    allp = np.vstack([s.pts for s in choice["strokes"]])
     aspect0 = float((allp[:, 1].max() - allp[:, 1].min()) / max(allp[:, 0].max() - allp[:, 0].min(), 1e-9))
 
     # Streets around the pin.
@@ -309,9 +367,22 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     if r0 > 45.0:
         r0 -= 90.0
 
+    # Wandering streets inflate a snapped route well beyond the ideal length;
+    # shrink the free-floating size budget accordingly before choosing sizes.
+    if gb["regularity"] < IRREGULAR_STREETS:
+        choice["width_max_ft"] /= 1.0 + (IRREGULAR_STREETS - gb["regularity"])
+
     # Sizes to try.
     if choice["kind"] == "text":
-        sizes = text_size_candidates(choice, cap_ft, g, r0, gb["regularity"], log=log)
+        sizes, need_ft = text_size_candidates(choice, cap_ft, g, r0, gb["regularity"], req.loop, log=log)
+        if not sizes:
+            need_mi = (need_ft or choice["min_width_ft"] * (choice["ink_norm"] + choice["conn_norm"]) * INFLATION) / FT_PER_MI
+            sug = suggest_bucket(need_mi * FT_PER_MI, req.bucket)
+            hint = (f"Pick {BUCKETS[sug]['label']}" if sug else "Try a shorter phrase") + \
+                ", or a spot with smaller blocks."
+            raise PlanError(
+                f"The blocks here are big: “{choice['label']}” needs about {need_mi:.1f} mi to sit on the "
+                f"streets and read, more than the {bucket['label']} option allows. {hint}", suggest=sug)
     else:
         sizes = image_size_candidates(choice, cap_ft, r0)
     if gb["regularity"] < IRREGULAR_STREETS:
@@ -324,40 +395,97 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     # Placement scan.
     _progress(progress, "place", 28, "Trying placements")
     picks = []
-    for sz in sizes:
+
+    def scan_size(sz):
         w = sz["width_ft"]
         if sz["kind"] == "aligned":
             radius = 1.3 * max(sz["ux"], sz["uy"]) + 200.0
-            grid = max(50.0, sz["unit_ft"] / 6.0)
+            grid = max(40.0, sz["unit_ft"] / 8.0)
         else:
             # look up to a third of a mile around the pin for better streets
             radius = max(0.30 * w, 1600.0)
             grid = max(120.0, w / 14.0)
-        cands = scan(strokes, tree, (0.0, 0.0), [w], sz["rots"], radius, grid_ft=grid, aspect=sz["aspect"])
+        cands = scan(sz["strokes"], tree, (0.0, 0.0), [w], sz["rots"], radius, grid_ft=grid,
+                     aspect=sz["aspect"])
         for c in cands:
             c["score"] *= 1.0 + 0.12 * abs(c["rot"]) / 45.0
             c["size"] = sz
         cands.sort(key=lambda c: c["score"])
         cands = dedupe_places(cands, min_sep_ft=0.15 * w)
         take = 2 if sz["kind"] == "aligned" else 1
+        sz["scanned"] = True
         for c in cands[:take]:
             picks.append(c)
+
+    for rank_i, sz in enumerate(sizes):
+        sz["rank"] = rank_i
+        if not sz.get("fallback_only"):
+            scan_size(sz)
+    if not picks:
+        for sz in sizes:
+            if sz.get("fallback_only"):
+                scan_size(sz)
     if not picks:
         raise PlanError("The streets here don't line up with that shape at all. "
                         "Try a different location or a simpler drawing.")
     refined = []
-    for c in picks[:MAX_SNAPS + 1]:
+    for c in picks[:MAX_SNAPS + 2]:
         sz = c["size"]
-        wb = (c["width_ft"] * (0.99 if sz["kind"] == "aligned" else 0.94),
-              c["width_ft"] * (1.01 if sz["kind"] == "aligned" else 1.04))
-        rb = (min(sz["rots"]) - 2.0, max(sz["rots"]) + 2.0)
-        r = refine(strokes, tree, c, wb, rb, rounds=2, dxy=(-60.0, 0.0, 60.0) if sz["kind"] == "aligned" else (-90.0, 0.0, 90.0))
+        aligned = sz["kind"] == "aligned"
+        wb = (c["width_ft"] * (0.995 if aligned else 0.94), c["width_ft"] * (1.005 if aligned else 1.04))
+        rb = (min(sz["rots"]) - (1.0 if aligned else 2.0), max(sz["rots"]) + (1.0 if aligned else 2.0))
+        r = refine(sz["strokes"], tree, c, wb, rb, rounds=2,
+                   dxy=(-40.0, 0.0, 40.0) if aligned else (-90.0, 0.0, 90.0),
+                   dr=(-1.0, 0.0, 1.0) if aligned else (-2.0, 0.0, 2.0))
         r["size"] = sz
         refined.append(r)
     picks = dedupe_places(refined, min_sep_ft=120.0)
 
-    # Snap.
-    sn = Snapper(g)
+    # Lattice text lives or dies by its corners: every letter corner has to be
+    # a real intersection. Real grids drift, so bend the lattice to the
+    # streets that are actually there: each letter column and row slides to
+    # the nearest street line, then every corner is checked against a real
+    # intersection. Placements that still miss are dropped; big bends cost
+    # the verdict.
+    sn_full = Snapper(g)
+    sn_streets = None
+    if any(c["size"]["kind"] == "aligned" for c in picks):
+        gs = g.filtered(STREET_CLASSES)
+        if len(gs.ids) >= 50:
+            sn_streets = Snapper(gs)
+            deg = np.array([len(n) for n in gs.nbrs])
+            xs = np.flatnonzero((deg >= 3) & gs.keep)
+            xtree = cKDTree(np.c_[gs.X[xs], gs.Y[xs]]) if len(xs) else None
+            lines = {}
+            for c in picks:
+                if c["size"]["kind"] != "aligned" or xtree is None:
+                    continue
+                key = round(c["rot"], 1)
+                if key not in lines:
+                    lines[key] = _street_lines(gs.X[xs], gs.Y[xs], c["rot"])
+                _warp_to_streets(c, lines[key], xtree)
+            if log:
+                for c in picks:
+                    if "corner_cover" in c:
+                        log(f"  lattice {c['size']['kx']}x{c['size']['ky']} rot={c['rot']:+.1f} "
+                            f"corners on intersections: {c['corner_cover']:.0%} "
+                            f"(bend {c['warp']:.2f} blocks)")
+            good = [c for c in picks if c["size"]["kind"] != "aligned" or c.get("corner_cover", 0) >= 0.85]
+            if not any(c["size"]["kind"] == "aligned" for c in good):
+                # No lattice fits these streets: let the free-floating sizes
+                # in (they are capped at "rough") and keep the least-bad
+                # lattice attempt as a last resort.
+                for sz in sizes:
+                    if sz.get("fallback_only") and not sz.get("scanned"):
+                        scan_size(sz)
+                free_picks = [c for c in picks if c["size"]["kind"] != "aligned"]
+                if free_picks:
+                    good = free_picks
+                else:
+                    good = [max(picks, key=lambda c: c.get("corner_cover", 0))]
+            picks = good
+    picks.sort(key=lambda c: (0 if c["size"]["kind"] == "aligned" else 1, c["size"]["rank"],
+                              -c.get("corner_cover", 0.0), c.get("warp", 0.0), c["score"]))
     results = []
     n_done = 0
     debug_dir = os.environ.get("RUNMAPPER_DEBUG_DIR")
@@ -367,7 +495,11 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         _progress(progress, "snap", 40 + int(45 * i / max(len(picks), 1)),
                   f"Snapping to streets ({i + 1} of {min(len(picks), MAX_SNAPS)})")
         t0 = time.time()
-        r = _snap_one(sn, g, strokes, c, choice, req.loop, cap_ft)
+        r = None
+        if c["size"]["kind"] == "aligned" and sn_streets is not None:
+            r = _snap_one(sn_streets, c, choice, req.loop, cap_ft)
+        if r is None:
+            r = _snap_one(sn_full, c, choice, req.loop, cap_ft)
         n_done += 1
         if r is None:
             continue
@@ -380,65 +512,179 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
             from .preview import preview_png
             os.makedirs(debug_dir, exist_ok=True)
             preview_png(os.path.join(debug_dir, f"cand{i}_{c['size']['kind']}_w{c['width_ft'] / FT_PER_MI:.2f}.png"),
-                        g, r["nodes"], r["ideal"],
+                        r["graph"], r["nodes"], r["ideal"],
                         title=f"{choice['label']} {c['size']['kind']} w={c['width_ft'] / FT_PER_MI:.2f} "
                               f"aspect={c.get('aspect', 1.0):.2f} dist={r['dist_mi']:.2f} iou={r['iou']:.2f}")
         results.append(r)
-        if r["fits"] and r["iou"] >= 0.60 and c["size"]["kind"] == "aligned":
+        if r["fits"] and c["size"]["kind"] == "aligned" and _capped_verdict(r) in ("good", "great"):
             break
     if not results:
         raise PlanError("Couldn't route that shape onto these streets. Try a different spot.")
     fits = [r for r in results if r["fits"]]
     if not fits:
+        # Shrink the best-looking attempt until it fits the cap (two tries).
         best = max(results, key=lambda r: r["iou"])
-        f = cap_ft / (best["dist_ft"] * 1.04)
         c = dict(best["cand"])
-        c["width_ft"] = max(c["width_ft"] * f, choice["min_width_ft"] * 0.9)
-        _progress(progress, "snap", 86, "Shrinking to fit the distance")
-        r = _snap_one(sn, g, strokes, c, choice, req.loop, cap_ft)
-        if r is not None:
+        for attempt in range(2):
+            f = cap_ft / (best["dist_ft"] * 1.05)
+            c = dict(c)
+            c["width_ft"] = max(c["width_ft"] * f, choice["min_width_ft"] * 0.85)
+            _progress(progress, "snap", 86, "Shrinking to fit the distance")
+            r = _snap_one(sn_full, c, choice, req.loop, cap_ft)
+            if r is None:
+                break
             results.append(r)
             if r["fits"]:
                 fits = [r]
+                break
+            best = r
     pool = fits if fits else results
 
     def rank(r):
-        v = verdict_for(r["iou"])
-        cap_v = r["cand"].get("size", {}).get("max_verdict")
+        v = _capped_verdict(r)
         order = ["bad", "rough", "good", "great"]
-        if cap_v and order.index(v) > order.index(cap_v):
-            v = cap_v
-        return (order.index(v), round(r["iou"], 2), r["cand"]["width_ft"])
+        aligned = 1 if r["cand"]["size"]["kind"] == "aligned" else 0
+        return (order.index(v), aligned, round(r["iou"], 2), r["cand"]["width_ft"])
 
     best = max(pool, key=rank)
 
     _progress(progress, "finish", 90, "Measuring distance and climb")
-    out = _finish(g, proj, best, choice, req, bucket, strokes)
+    out = _finish(best["graph"], proj, best, choice, req, bucket)
     out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=n_done,
-                         dijkstra=sn.n_dijkstra, nodes=int(len(g.ids)))
+                         dijkstra=sn_full.n_dijkstra + (sn_streets.n_dijkstra if sn_streets and sn_streets is not sn_full else 0),
+                         nodes=int(len(g.ids)))
     out["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
                        rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
-                       size_kind=best["cand"]["size"]["kind"])
+                       size_kind=best["cand"]["size"]["kind"],
+                       blocks=[round(best["cand"]["size"].get("dx") or 0), round(best["cand"]["size"].get("dy") or 0)])
     _progress(progress, "done", 100, "Done")
     return out
 
 
+def _street_lines(X, Y, rot_deg, tol_ft=40.0, min_count=3):
+    """Positions of street lines along and across a grid at `rot_deg`, from
+    the intersections: project them onto the two axes and cluster."""
+    th = math.radians(rot_deg)
+    u = X * math.cos(th) + Y * math.sin(th)
+    v = -X * math.sin(th) + Y * math.cos(th)
+
+    def cluster(vals):
+        vals = np.sort(vals)
+        out, cur = [], [vals[0]]
+        for a in vals[1:]:
+            if a - cur[-1] <= tol_ft:
+                cur.append(a)
+            else:
+                if len(cur) >= min_count:
+                    out.append(float(np.mean(cur)))
+                cur = [a]
+        if len(cur) >= min_count:
+            out.append(float(np.mean(cur)))
+        return np.array(out)
+
+    return cluster(u), cluster(v)
+
+
+def _warp_to_streets(c, lines, xtree):
+    """Slide each lattice column and row of a placed text to the nearest real
+    street line, store the warped polylines on the candidate, and measure how
+    many corners now sit on intersections and how far the lattice bent."""
+    sz = c["size"]
+    th = math.radians(c["rot"])
+    ca, sa = math.cos(th), math.sin(th)
+    polys = transform(sz["strokes"], (c["cx"], c["cy"]), c["width_ft"], c["rot"], c["aspect"])
+    ulines, vlines = lines
+    tol_u = 0.45 * sz["dx"]
+    tol_v = 0.45 * sz["dy"]
+    allp = np.vstack(polys)
+    U = allp[:, 0] * ca + allp[:, 1] * sa
+    V = -allp[:, 0] * sa + allp[:, 1] * ca
+    cols = np.unique(np.round(U, 0))
+    rows = np.unique(np.round(V, 0))
+
+    def remap(vals, lines_, tol):
+        """Walk the real street lines, taking one per lattice position so
+        the spacing stays as close as possible to the lattice's; the start
+        is searched within a block. Returns the new positions and, per
+        position, how far its gap strays from the expected one (2*tol marks
+        a position with no usable street at all)."""
+        n = len(vals)
+        if n == 0 or len(lines_) == 0:
+            return np.array(vals, float), np.full(n, tol * 2)
+        best = None
+        starts = np.flatnonzero(np.abs(lines_ - vals[0]) <= max(tol, 1.0) * 1.4)
+        for s in starts:
+            new, dev, cost, j = [float(lines_[s])], [abs(lines_[s] - vals[0])], abs(lines_[s] - vals[0]), s
+            for i in range(1, n):
+                exp = vals[i] - vals[i - 1]
+                # candidate next lines: further along, gap between 0.45x and 1.7x the expected
+                cand = [k for k in range(j + 1, len(lines_)) if 0.45 * exp <= lines_[k] - lines_[j] <= 1.7 * exp]
+                if not cand:
+                    new.append(new[-1] + exp)
+                    dev.append(tol * 2)
+                    cost += tol * 2
+                    continue
+                k = min(cand, key=lambda k: abs((lines_[k] - lines_[j]) - exp))
+                dev.append(abs((lines_[k] - lines_[j]) - exp))
+                cost += dev[-1]
+                new.append(float(lines_[k]))
+                j = k
+            if best is None or cost < best[0]:
+                best = (cost, new, dev)
+        if best is None:
+            return np.array(vals, float), np.full(n, tol * 2)
+        return np.array(best[1]), np.array(best[2])
+
+    cols_new, su = remap(cols, ulines, tol_u)
+    rows_new, sv = remap(rows, vlines, tol_v)
+    warped = []
+    for p in polys:
+        u = p[:, 0] * ca + p[:, 1] * sa
+        v = -p[:, 0] * sa + p[:, 1] * ca
+        u2 = np.interp(u, cols, cols_new) if len(cols) > 1 else u
+        v2 = np.interp(v, rows, rows_new) if len(rows) > 1 else v
+        warped.append(np.c_[u2 * ca - v2 * sa, u2 * sa + v2 * ca])
+    c["polys"] = warped
+    corners = np.unique(np.vstack(warped).round(1), axis=0)
+    d, _ = xtree.query(corners)
+    c["corner_cover"] = float((d <= 0.25 * min(sz["dx"], sz["dy"])).mean())
+    c["warp"] = float(max(su.max() / sz["dx"] if len(su) else 0.0, sv.max() / sz["dy"] if len(sv) else 0.0))
+    if c["warp"] > 0.5:
+        c["max_verdict"] = "rough"
+    elif c["warp"] > 0.3:
+        c["max_verdict"] = "good"
+
+
 def _snap_params(choice, cand):
     w = cand["width_ft"]
+    sz = cand["size"]
+    if sz["kind"] == "aligned":
+        # corners are street corners; keep the search tight so each stroke
+        # takes the street it was laid on
+        blk = min(sz["dx"], sz["dy"])
+        return dict(corridor=float(np.clip(0.6 * blk, 150, 600)),
+                    dev_ref=float(np.clip(0.25 * blk, 60, 200)), w_dev=12.0,
+                    radius=float(np.clip(0.35 * blk, 80, 200)), k=2)
     if choice["kind"] == "text":
-        unit = cand["size"].get("unit_ft") or (w / choice["units_per_width"])
+        unit = sz.get("unit_ft") or (w / choice["units_per_width"])
         return dict(corridor=float(np.clip(2.2 * unit, 450, 1000)),
                     dev_ref=float(np.clip(0.55 * unit, 120, 300)), w_dev=9.0,
-                    radius=float(np.clip(1.3 * unit, 300, 600)))
+                    radius=float(np.clip(1.3 * unit, 300, 600)), k=3)
     return dict(corridor=float(np.clip(0.20 * w, 500, 1000)),
-                dev_ref=float(np.clip(0.06 * w, 130, 300)), w_dev=9.0, radius=450.0)
+                dev_ref=float(np.clip(0.06 * w, 130, 300)), w_dev=9.0, radius=450.0, k=3)
 
 
-def _snap_one(sn, g, strokes, cand, choice, loop, cap_ft):
+def _snap_one(sn, cand, choice, loop, cap_ft):
+    g = sn.g
+    strokes = cand["size"]["strokes"]
     center = np.array([cand["cx"], cand["cy"]])
     kw = _snap_params(choice, cand)
-    snapped = snap_strokes(sn, strokes, center, cand["width_ft"], cand["rot"],
-                           aspect=cand.get("aspect", 1.0), k=3, **kw)
+    k = kw.pop("k")
+    if cand.get("polys") is not None:
+        snapped = snap_polys(sn, strokes, cand["polys"], k=k, **kw)
+    else:
+        snapped = snap_strokes(sn, strokes, center, cand["width_ft"], cand["rot"],
+                               aspect=cand.get("aspect", 1.0), k=k, **kw)
     if snapped is None:
         return None
     a = assemble(sn, snapped, close_loop=loop, try_orders=(len(snapped) <= 4))
@@ -449,11 +695,11 @@ def _snap_one(sn, g, strokes, cand, choice, loop, cap_ft):
     ideal = [s["ideal"] for s in snapped]
     v = vis_match(route_xy(g, full), ideal, tol_ft=match_tolerance(cand["width_ft"]))
     return dict(cand=cand, nodes=full, snapped=snapped, ideal=ideal, dist_ft=dist_ft,
-                dist_mi=dist_ft / FT_PER_MI, fits=dist_ft <= cap_ft * 1.02,
-                iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen)
+                dist_mi=dist_ft / FT_PER_MI, fits=dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else 1.02),
+                iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen, graph=g)
 
 
-def _finish(g, proj, best, choice, req, bucket, strokes):
+def _finish(g, proj, best, choice, req, bucket):
     nodes = best["nodes"]
     if req.loop and nodes[0] == nodes[-1]:
         px, py = proj.to_xy(req.lat, req.lon)
@@ -482,11 +728,7 @@ def _finish(g, proj, best, choice, req, bucket, strokes):
     cues = cue_sheet(g, nodes)
     start = describe_point(g, nodes[0])
     iou = best["iou"]
-    v = verdict_for(iou)
-    order = ["bad", "rough", "good", "great"]
-    cap_v = best["cand"].get("size", {}).get("max_verdict")
-    if cap_v and order.index(v) > order.index(cap_v):
-        v = cap_v
+    v = _capped_verdict(best)
     if not best["fits"]:
         v = "over"
     label = choice["label"]
@@ -517,7 +759,7 @@ def _finish(g, proj, best, choice, req, bucket, strokes):
                    start_desc=start, start_bearing=round(b0),
                    width_mi=round(best["cand"]["width_ft"] / FT_PER_MI, 2),
                    n_points=int(len(ll))),
-        drawing=dict(kind=choice["kind"], label=label, strokes=len(strokes), ideal=ideal_ll),
+        drawing=dict(kind=choice["kind"], label=label, strokes=len(best["ideal"]), ideal=ideal_ll),
         bucket=dict(key=req.bucket, label=bucket["label"], cap_mi=bucket["cap_mi"]),
         cues=cues,
         gpx=gpx_string(ll, prof["ele"] if prof["gain"] is not None else None, name=name, desc=desc),

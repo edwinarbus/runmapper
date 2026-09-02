@@ -91,7 +91,13 @@ export interface PlanInput {
   loop: boolean;
 }
 
-export class PlanError extends Error {}
+export class PlanError extends Error {
+  suggest: Bucket | null;
+  constructor(message: string, suggest: Bucket | null = null) {
+    super(message);
+    this.suggest = suggest;
+  }
+}
 
 export async function planRun(
   input: PlanInput,
@@ -140,7 +146,7 @@ export async function planRun(
       const ev = JSON.parse(line);
       if (ev.type === "progress") onProgress(ev as ProgressEvent);
       else if (ev.type === "result") result = ev as PlanResult;
-      else if (ev.type === "error") throw new PlanError(ev.message || "Something went wrong.");
+      else if (ev.type === "error") throw new PlanError(ev.message || "Something went wrong.", ev.suggest_bucket ?? null);
     }
   }
   if (!result) throw new PlanError("The route engine stopped without an answer. Try again.");

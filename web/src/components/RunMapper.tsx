@@ -51,6 +51,7 @@ export default function RunMapper() {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<PlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggest, setSuggest] = useState<Bucket | null>(null);
   const [showIdeal, setShowIdeal] = useState(false);
   const [est, setEst] = useState<EstimateResult | null>(null);
   const [query, setQuery] = useState("");
@@ -155,18 +156,20 @@ export default function RunMapper() {
   const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? est.ok : true);
   const canGo = pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "image" && image !== null));
 
-  const go = async () => {
+  const go = async (useBucket: Bucket = bucket) => {
     if (!pin) return;
+    if (useBucket !== bucket) setBucket(useBucket);
     setStatus("planning");
     setResult(null);
     setError(null);
+    setSuggest(null);
     setShowIdeal(false);
     setProgress({ type: "progress", stage: "start", pct: 1, msg: "Starting" });
     const ctl = new AbortController();
     abort.current = ctl;
     try {
       const r = await planRun(
-        { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket, loop },
+        { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop },
         setProgress,
         ctl.signal,
       );
@@ -177,6 +180,7 @@ export default function RunMapper() {
         setStatus("idle");
       } else {
         setError(e instanceof PlanError ? e.message : `Something went wrong: ${(e as Error).message}`);
+        setSuggest(e instanceof PlanError ? e.suggest : null);
         setStatus("error");
       }
     } finally {
@@ -373,7 +377,7 @@ export default function RunMapper() {
             <button
               type="button"
               disabled={!canGo}
-              onClick={go}
+              onClick={() => go()}
               className="w-full rounded-lg bg-[#FC5200] px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#e04900] disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
               Map my run
@@ -381,7 +385,18 @@ export default function RunMapper() {
           )}
 
           {status === "error" && error && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{error}</div>
+            <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+              <p>{error}</p>
+              {suggest && (
+                <button
+                  type="button"
+                  onClick={() => go(suggest)}
+                  className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+                >
+                  Try {BUCKETS.find((b) => b.key === suggest)?.label ?? suggest} instead
+                </button>
+              )}
+            </div>
           )}
 
           {/* Result */}

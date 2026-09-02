@@ -83,7 +83,7 @@ def create_app(cache_dir=None):
                                cache_dir=cache_dir)
                 q.put(dict(type="result", **{k: v for k, v in res.items() if not k.startswith("_")}))
             except PlanError as ex:
-                q.put(dict(type="error", message=str(ex)))
+                q.put(dict(type="error", message=str(ex), suggest_bucket=ex.suggest))
             except Exception as ex:  # noqa: BLE001 - report, don't hang the stream
                 q.put(dict(type="error", message=f"Something broke while planning: {type(ex).__name__}: {ex}"))
             finally:

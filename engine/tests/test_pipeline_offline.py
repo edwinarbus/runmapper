@@ -38,7 +38,7 @@ def test_open_route_when_loop_off():
     req = pipeline.PlanRequest(lat=40.7410, lon=-73.9897, bucket="10k", loop=False, text="HELLO")
     res = pipeline.plan_run(req)
     assert not res["route"]["loop"]
-    assert res["route"]["distance_mi"] < 6.0
+    assert res["route"]["distance_mi"] <= pipeline.BUCKETS["10k"]["cap_mi"] * pipeline.ALIGNED_OVER_CAP
 
 
 def test_too_long_for_bucket_says_so():

@@ -8,9 +8,13 @@ import {
   type EstimateResult,
   type PlanResult,
   type ProgressEvent,
+  type Units,
   PlanError,
+  detectUnits,
   downloadGpx,
   estimate,
+  fmtClimb,
+  fmtDist,
   planRun,
 } from "@/lib/api";
 import { type Place, searchPlaces } from "@/lib/geocode";
@@ -33,10 +37,6 @@ const VERDICT_STYLE: Record<string, { label: string; cls: string }> = {
   over: { label: "Too long", cls: "bg-rose-100 text-rose-800 border-rose-200" },
 };
 
-function fmtMi(mi: number) {
-  return `${mi.toFixed(2)} mi`;
-}
-
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
   const [text, setText] = useState("");
@@ -56,6 +56,7 @@ export default function RunMapper() {
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
+  const [units, setUnits] = useState<Units>("km");
   const abort = useRef<AbortController | null>(null);
   const searchAbort = useRef<AbortController | null>(null);
   const focusKey = useRef(0);
@@ -72,6 +73,12 @@ export default function RunMapper() {
       () => undefined,
       { maximumAge: 600000, timeout: 8000 },
     );
+  }, []);
+
+  // Miles only where people actually use them; everyone else gets kilometres.
+  useEffect(() => {
+    const t = setTimeout(() => setUnits(detectUnits()), 0);
+    return () => clearTimeout(t);
   }, []);
 
   // Live feasibility check for typed text.
@@ -189,7 +196,18 @@ export default function RunMapper() {
           <h1 className="text-xl font-bold tracking-tight">
             <span className="text-[#FC5200]">run</span>mapper
           </h1>
-          <p className="text-xs text-zinc-500">Draw words and logos with your run</p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-zinc-500">Draw words and logos with your run</p>
+            <button
+              type="button"
+              onClick={() => setUnits((u) => (u === "mi" ? "km" : "mi"))}
+              className="rounded-md border border-zinc-300 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 hover:border-zinc-400"
+              title="Switch units"
+              aria-label={`Units: ${units}. Switch`}
+            >
+              {units === "mi" ? "mi" : "km"}
+            </button>
+          </div>
         </header>
 
         <div className="space-y-5 px-5 pb-6">
@@ -328,7 +346,7 @@ export default function RunMapper() {
                   }`}
                 >
                   <div className="font-semibold">{b.label}</div>
-                  <div className="text-[11px] text-zinc-500">{b.hint}</div>
+                  <div className="text-[11px] text-zinc-500">up to {fmtDist(b.cap_mi, units)}</div>
                 </button>
               ))}
             </div>
@@ -379,17 +397,13 @@ export default function RunMapper() {
               <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                 <div>
                   <dt className="text-xs text-zinc-500">Distance</dt>
-                  <dd className="font-semibold">
-                    {fmtMi(result.route.distance_mi)} <span className="font-normal text-zinc-500">({result.route.distance_km} km)</span>
-                  </dd>
+                  <dd className="font-semibold">{fmtDist(result.route.distance_mi, units, true)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-zinc-500">Climb</dt>
                   <dd className="font-semibold">
                     {result.route.gain_ft != null ? (
-                      <>
-                        {result.route.gain_ft} ft <span className="font-normal text-zinc-500">({result.route.gain_m} m)</span>
-                      </>
+                      fmtClimb(result.route.gain_ft, units)
                     ) : (
                       <span className="font-normal text-zinc-500">not available</span>
                     )}
@@ -426,9 +440,9 @@ export default function RunMapper() {
                 <ol className="mt-2 max-h-64 space-y-1 overflow-auto pr-1 text-xs">
                   {result.cues.map((c) => (
                     <li key={c.n} className="flex gap-2">
-                      <span className="w-12 shrink-0 tabular-nums text-zinc-400">{c.cum_mi.toFixed(2)}</span>
+                      <span className="w-16 shrink-0 tabular-nums text-zinc-400">{fmtDist(c.cum_mi, units)}</span>
                       <span>
-                        {c.word} <span className="font-medium">{c.street}</span> for {c.mi.toFixed(2)} mi
+                        {c.word} <span className="font-medium">{c.street}</span> for {fmtDist(c.mi, units)}
                       </span>
                     </li>
                   ))}

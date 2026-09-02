@@ -74,8 +74,9 @@ export default function MapView(props: MapViewProps) {
     const m = new maplibregl.Map({
       container: el.current,
       style: MAP_STYLE,
-      center: [-122.43, 37.77],
-      zoom: 11.5,
+      // A world view until the user searches, clicks, or shares their location.
+      center: [10, 25],
+      zoom: 1.4,
       attributionControl: { compact: true },
     });
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");

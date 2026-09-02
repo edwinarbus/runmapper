@@ -14,14 +14,14 @@ from runmapper_engine.geo import Projection  # noqa: E402
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
     def fake_fetch(bbox, cache_dir=None, log=None, **kw):
-        return grid_elements(Projection(37.77, -122.44), nx=48, ny=48, bx=400.0, by=300.0)
+        return grid_elements(Projection(40.7410, -73.9897), nx=48, ny=48, bx=400.0, by=300.0)
 
     monkeypatch.setattr(pipeline, "fetch_bbox", fake_fetch)
     monkeypatch.setenv("RUNMAPPER_ELEVATION", "0")
 
 
 def test_hello_10k_is_a_clean_loop():
-    req = pipeline.PlanRequest(lat=37.77, lon=-122.44, bucket="10k", loop=True, text="hello")
+    req = pipeline.PlanRequest(lat=40.7410, lon=-73.9897, bucket="10k", loop=True, text="hello")
     res = pipeline.plan_run(req)
     r = res["route"]
     assert res["verdict"] == "great"
@@ -35,14 +35,14 @@ def test_hello_10k_is_a_clean_loop():
 
 
 def test_open_route_when_loop_off():
-    req = pipeline.PlanRequest(lat=37.77, lon=-122.44, bucket="10k", loop=False, text="HELLO")
+    req = pipeline.PlanRequest(lat=40.7410, lon=-73.9897, bucket="10k", loop=False, text="HELLO")
     res = pipeline.plan_run(req)
     assert not res["route"]["loop"]
     assert res["route"]["distance_mi"] < 6.0
 
 
 def test_too_long_for_bucket_says_so():
-    req = pipeline.PlanRequest(lat=37.77, lon=-122.44, bucket="5k", loop=True, text="HELLO WORLD")
+    req = pipeline.PlanRequest(lat=40.7410, lon=-73.9897, bucket="5k", loop=True, text="HELLO WORLD")
     with pytest.raises(pipeline.PlanError) as ex:
         pipeline.plan_run(req)
     assert "longer distance" in str(ex.value)
@@ -50,7 +50,7 @@ def test_too_long_for_bucket_says_so():
 
 def test_progress_events_reach_done():
     seen = []
-    req = pipeline.PlanRequest(lat=37.77, lon=-122.44, bucket="5k", loop=True, text="HI")
+    req = pipeline.PlanRequest(lat=40.7410, lon=-73.9897, bucket="5k", loop=True, text="HI")
     pipeline.plan_run(req, progress=seen.append)
     assert seen[0]["pct"] < seen[-1]["pct"] == 100
     assert any(e["stage"] == "snap" for e in seen)

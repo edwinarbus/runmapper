@@ -6,11 +6,34 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:800
 
 export type Bucket = "5k" | "10k" | "long";
 
-export const BUCKETS: { key: Bucket; label: string; hint: string }[] = [
-  { key: "5k", label: "~5K", hint: "up to 3.6 mi" },
-  { key: "10k", label: "~10K", hint: "up to 6.8 mi" },
-  { key: "long", label: "Longer", hint: "up to 13.5 mi" },
+// Distance caps mirror BUCKETS in engine/runmapper_engine/pipeline.py.
+export const BUCKETS: { key: Bucket; label: string; cap_mi: number }[] = [
+  { key: "5k", label: "~5K", cap_mi: 3.6 },
+  { key: "10k", label: "~10K", cap_mi: 6.8 },
+  { key: "long", label: "Longer", cap_mi: 13.5 },
 ];
+
+export type Units = "mi" | "km";
+const MI_KM = 1.609344;
+const FT_M = 0.3048;
+
+/** Miles or kilometres, primary unit first. */
+export function fmtDist(mi: number, units: Units, both = false): string {
+  const a = units === "mi" ? `${mi.toFixed(2)} mi` : `${(mi * MI_KM).toFixed(2)} km`;
+  if (!both) return a;
+  const b = units === "mi" ? `${(mi * MI_KM).toFixed(2)} km` : `${mi.toFixed(2)} mi`;
+  return `${a} (${b})`;
+}
+
+export function fmtClimb(ft: number, units: Units): string {
+  return units === "mi" ? `${Math.round(ft)} ft (${Math.round(ft * FT_M)} m)` : `${Math.round(ft * FT_M)} m (${Math.round(ft)} ft)`;
+}
+
+/** Only the US, Liberia and Myanmar run in miles. */
+export function detectUnits(): Units {
+  const lang = typeof navigator !== "undefined" ? navigator.language || "" : "";
+  return /-(US|LR|MM)$/i.test(lang) ? "mi" : "km";
+}
 
 export interface ProgressEvent {
   type: "progress";

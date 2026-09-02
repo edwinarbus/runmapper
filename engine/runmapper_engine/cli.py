@@ -1,7 +1,7 @@
 """Command line: draw a phrase or an image on the streets around a point.
 
-    runmapper "RUN" --lat 37.7699 --lon -122.4382 --bucket 5k --out out/
-    runmapper logo.png --lat 40.7484 --lon -73.9857 --bucket 10k --out out/
+    runmapper "RUN" --lat 40.7410 --lon -73.9897 --bucket 5k --out out/
+    runmapper logo.png --lat 51.5220 --lon -0.1250 --bucket 10k --out out/
 """
 import argparse
 import json

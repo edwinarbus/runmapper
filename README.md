@@ -53,8 +53,9 @@ Open http://localhost:3000, type `RUN`, search a place (or click the map), pick 
 
 ```bash
 cd engine
-runmapper "HELLO" --lat 37.7699 --lon -122.4382 --bucket 10k --out out/
-runmapper logo.png --lat 40.7410 --lon -73.9897 --bucket 10k --out out/
+runmapper "HELLO" --lat 40.7410 --lon -73.9897 --bucket 10k --out out/     # Flatiron, New York
+runmapper logo.png --lat 51.5220 --lon -0.1250 --bucket 10k --out out/    # Bloomsbury, London
+runmapper "SF" --lat 37.7647 --lon -122.4270 --bucket 5k --out out/        # Dolores Park, San Francisco
 ```
 
 Writes `out/<name>-<bucket>.gpx`, a `.json` with the stats and cue sheet, and a `.png` preview (streets grey, target dashed blue, route Strava orange).
@@ -115,7 +116,7 @@ The web app accepts `NEXT_PUBLIC_MAP_STYLE` to swap the basemap (default: OpenFr
 - **Size** comes from the distance bucket: the drawing is scaled as large as the cap allows (~5K ≤ 3.6 mi, ~10K ≤ 6.8 mi, longer ≤ 13.5 mi), never smaller than what stays readable after GPS wobble. If a phrase or image cannot fit at a readable size, the app says so before touching any street data.
 - **Placement**: streets within about a mile of the pin come from Overpass, the dominant grid angle and block spacing are measured, and a few hundred placements (position × size × rotation) are scored by how close the ideal strokes lie to real streets. The best few are snapped with a corridor-restricted Dijkstra that hugs each stroke, joined by connectors that retrace existing ink, and closed into a loop when asked.
 - **Verdict**: the route and the target shape are rasterised as thick lines and compared (IoU). "Great", "good", "rough", or an honest "hm, try somewhere else". Small letters on coarse blocks and wandering (non-grid) streets are capped at "rough" because they never come out crisp.
-- **Numbers**: distance is great-circle along the route; climb comes from opentopodata (USGS 10 m in the US, EU-DEM in Europe, SRTM 30 m elsewhere) and is omitted if the lookup fails.
+- **Numbers**: distance is great-circle along the route; climb comes from opentopodata (USGS 10 m in the US, EU-DEM in Europe, SRTM 30 m elsewhere) and is omitted if the lookup fails. The site shows kilometres and metres everywhere except US, Liberian and Myanmar locales, with a mi/km toggle in the header; the API always returns both.
 
 Typical run: 3–30 s, most of it waiting for Overpass the first time an area is used.
 

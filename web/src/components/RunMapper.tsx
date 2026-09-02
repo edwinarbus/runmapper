@@ -192,22 +192,22 @@ export default function RunMapper() {
   return (
     <div className="grid h-dvh grid-rows-[auto_1fr] md:grid-cols-[420px_1fr] md:grid-rows-1">
       <aside className="flex max-h-[62dvh] flex-col overflow-y-auto border-b border-zinc-200 bg-white md:max-h-none md:border-r md:border-b-0">
-        <header className="flex items-baseline justify-between px-5 pt-5 pb-3">
-          <h1 className="text-xl font-bold tracking-tight">
-            <span className="text-[#FC5200]">run</span>mapper
-          </h1>
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-zinc-500">Draw words and logos with your run</p>
+        <header className="px-5 pt-5 pb-3">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold tracking-tight">
+              <span className="text-[#FC5200]">run</span>mapper
+            </h1>
             <button
               type="button"
               onClick={() => setUnits((u) => (u === "mi" ? "km" : "mi"))}
-              className="rounded-md border border-zinc-300 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 hover:border-zinc-400"
-              title="Switch units"
+              className="rounded-md border border-zinc-300 px-2 py-0.5 text-[11px] font-medium text-zinc-600 hover:border-zinc-400"
+              title="Switch between miles and kilometres"
               aria-label={`Units: ${units}. Switch`}
             >
-              {units === "mi" ? "mi" : "km"}
+              {units === "mi" ? "mi · ft" : "km · m"}
             </button>
           </div>
+          <p className="mt-0.5 text-xs text-zinc-500">Draw words and logos with your run</p>
         </header>
 
         <div className="space-y-5 px-5 pb-6">

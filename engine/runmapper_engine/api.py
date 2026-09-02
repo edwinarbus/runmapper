@@ -9,6 +9,7 @@ import json
 import os
 import queue
 import threading
+import time
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -72,19 +73,33 @@ def create_app(cache_dir=None):
         req = PlanRequest(lat=lat, lon=lon, bucket=bucket, loop=loop, name=name,
                           text=text.strip() or None, image_bytes=data, image_name=fname)
         q: "queue.Queue[dict | None]" = queue.Queue()
+        # Server log lines (Vercel/Railway/Modal capture stdout). Coordinates
+        # are rounded to about a kilometre so visitors' start addresses are
+        # not written down.
+        rid = f"{int(time.time()) % 100000:05d}"
+        what = f"image {fname}" if data is not None else f"text {text.strip()!r}"
+
+        def slog(msg):
+            print(f"[plan {rid}] {msg}", flush=True)
 
         def work():
+            t0 = time.time()
+            slog(f"start {what} near {lat:.2f},{lon:.2f} bucket={bucket} loop={loop}")
             acquired = gate.acquire(timeout=0.01)
             if not acquired:
                 q.put(dict(type="progress", stage="queue", pct=1, msg="Waiting for a free worker"))
                 gate.acquire()
             try:
                 res = plan_run(req, progress=lambda ev: q.put(dict(type="progress", **ev)),
-                               cache_dir=cache_dir)
+                               cache_dir=cache_dir, log=slog)
                 q.put(dict(type="result", **{k: v for k, v in res.items() if not k.startswith("_")}))
+                slog(f"done {res.get('verdict')} {res['route']['distance_mi']:.2f} mi "
+                     f"iou={res['score']['iou']:.2f} in {time.time() - t0:.1f}s")
             except PlanError as ex:
+                slog(f"no route: {ex} ({time.time() - t0:.1f}s)")
                 q.put(dict(type="error", message=str(ex), suggest_bucket=ex.suggest))
             except Exception as ex:  # noqa: BLE001 - report, don't hang the stream
+                slog(f"crashed: {type(ex).__name__}: {ex} ({time.time() - t0:.1f}s)")
                 q.put(dict(type="error", message=f"Something broke while planning: {type(ex).__name__}: {ex}"))
             finally:
                 gate.release()

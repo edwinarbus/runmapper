@@ -8,6 +8,8 @@ networks can only reach some of them.
 import gzip
 import json
 import os
+import queue
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -70,6 +72,53 @@ def _post(url, query, timeout):
     return d
 
 
+# A mirror that has not answered within this many seconds gets company: the
+# next mirror is asked too, and the first answer wins. Public Overpass servers
+# queue requests under load, so this turns a one-minute wait into the fastest
+# mirror's time without hitting every mirror for every request.
+STAGGER_S = float(os.environ.get("RUNMAPPER_OVERPASS_STAGGER", "12"))
+
+
+def _race(mirror_list, q, timeout, log, stagger):
+    """Ask the mirrors in order, starting the next one when the previous has
+    not answered within `stagger` seconds. Returns (data, errors); data is
+    None when every mirror failed."""
+    results = queue.Queue()
+
+    def worker(m):
+        t0 = time.time()
+        try:
+            results.put((m, _post(m, q, timeout=timeout + 15), time.time() - t0, None))
+        except Exception as ex:  # noqa: BLE001 - reported to the caller
+            results.put((m, None, time.time() - t0, ex))
+
+    errors = []
+    started = pending = 0
+    next_start = 0.0
+    while True:
+        if started < len(mirror_list) and (pending == 0 or time.time() >= next_start):
+            threading.Thread(target=worker, args=(mirror_list[started],), daemon=True).start()
+            started += 1
+            pending += 1
+            next_start = time.time() + stagger
+        if pending == 0:
+            return None, errors
+        wait = max(0.05, next_start - time.time()) if started < len(mirror_list) else None
+        try:
+            m, d, dt, ex = results.get(timeout=wait)
+        except queue.Empty:
+            continue
+        pending -= 1
+        host = urllib.parse.urlsplit(m).netloc
+        if ex is None:
+            if log:
+                log(f"overpass {host}: {len(d.get('elements', []))} elements in {dt:.1f}s")
+            return d, errors
+        errors.append(f"{host}: {type(ex).__name__}: {ex}")
+        if log:
+            log(f"overpass {host} failed: {type(ex).__name__} ({dt:.0f}s)")
+
+
 def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
     """Return the Overpass `elements` list (nodes + ways) for a (s, w, n, e) box."""
     bbox = round_bbox(bbox)
@@ -81,26 +130,17 @@ def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
     q = query_text(bbox, timeout=timeout)
     errors = []
     for attempt in range(2):
-        for m in mirrors():
-            t0 = time.time()
-            try:
-                d = _post(m, q, timeout=timeout + 15)
-                els = d.get("elements", [])
-                if log:
-                    log(f"overpass {urllib.parse.urlsplit(m).netloc}: "
-                        f"{len(els)} elements in {time.time() - t0:.1f}s")
-                if cache_dir:
-                    os.makedirs(os.path.dirname(p), exist_ok=True)
-                    tmp = p + ".tmp"
-                    with gzip.open(tmp, "wt", encoding="utf-8") as f:
-                        json.dump({"elements": els}, f)
-                    os.replace(tmp, p)
-                return els
-            except Exception as ex:  # noqa: BLE001 - any mirror failure means try the next
-                errors.append(f"{urllib.parse.urlsplit(m).netloc}: {type(ex).__name__}: {ex}")
-                if log:
-                    log(f"overpass {urllib.parse.urlsplit(m).netloc} failed: "
-                        f"{type(ex).__name__} ({time.time() - t0:.0f}s)")
+        d, errs = _race(mirrors(), q, timeout, log, STAGGER_S)
+        errors += errs
+        if d is not None:
+            els = d.get("elements", [])
+            if cache_dir:
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                tmp = p + ".tmp"
+                with gzip.open(tmp, "wt", encoding="utf-8") as f:
+                    json.dump({"elements": els}, f)
+                os.replace(tmp, p)
+            return els
         time.sleep(2.0)
     raise OverpassError("Could not fetch street data from any Overpass mirror: "
                         + "; ".join(errors[-3:]))

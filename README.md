@@ -84,7 +84,8 @@ The engine settings below can be set as environment variables on the Vercel proj
 | `RUNMAPPER_CORS_ORIGINS` | `*` | Comma-separated origins allowed to call the API (only matters when the API is on another host) |
 | `RUNMAPPER_MAX_JOBS` | `2` | Routes computed at the same time per instance; extra requests wait |
 | `RUNMAPPER_CACHE` | `.cache` (`/tmp/runmapper-cache` on Vercel) | Directory for cached street data |
-| `RUNMAPPER_OVERPASS_MIRRORS` | four public mirrors | Comma-separated Overpass endpoints, tried in order |
+| `RUNMAPPER_OVERPASS_MIRRORS` | four public mirrors | Comma-separated Overpass endpoints, asked in order |
+| `RUNMAPPER_OVERPASS_STAGGER` | `12` | Seconds to wait for a mirror before also asking the next one; the first answer wins |
 | `RUNMAPPER_ELEVATION` | `1` | Set `0` to skip the elevation lookup |
 
 The web app accepts `NEXT_PUBLIC_MAP_STYLE` to swap the basemap (default: OpenFreeMap's Positron, no key) and `NEXT_PUBLIC_API_URL` to talk to an engine hosted elsewhere instead of its own function.
@@ -122,7 +123,7 @@ Neither is needed for words or for logos that are already clean shapes.
 
 ## Limits and honest notes
 
-- Public Overpass mirrors are rate-limited and occasionally slow or down; the engine retries across mirrors and caches each area for 30 days. For serious traffic, self-host Overpass or point `RUNMAPPER_OVERPASS_MIRRORS` at a paid instance.
+- Public Overpass mirrors are rate-limited and occasionally slow or down; the engine asks the next mirror when one is slow to answer, falls back on failure, and caches each area for 30 days. Every plan writes one-line timings to the server log (Vercel: the project's Logs tab), including which mirror answered. For serious traffic, self-host Overpass or point `RUNMAPPER_OVERPASS_MIRRORS` at a paid instance.
 - The public opentopodata instance allows one call per second; the engine uses at most three per route.
 - On Vercel a request may take at most 300 s and carry at most 4.5 MB, so uploads are downscaled in the browser before they are sent, and a route that needs several slow Overpass mirrors in a row can time out; try again a minute later.
 - Diagonal letters (K N Q R V X Y Z 0 7) need bigger letters than rectilinear ones to read on a grid. A word full of them may need the next distance up.

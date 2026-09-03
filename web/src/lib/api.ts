@@ -75,6 +75,7 @@ export interface PlanResult {
   ok: boolean;
   verdict: "great" | "good" | "rough" | "bad" | "over";
   message: string;
+  suggest_bucket?: Bucket | null;
   score: { iou: number; cover: number; prec: number };
   route: {
     coords: [number, number][];
@@ -90,6 +91,7 @@ export interface PlanResult {
     start_bearing: number;
     starts_at_pin: boolean;
     approach_mi: number;
+    from_pin_mi: number;
     width_mi: number;
     n_points: number;
   };

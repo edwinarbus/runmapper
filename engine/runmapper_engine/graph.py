@@ -27,6 +27,27 @@ GRID_CLASSES = {"residential", "tertiary", "secondary", "primary", "unclassified
                 "living_street", "pedestrian"}
 
 
+def grid_stats(angs, wts, bin_deg=2.0):
+    """Dominant bearing (mod 90) and regularity of a set of street segments
+    given their bearings mod 90 and lengths. See StreetGraph.grid_bearing."""
+    angs = np.asarray(angs, float)
+    wts = np.asarray(wts, float)
+    if len(angs) == 0 or wts.sum() <= 0:
+        return dict(bearing=0.0, regularity=0.0)
+    nb = int(round(90.0 / bin_deg))
+    h, _ = np.histogram(angs, bins=nb, range=(0.0, 90.0), weights=wts)
+    # circular smoothing over +-1 bin
+    hs = h + np.roll(h, 1) + np.roll(h, -1)
+    k = int(np.argmax(hs))
+    # refine with a weighted mean around the peak (circular over 90)
+    lo, hi = (k - 1) * bin_deg, (k + 2) * bin_deg
+    sel = ((angs - lo) % 90.0) < (hi - lo)
+    theta = (lo + float(np.average((angs[sel] - lo) % 90.0, weights=wts[sel]))) % 90.0 if sel.any() else k * bin_deg
+    dev = np.abs(((angs - theta) + 45.0) % 90.0 - 45.0)
+    regularity = float(wts[dev <= 8.0].sum() / wts.sum())
+    return dict(bearing=float(theta), regularity=regularity)
+
+
 def _period(pos, wts, lag_range, bin_ft):
     """Dominant repeat distance of a set of parallel-street positions, via the
     autocorrelation of their length-weighted histogram. Returns (spacing, conf)."""
@@ -134,6 +155,7 @@ class StreetGraph:
         self.X = np.asarray(self.X, float)
         self.Y = np.asarray(self.Y, float)
         self.tree = cKDTree(np.c_[self.X, self.Y]) if len(self.ids) else None
+        self._grid_edges = None
         head = [[] for _ in range(len(self.ids))]
         for n, lst in self.adj.items():
             i = self.idx[int(n)]
@@ -196,69 +218,66 @@ class StreetGraph:
         P = np.vstack(pts)
         return P, cKDTree(P)
 
-    def grid_bearing(self, bin_deg=2.0):
-        """Dominant street bearing of the area, modulo 90 degrees.
+    def grid_edges(self):
+        """Arrays over the runnable street edges (GRID_CLASSES only): midpoint
+        x, y, compass bearing mod 180 and length. Cached; the grid statistics
+        below are computed from them, optionally inside a window."""
+        cached = getattr(self, "_grid_edges", None)
+        if cached is None:
+            mx, my, bear, lns = [], [], [], []
+            for i, j, ln, mult, wid in self.edges(self.keep):
+                if self.way_tags.get(wid, {}).get("highway") not in GRID_CLASSES:
+                    continue
+                dx = self.X[j] - self.X[i]
+                dy = self.Y[j] - self.Y[i]
+                mx.append((self.X[i] + self.X[j]) / 2.0)
+                my.append((self.Y[i] + self.Y[j]) / 2.0)
+                bear.append(math.degrees(math.atan2(dx, dy)) % 180.0)
+                lns.append(ln)
+            cached = tuple(np.asarray(a, float) for a in (mx, my, bear, lns))
+            self._grid_edges = cached
+        return cached
+
+    def _windowed(self, window):
+        mx, my, bear, ln = self.grid_edges()
+        if window is None:
+            return mx, my, bear, ln
+        cx, cy, half = window
+        m = (np.abs(mx - cx) <= half) & (np.abs(my - cy) <= half)
+        return mx[m], my[m], bear[m], ln[m]
+
+    def grid_bearing(self, bin_deg=2.0, window=None):
+        """Dominant street bearing of the area (or of a (cx, cy, half_ft)
+        window of it), modulo 90 degrees.
 
         Returns dict(bearing=theta in [0, 90), regularity=fraction of street
         length within 8 degrees of the two grid axes). A regularity near 1 is a
         Manhattan-style grid; near 0.4 the streets wander.
         """
-        angs, wts = [], []
-        for i, j, ln, mult, wid in self.edges(self.keep):
-            hw = self.way_tags.get(wid, {}).get("highway")
-            if hw not in GRID_CLASSES:
-                continue
-            dx = self.X[j] - self.X[i]
-            dy = self.Y[j] - self.Y[i]
-            b = math.degrees(math.atan2(dx, dy)) % 90.0     # compass bearing mod 90
-            angs.append(b)
-            wts.append(ln)
-        if not angs:
-            return dict(bearing=0.0, regularity=0.0)
-        angs = np.array(angs)
-        wts = np.array(wts)
-        nb = int(round(90.0 / bin_deg))
-        h, _ = np.histogram(angs, bins=nb, range=(0.0, 90.0), weights=wts)
-        # circular smoothing over +-1 bin
-        hs = h + np.roll(h, 1) + np.roll(h, -1)
-        k = int(np.argmax(hs))
-        # refine with a weighted mean around the peak (circular over 90)
-        lo, hi = (k - 1) * bin_deg, (k + 2) * bin_deg
-        sel = ((angs - lo) % 90.0) < (hi - lo)
-        rel = (angs[sel] - lo) % 90.0
-        theta = (lo + float(np.average(rel, weights=wts[sel]))) % 90.0 if sel.any() else k * bin_deg
-        dev = np.abs(((angs - theta) + 45.0) % 90.0 - 45.0)
-        regularity = float(wts[dev <= 8.0].sum() / wts.sum())
-        return dict(bearing=float(theta), regularity=regularity)
+        mx, my, bear, ln = self._windowed(window)
+        return grid_stats(bear % 90.0, ln, bin_deg)
 
-    def block_spacing(self, bearing_deg, tol_deg=12.0, lag_range=(150.0, 1500.0), bin_ft=10.0):
-        """Typical distance between parallel streets, for a grid at `bearing_deg`.
+    def block_spacing(self, bearing_deg, tol_deg=12.0, lag_range=(150.0, 1500.0), bin_ft=10.0,
+                      window=None):
+        """Typical distance between parallel streets, for a grid at `bearing_deg`,
+        in the whole area or in a (cx, cy, half_ft) window of it.
 
         Returns dict(spacing_along, spacing_across, conf_along, conf_across):
         `spacing_along` is the gap between consecutive streets that cross the
         bearing (measured along it), `spacing_across` the gap between streets
         that run along it. Either is None when no repeating pattern shows up.
         """
+        mx, my, bear, ln = self._windowed(window)
         b = math.radians(bearing_deg)
         ua = np.array([math.sin(b), math.cos(b)])
         ub = np.array([math.cos(b), -math.sin(b)])
-        pa, wa, pc, wc = [], [], [], []
-        for i, j, ln, mult, wid in self.edges(self.keep):
-            if self.way_tags.get(wid, {}).get("highway") not in GRID_CLASSES:
-                continue
-            dx = self.X[j] - self.X[i]
-            dy = self.Y[j] - self.Y[i]
-            eb = math.degrees(math.atan2(dx, dy)) % 180.0
-            diff = abs(((eb - bearing_deg) + 90.0) % 180.0 - 90.0)
-            mid = np.array([(self.X[i] + self.X[j]) / 2.0, (self.Y[i] + self.Y[j]) / 2.0])
-            if diff <= tol_deg:
-                pc.append(float(mid @ ub))
-                wc.append(ln)
-            elif diff >= 90.0 - tol_deg:
-                pa.append(float(mid @ ua))
-                wa.append(ln)
-        sa, ca = _period(pa, wa, lag_range, bin_ft)
-        sc, cc = _period(pc, wc, lag_range, bin_ft)
+        diff = np.abs(((bear - bearing_deg) + 90.0) % 180.0 - 90.0)
+        along = diff <= tol_deg
+        across = diff >= 90.0 - tol_deg
+        pc = mx[along] * ub[0] + my[along] * ub[1]
+        pa = mx[across] * ua[0] + my[across] * ua[1]
+        sa, ca = _period(pa, ln[across], lag_range, bin_ft)
+        sc, cc = _period(pc, ln[along], lag_range, bin_ft)
         return dict(spacing_along=sa, conf_along=ca, spacing_across=sc, conf_across=cc)
 
     def filtered(self, classes):

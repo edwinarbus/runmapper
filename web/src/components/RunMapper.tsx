@@ -440,6 +440,15 @@ export default function RunMapper() {
                 </span>
               </div>
               <p className="text-sm text-zinc-700">{result.message}</p>
+              {result.suggest_bucket && (
+                <button
+                  type="button"
+                  onClick={() => go(result.suggest_bucket ?? undefined)}
+                  className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+                >
+                  Try {BUCKETS.find((b) => b.key === result.suggest_bucket)?.label ?? result.suggest_bucket} instead
+                </button>
+              )}
               <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                 <div>
                   <dt className="text-xs text-zinc-500">Distance</dt>
@@ -468,6 +477,11 @@ export default function RunMapper() {
                     {result.route.approach_mi > 0.04 && (
                       <div className="text-xs font-normal text-zinc-500">
                         includes {fmtDist(result.route.approach_mi, units)} getting to the drawing{result.route.loop ? " and back" : ""}
+                      </div>
+                    )}
+                    {!result.route.starts_at_pin && result.route.from_pin_mi > 0.04 && (
+                      <div className="text-xs font-normal text-zinc-500">
+                        {fmtDist(result.route.from_pin_mi, units)} from your pin, where the streets fit better
                       </div>
                     )}
                   </dd>

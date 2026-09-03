@@ -24,7 +24,7 @@ from .cues import best_start, cue_sheet, describe_point
 from .elevation import grade_stats, profile, query as elev_query
 from .geo import FT_PER_MI, Projection, haversine_segments_ft
 from .gpx import dedupe, gpx_string
-from .graph import GRID_CLASSES, StreetGraph
+from .graph import GRID_CLASSES, StreetGraph, grid_stats
 from .osm import fetch_bbox
 from .place import dedupe as dedupe_places, refine, scan, transform
 from .snap import Snapper
@@ -49,7 +49,12 @@ VERY_IRREGULAR_STREETS = 0.50   # ...and below this at "rough"
 LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
 FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
 MAX_SNAPS = 5
-TIME_BUDGET_S = 90.0
+TIME_BUDGET_S = 170.0
+SEARCH_RADIUS_FT = 0.9 * FT_PER_MI   # how far from the pin the drawing may move for better streets
+WINDOW_STEP_FT = 1500.0              # spacing of the spots tried around the pin
+MAX_BOX_HALF_FT = 2.0 * FT_PER_MI    # never fetch more than a 4 x 4 mile box of streets
+MAX_SNAPPED_SPOTS = 10               # spots that get the full snap treatment
+BAND_FT = 2400.0                     # spots this much farther out are tried only if nearer ones fail
 PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
 STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
 
@@ -171,14 +176,14 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
                 units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
 
 
-def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None):
+def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=None):
     """Sizes to try for text: letters on the block lattice at whole-block
     multiples (biggest first), plus a free-floating fallback only where the
     letters would still span well over a block. Returns (sizes, need_ft) where
     need_ft is the smallest lattice layout's length, for the suggestion when
     nothing fits."""
     out = []
-    bs = g.block_spacing(90.0 - r0)
+    bs = g.block_spacing(90.0 - r0, window=window)
     dx, dy = bs["spacing_along"], bs["spacing_across"]
     has_grid = (regularity >= LATTICE_MIN_REGULARITY and dx and dy
                 and bs["conf_along"] >= 0.15 and bs["conf_across"] >= 0.15)
@@ -348,11 +353,14 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     allp = np.vstack([s.pts for s in choice["strokes"]])
     aspect0 = float((allp[:, 1].max() - allp[:, 1].min()) / max(allp[:, 0].max() - allp[:, 0].min(), 1e-9))
 
-    # Streets around the pin.
+    # Streets around the pin, wide enough that the drawing can move up to
+    # SEARCH_RADIUS_FT away from it when the streets there fit better.
     _progress(progress, "streets", 10, "Fetching the streets around your spot")
     proj = Projection(req.lat, req.lon)
-    half_x = 0.62 * width_max + 1300.0
-    half_y = 0.62 * width_max * max(aspect0, 0.35) + 1300.0
+    half_w = 0.62 * width_max
+    half_h = 0.62 * width_max * max(aspect0, 0.35)
+    half_x = min(half_w + SEARCH_RADIUS_FT + 800.0, MAX_BOX_HALF_FT)
+    half_y = min(half_h + SEARCH_RADIUS_FT + 800.0, MAX_BOX_HALF_FT)
     bbox = proj.bbox_around(half_x, half_y)
     els = fetch_bbox(bbox, cache_dir=cache_dir, log=log)
     g = StreetGraph.from_elements(els, proj)
@@ -365,19 +373,177 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         P, tree = g.densify(step=45.0)
     if tree is None:
         raise PlanError("There aren't enough streets here to draw on.")
-    gb = g.grid_bearing()
-    r0 = (90.0 - gb["bearing"]) % 90.0
+
+    ctx = dict(choice=choice, cap_ft=cap_ft, g=g, tree=tree, req=req, bucket=bucket,
+               t_start=t_start, sn_full=Snapper(g), streets=None, spots_snapped=0)
+
+    # Spots to try: the pin first, then nearby spots whose streets form a
+    # clearly more regular grid, nearest first. The first spot that gives a
+    # good fit wins, so the run starts as close to the pin as a good drawing
+    # allows.
+    # The grid statistics of a spot come from a window about a mile across
+    # around it (the drawing plus a margin), the same neighbourhood a single
+    # fetch used to cover.
+    stat_half = max(0.62 * width_max + 1300.0, 2500.0)
+    pin_w = _window_stats(g, 0.0, 0.0, stat_half)
+    others = [w for w in _windows(g, stat_half, SEARCH_RADIUS_FT, WINDOW_STEP_FT,
+                                  half_x - half_w - 300.0, half_y - half_h - 300.0)
+              if w["dist_ft"] > 1.0]
+    need_reg = max(0.6, min(0.85, pin_w["regularity"] + 0.08))
+    eligible = [w for w in others
+                if w["regularity"] >= need_reg and w["length_ft"] >= 0.35 * max(pin_w["length_ft"], 1.0)]
+    for w in eligible:
+        w["band"] = int(w["dist_ft"] // BAND_FT)
+    eligible.sort(key=lambda w: (w["band"], -w["regularity"]))
+    if log:
+        log(f"  pin grid regularity={pin_w['regularity']:.2f} bearing={pin_w['bearing']:.1f}; "
+            f"{len(eligible)} more regular spots within {SEARCH_RADIUS_FT / FT_PER_MI:.1f} mi")
+
+    # The pin first. If it does not give a good fit, the spots are tried in
+    # bands of distance: every spot in the nearest band, then the next band,
+    # and the search stops at the first band with a good fit in it, so the
+    # run starts as close to the pin as a good drawing allows.
+    attempts, errors = [], []
+    band_done = -1
+    for k, w in enumerate([pin_w] + eligible):
+        if k > 0:
+            band = w["band"]
+            if band != band_done and any(_attempt_tier(r) == 3 for r in attempts):
+                break
+            if ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.65 * TIME_BUDGET_S:
+                break
+            band_done = band
+            _progress(progress, "place", min(30 + 4 * k, 60),
+                      f"Looking {w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} for better streets")
+        else:
+            _progress(progress, "place", 28, "Trying placements near your pin")
+        try:
+            r = _attempt(ctx, w, progress, log, k)
+        except PlanError as ex:
+            errors.append(ex)
+            if log:
+                log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi): {ex}")
+            continue
+        r["spot"] = w
+        attempts.append(r)
+        if log:
+            log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])}): "
+                f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
+                f"{'' if r['fits'] else ' (over the cap)'}")
+    if not attempts:
+        if errors:
+            raise errors[0]
+        raise PlanError("Couldn't route that shape onto these streets. Try a different spot.")
+    best = _pick_attempt(attempts)
+
+    _progress(progress, "finish", 90, "Measuring distance and climb")
+    # The winning snap lives in its own graph (street centrelines only for
+    # lattice text); measure, cue and start it there.
+    out = _finish(best["graph"], proj, best, choice, req, bucket)
+    sn_streets = ctx["streets"][1] if ctx["streets"] else None
+    out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=ctx["snaps_done"] if "snaps_done" in ctx else 0,
+                         dijkstra=ctx["sn_full"].n_dijkstra + (sn_streets.n_dijkstra if sn_streets else 0),
+                         nodes=int(len(g.ids)), spots=len(attempts) + len(errors))
+    gb = best["gb"]
+    out["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
+                       rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
+                       size_kind=best["cand"]["size"]["kind"],
+                       blocks=[round(best["cand"]["size"].get("dx") or 0), round(best["cand"]["size"].get("dy") or 0)])
+    _progress(progress, "done", 100, "Done")
+    return out
+
+
+def _compass(dx, dy):
+    """Eight-point compass name of the direction (dx east, dy north)."""
+    names = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+    ang = math.degrees(math.atan2(dx, dy)) % 360.0
+    return names[int((ang + 22.5) // 45.0) % 8]
+
+
+def _window_stats(g, cx, cy, half_ft):
+    """Grid statistics of the streets in a square window: dominant bearing,
+    regularity, and how much street there is."""
+    mx, my, bear, ln = g.grid_edges()
+    m = (np.abs(mx - cx) <= half_ft) & (np.abs(my - cy) <= half_ft)
+    st = grid_stats(bear[m] % 90.0, ln[m])
+    return dict(cx=float(cx), cy=float(cy), dist_ft=float(math.hypot(cx, cy)), half_ft=float(half_ft),
+                bearing=st["bearing"], regularity=st["regularity"],
+                length_ft=float(ln[m].sum()), n_edges=int(m.sum()))
+
+
+def _windows(g, half_ft, radius_ft, step_ft, limit_x, limit_y):
+    """Candidate spots on a lattice around the pin (the origin), each with the
+    grid statistics of a drawing-sized window centred there. Only spots whose
+    window still lies inside the fetched streets are returned."""
+    out = []
+    n = int(radius_ft // step_ft)
+    for ix in range(-n, n + 1):
+        for iy in range(-n, n + 1):
+            cx, cy = ix * step_ft, iy * step_ft
+            if math.hypot(cx, cy) > radius_ft or abs(cx) > limit_x or abs(cy) > limit_y:
+                continue
+            w = _window_stats(g, cx, cy, half_ft)
+            if w["n_edges"] >= 40:
+                out.append(w)
+    out.sort(key=lambda w: w["dist_ft"])
+    return out
+
+
+def _attempt_tier(r):
+    """How much a snapped attempt is worth: a good fit inside the distance
+    first, then a good drawing that runs a little over the distance (the
+    user gets told and offered the next bucket), then a rough fit, then
+    the rest."""
+    v = _capped_verdict(r)
+    if v in ("good", "great"):
+        return 3 if r["fits"] else 2
+    if v == "rough" and r["fits"]:
+        return 1
+    return 0
+
+
+def _pick_attempt(attempts):
+    """The nearest spot with a good fit; otherwise the best fit, nearer spots
+    winning ties."""
+    return max(attempts, key=lambda r: (_attempt_tier(r), round(r["iou"], 1), -r["spot"]["dist_ft"]))
+
+
+def _streets_graph(ctx):
+    """Street-centreline subgraph (no paths or sidewalks) with its snapper and
+    intersection indices, built once per plan."""
+    if ctx["streets"] is None:
+        gs = ctx["g"].filtered(STREET_CLASSES)
+        if len(gs.ids) >= 50:
+            deg = np.array([len(n) for n in gs.nbrs])
+            xs = np.flatnonzero((deg >= 3) & gs.keep)
+            ctx["streets"] = (gs, Snapper(gs), xs)
+        else:
+            ctx["streets"] = (None, None, None)
+    return ctx["streets"]
+
+
+def _attempt(ctx, w, progress, log, k):
+    """Size, place, lattice-check and snap the drawing around one spot, using
+    the grid statistics of that spot's window. Returns the best snapped
+    result, or raises PlanError with the reason nothing worked there."""
+    choice, cap_ft, g, tree, req = ctx["choice"], ctx["cap_ft"], ctx["g"], ctx["tree"], ctx["req"]
+    bucket, t_start = ctx["bucket"], ctx["t_start"]
+    center = (w["cx"], w["cy"])
+    window = (w["cx"], w["cy"], w["half_ft"])
+    regularity = w["regularity"]
+    r0 = (90.0 - w["bearing"]) % 90.0
     if r0 > 45.0:
         r0 -= 90.0
 
     # Wandering streets inflate a snapped route well beyond the ideal length;
     # shrink the free-floating size budget accordingly before choosing sizes.
-    if gb["regularity"] < IRREGULAR_STREETS:
-        choice["width_max_ft"] /= 1.0 + (IRREGULAR_STREETS - gb["regularity"])
+    rep = dict(choice)
+    if regularity < IRREGULAR_STREETS:
+        rep["width_max_ft"] = choice["width_max_ft"] / (1.0 + (IRREGULAR_STREETS - regularity))
 
     # Sizes to try.
     if choice["kind"] == "text":
-        sizes, need_ft = text_size_candidates(choice, cap_ft, g, r0, gb["regularity"], req.loop, log=log)
+        sizes, need_ft = text_size_candidates(rep, cap_ft, g, r0, regularity, req.loop, log=log, window=window)
         if not sizes:
             need_mi = (need_ft or choice["min_width_ft"] * (choice["ink_norm"] + choice["conn_norm"]) * INFLATION) / FT_PER_MI
             sug = suggest_bucket(need_mi * FT_PER_MI, req.bucket)
@@ -387,34 +553,33 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
                 f"The blocks here are big: “{choice['label']}” needs about {need_mi:.1f} mi to sit on the "
                 f"streets and read, more than the {bucket['label']} option allows. {hint}", suggest=sug)
     else:
-        sizes = image_size_candidates(choice, cap_ft, r0)
-    if gb["regularity"] < IRREGULAR_STREETS:
+        sizes = image_size_candidates(rep, cap_ft, r0)
+    if regularity < IRREGULAR_STREETS:
         # Wandering streets never trace a shape crisply; don't promise more.
-        cap_v = "rough" if gb["regularity"] < VERY_IRREGULAR_STREETS else "good"
+        cap_v = "rough" if regularity < VERY_IRREGULAR_STREETS else "good"
         for sz in sizes:
             if sz.get("max_verdict") != "rough":
                 sz["max_verdict"] = cap_v
 
-    # Placement scan.
-    _progress(progress, "place", 28, "Trying placements")
+    # Placement scan around the spot.
     picks = []
 
     def scan_size(sz):
-        w = sz["width_ft"]
+        wd = sz["width_ft"]
         if sz["kind"] == "aligned":
             radius = 1.3 * max(sz["ux"], sz["uy"]) + 200.0
             grid = max(40.0, sz["unit_ft"] / 8.0)
         else:
-            # look up to a third of a mile around the pin for better streets
-            radius = max(0.30 * w, 1600.0)
-            grid = max(120.0, w / 14.0)
-        cands = scan(sz["strokes"], tree, (0.0, 0.0), [w], sz["rots"], radius, grid_ft=grid,
+            # look up to a third of a mile around the spot for better streets
+            radius = max(0.30 * wd, 1600.0)
+            grid = max(120.0, wd / 14.0)
+        cands = scan(sz["strokes"], tree, center, [wd], sz["rots"], radius, grid_ft=grid,
                      aspect=sz["aspect"])
         for c in cands:
             c["score"] *= 1.0 + 0.12 * abs(c["rot"]) / 45.0
             c["size"] = sz
         cands.sort(key=lambda c: c["score"])
-        cands = dedupe_places(cands, min_sep_ft=0.15 * w)
+        cands = dedupe_places(cands, min_sep_ft=0.15 * wd)
         take = 2 if sz["kind"] == "aligned" else 1
         sz["scanned"] = True
         for c in cands[:take]:
@@ -450,22 +615,22 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     # the nearest street line, then every corner is checked against a real
     # intersection. Placements that still miss are dropped; big bends cost
     # the verdict.
-    sn_full = Snapper(g)
+    sn_full = ctx["sn_full"]
     sn_streets = None
     if any(c["size"]["kind"] == "aligned" for c in picks):
-        gs = g.filtered(STREET_CLASSES)
-        if len(gs.ids) >= 50:
-            sn_streets = Snapper(gs)
-            deg = np.array([len(n) for n in gs.nbrs])
-            xs = np.flatnonzero((deg >= 3) & gs.keep)
-            xtree = cKDTree(np.c_[gs.X[xs], gs.Y[xs]]) if len(xs) else None
+        gs, sn_s, xs = _streets_graph(ctx)
+        if gs is not None:
+            sn_streets = sn_s
+            reach = w["half_ft"] + 0.8 * max(c["width_ft"] for c in picks) + 500.0
+            loc = xs[(np.abs(gs.X[xs] - w["cx"]) <= reach) & (np.abs(gs.Y[xs] - w["cy"]) <= reach)]
+            xtree = cKDTree(np.c_[gs.X[loc], gs.Y[loc]]) if len(loc) else None
             lines = {}
             for c in picks:
                 if c["size"]["kind"] != "aligned" or xtree is None:
                     continue
                 key = round(c["rot"], 1)
                 if key not in lines:
-                    lines[key] = _street_lines(gs.X[xs], gs.Y[xs], c["rot"])
+                    lines[key] = _street_lines(gs.X[loc], gs.Y[loc], c["rot"])
                 _warp_to_streets(c, lines[key], xtree)
             if log:
                 for c in picks:
@@ -490,12 +655,12 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     picks.sort(key=lambda c: (0 if c["size"]["kind"] == "aligned" else 1, c["size"]["rank"],
                               -c.get("corner_cover", 0.0), c.get("warp", 0.0), c["score"]))
     results = []
-    n_done = 0
+    ctx["spots_snapped"] += 1
     debug_dir = os.environ.get("RUNMAPPER_DEBUG_DIR")
     for i, c in enumerate(picks[:MAX_SNAPS]):
         if time.time() - t_start > TIME_BUDGET_S and results:
             break
-        _progress(progress, "snap", 40 + int(45 * i / max(len(picks), 1)),
+        _progress(progress, "snap", min(40 + 12 * k + int(10 * i / max(len(picks), 1)), 85),
                   f"Snapping to streets ({i + 1} of {min(len(picks), MAX_SNAPS)})")
         t0 = time.time()
         r = None
@@ -503,7 +668,7 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
             r = _snap_one(sn_streets, c, choice, req.loop, cap_ft)
         if r is None:
             r = _snap_one(sn_full, c, choice, req.loop, cap_ft)
-        n_done += 1
+        ctx["snaps_done"] = ctx.get("snaps_done", 0) + 1
         if r is None:
             continue
         r["snap_s"] = time.time() - t0
@@ -514,7 +679,7 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         if debug_dir:
             from .preview import preview_png
             os.makedirs(debug_dir, exist_ok=True)
-            preview_png(os.path.join(debug_dir, f"cand{i}_{c['size']['kind']}_w{c['width_ft'] / FT_PER_MI:.2f}.png"),
+            preview_png(os.path.join(debug_dir, f"spot{k}_cand{i}_{c['size']['kind']}_w{c['width_ft'] / FT_PER_MI:.2f}.png"),
                         r["graph"], r["nodes"], r["ideal"],
                         title=f"{choice['label']} {c['size']['kind']} w={c['width_ft'] / FT_PER_MI:.2f} "
                               f"aspect={c.get('aspect', 1.0):.2f} dist={r['dist_mi']:.2f} iou={r['iou']:.2f}")
@@ -551,18 +716,8 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         return (order.index(v), aligned, level, round(r["iou"], 2), r["cand"]["width_ft"])
 
     best = max(pool, key=rank)
-
-    _progress(progress, "finish", 90, "Measuring distance and climb")
-    out = _finish(best["graph"], proj, best, choice, req, bucket)
-    out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=n_done,
-                         dijkstra=sn_full.n_dijkstra + (sn_streets.n_dijkstra if sn_streets and sn_streets is not sn_full else 0),
-                         nodes=int(len(g.ids)))
-    out["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
-                       rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
-                       size_kind=best["cand"]["size"]["kind"],
-                       blocks=[round(best["cand"]["size"].get("dx") or 0), round(best["cand"]["size"].get("dy") or 0)])
-    _progress(progress, "done", 100, "Done")
-    return out
+    best["gb"] = dict(bearing=w["bearing"], regularity=regularity)
+    return best
 
 
 def _street_lines(X, Y, rot_deg, tol_ft=40.0, min_count=3):
@@ -703,14 +858,18 @@ def _snap_one(sn, cand, choice, loop, cap_ft):
                 iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen, graph=g)
 
 
-MAX_APPROACH_FT = 0.6 * FT_PER_MI   # longest walk-on from the pin to the drawing
+MAX_APPROACH_FT = 0.25 * FT_PER_MI   # a walk-on this short is built into the route; farther, the run starts at the drawing
 
 
-def _start_at_pin(g, nodes, px, py, loop):
-    """Begin the run where the user asked. The drawing is entered at its node
-    nearest the pin; if the pin itself is off the drawing, the shortest street
-    path from the pin's corner leads onto it (and, for a loop, back off it at
-    the end, retraced so it adds no ink). Returns (nodes, approach_ft, on_pin)."""
+def _start_at_pin(g, nodes, px, py, loop, room_ft=float("inf")):
+    """Begin the run where the user asked when that is close. The drawing is
+    entered at its node nearest the pin; if the pin itself is off the drawing
+    but within MAX_APPROACH_FT by street, and the walk-on fits in the distance
+    left under the bucket cap (`room_ft`), the path from the pin's corner
+    leads onto it (and, for a loop, back off it at the end, retraced so it
+    adds no ink). Otherwise the run starts at the drawing and the distance
+    from the pin is reported instead.
+    Returns (nodes, approach_ft, on_pin, from_pin_ft)."""
     body = nodes[:-1] if loop else list(nodes)
     R = route_xy(g, body)
     k = int(np.argmin(np.hypot(R[:, 0] - px, R[:, 1] - py)))
@@ -718,26 +877,28 @@ def _start_at_pin(g, nodes, px, py, loop):
         nodes = body[k:] + body[:k] + [body[k]]
     pin_node, pin_d = g.nearest_node(px, py)
     entry = nodes[0]
+    straight = float(np.hypot(g.X[entry] - px, g.Y[entry] - py))
     if pin_node == entry:
-        return nodes, 0.0, True
+        return nodes, 0.0, True, 0.0
     r = Snapper(g).shortest_hug(pin_node, entry)
     if r is None:
-        return nodes, 0.0, False
+        return nodes, 0.0, False, straight
     path = list(r[0])
     L = path_len_ft(g, path)
-    if L > MAX_APPROACH_FT:
-        return nodes, 0.0, False
+    if L > MAX_APPROACH_FT or L * (2 if loop else 1) > room_ft:
+        return nodes, 0.0, False, (L if L <= 2.5 * max(straight, 200.0) else straight)
     out = path + list(nodes[1:])
     if loop:
         out = out + path[::-1][1:]
-    return out, L * (2 if loop else 1), True
+    return out, L * (2 if loop else 1), True, 0.0
 
 
 def _finish(g, proj, best, choice, req, bucket):
     nodes = best["nodes"]
     px, py = proj.to_xy(req.lat, req.lon)
     loop_in = bool(req.loop and nodes[0] == nodes[-1])
-    nodes, approach_ft, on_pin = _start_at_pin(g, nodes, float(px), float(py), loop_in)
+    room_ft = bucket["cap_mi"] * FT_PER_MI * ALIGNED_OVER_CAP - path_len_ft(g, nodes)
+    nodes, approach_ft, on_pin, from_pin_ft = _start_at_pin(g, nodes, float(px), float(py), loop_in, room_ft)
     latlon = route_latlon(g, nodes)
     xy = route_xy(g, nodes)
     keep = dedupe(latlon, (xy[:, 0], xy[:, 1]), min_ft=6.0)
@@ -778,9 +939,17 @@ def _finish(g, proj, best, choice, req, bucket):
     b0 = math.degrees(math.atan2(X[1] - X[0], Y[1] - Y[0])) % 360.0 if len(X) > 1 else 0.0
     msg = _message(v) if v != "over" else (
         f"Best attempt is {dist_mi:.1f} mi, over the {bucket['label']} limit. Pick a longer distance.")
+    if not on_pin and from_pin_ft > 0.08 * FT_PER_MI:
+        where = _compass(float(X[0] - px), float(Y[0] - py))
+        if best.get("spot", {}).get("dist_ft", 0.0) > 0:
+            msg = (f"Starts {from_pin_ft / FT_PER_MI:.1f} mi {where} of your pin, where the streets "
+                   f"fit this better. ") + msg
+        else:
+            msg = f"Starts {from_pin_ft / FT_PER_MI:.1f} mi {where} of your pin. " + msg
     return dict(
         ok=v in ("great", "good", "rough"),
         verdict=v, message=msg,
+        suggest_bucket=suggest_bucket(dist_mi * FT_PER_MI, req.bucket) if v == "over" else None,
         score=dict(iou=round(iou, 3), cover=round(best["cover"], 3), prec=round(best["prec"], 3)),
         route=dict(coords=ll.round(6).tolist(), distance_mi=round(dist_mi, 2),
                    distance_km=round(dist_mi * 1.609344, 2),
@@ -792,6 +961,7 @@ def _finish(g, proj, best, choice, req, bucket):
                    start=[round(float(ll[0, 0]), 6), round(float(ll[0, 1]), 6)],
                    start_desc=start, start_bearing=round(b0),
                    starts_at_pin=bool(on_pin), approach_mi=round(approach_ft / FT_PER_MI, 2),
+                   from_pin_mi=round(from_pin_ft / FT_PER_MI, 2),
                    width_mi=round(best["cand"]["width_ft"] / FT_PER_MI, 2),
                    n_points=int(len(ll))),
         drawing=dict(kind=choice["kind"], label=label, strokes=len(best["ideal"]), ideal=ideal_ll),

@@ -1,5 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
+
+// Condensed athletic display face, self-hosted (Bebas Neue, SIL Open Font License).
+const display = localFont({
+  src: "./fonts/BebasNeue-Regular.woff2",
+  variable: "--font-display",
+  display: "swap",
+  weight: "400",
+});
 
 export const metadata: Metadata = {
   title: "runmapper",
@@ -15,7 +24,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#FC5200",
+  themeColor: "#17171b",
 };
 
 export default function RootLayout({
@@ -24,8 +33,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-white text-zinc-900">{children}</body>
+    <html lang="en" className={`${display.variable} h-full antialiased`}>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

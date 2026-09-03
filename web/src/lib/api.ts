@@ -104,7 +104,7 @@ export interface PlanResult {
     width_mi: number;
     n_points: number;
   };
-  drawing: { kind: string; style?: string; label: string; strokes: number; ideal: [number, number][][] };
+  drawing: { kind: string; style?: string; label: string; lines?: number; strokes: number; ideal: [number, number][][] };
   bucket: { key: Bucket; label: string; cap_mi: number };
   cues: Cue[];
   gpx: string;

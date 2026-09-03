@@ -18,7 +18,6 @@ import {
   detectUnits,
   downloadGpx,
   estimate,
-  fmtClimb,
   fmtDist,
   planRun,
 } from "@/lib/api";
@@ -34,6 +33,14 @@ const MapView = dynamic(() => import("./MapView"), {
 const MAX_CHARS = 12;
 type Mode = "text" | "image";
 type Status = "idle" | "planning" | "done" | "error";
+
+const STAMP: Record<string, { label: string; cls: string }> = {
+  great: { label: "Great", cls: "stamp-great" },
+  good: { label: "Good match", cls: "stamp-good" },
+  rough: { label: "Rough", cls: "stamp-rough" },
+  bad: { label: "No fit", cls: "stamp-bad" },
+  over: { label: "Too long", cls: "stamp-bad" },
+};
 
 const VERDICT_STYLE: Record<string, { label: string; cls: string }> = {
   great: { label: "Looks great", cls: "bg-emerald-100 text-emerald-800 border-emerald-200" },
@@ -233,373 +240,359 @@ export default function RunMapper() {
   const routeCoords = useMemo(() => shown?.route.coords ?? null, [shown]);
   const verdict = shown ? VERDICT_STYLE[shown.verdict] ?? VERDICT_STYLE.rough : null;
 
-  return (
-    <div className="grid h-dvh grid-rows-[auto_1fr] md:grid-cols-[420px_1fr] md:grid-rows-1">
-      <aside className="flex max-h-[62dvh] flex-col overflow-y-auto border-b border-zinc-200 bg-white md:max-h-none md:border-r md:border-b-0">
-        <header className="px-5 pt-5 pb-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold tracking-tight">
-              <span className="text-[#FC5200]">run</span>mapper
-            </h1>
-            <button
-              type="button"
-              onClick={() => setUnits((u) => (u === "mi" ? "km" : "mi"))}
-              className="rounded-md border border-zinc-300 px-2 py-0.5 text-[11px] font-medium text-zinc-600 hover:border-zinc-400"
-              title="Switch between miles and kilometres"
-              aria-label={`Units: ${units}. Switch`}
-            >
-              {units === "mi" ? "mi · ft" : "km · m"}
-            </button>
-          </div>
-          <p className="mt-0.5 text-xs text-zinc-500">Draw words and logos with your run</p>
-        </header>
+  const stamp = shown ? STAMP[shown.verdict] ?? STAMP.rough : null;
+  const distPrimary = shown ? (units === "mi" ? shown.route.distance_mi : shown.route.distance_km).toFixed(2) : "";
+  const distSecondary = shown ? (units === "mi" ? `${shown.route.distance_km.toFixed(2)} km` : `${shown.route.distance_mi.toFixed(2)} mi`) : "";
+  const climbPrimary =
+    shown && shown.route.gain_ft != null ? (units === "mi" ? `${Math.round(shown.route.gain_ft)} ft` : `${Math.round(shown.route.gain_ft * 0.3048)} m`) : null;
 
-        <div className="space-y-5 px-5 pb-6">
-          {/* What to draw */}
-          <section>
-            <div className="mb-2 flex gap-1 rounded-lg bg-zinc-100 p-1 text-sm">
-              {(["text", "image"] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`flex-1 rounded-md px-3 py-1.5 font-medium transition ${
-                    mode === m ? "bg-white shadow-sm text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
-                  }`}
-                >
-                  {m === "text" ? "Words" : "Image"}
-                </button>
-              ))}
-            </div>
-            {mode === "text" ? (
-              <div>
-                <input
-                  value={text}
-                  onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
-                  placeholder="RUN, HELLO, SF 2026…"
-                  maxLength={MAX_CHARS}
-                  autoCapitalize="characters"
-                  className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 font-mono text-lg uppercase tracking-widest outline-none focus:border-[#FC5200] focus:ring-2 focus:ring-orange-100"
+  return (
+    <div className="asphalt grid h-dvh grid-rows-[auto_1fr] md:grid-cols-[470px_1fr] md:grid-rows-1">
+      <aside className="max-h-[64dvh] overflow-y-auto p-3 md:max-h-none md:p-4 md:pr-0">
+        <div className="deck">
+          {/* Bezel */}
+          <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-5 pt-5 pb-3">
+            <div>
+              <h1 className="font-display text-[2.3rem] leading-none text-white sm:text-[2.6rem]">
+                RUN<span className="text-[#FC5200]">MAPPER</span>
+              </h1>
+              <p className="engraved mt-1">
+                <span
+                  className={`led ${engine === "offline" ? "led-red" : status === "planning" ? "led-busy" : engine === "online" ? "" : "led-off"}`}
+                  aria-hidden="true"
                 />
-                <div className="mt-1 flex justify-between text-xs text-zinc-500">
-                  <span>
-                    {est?.message ? (
-                      <span className={est.ok ? "" : "text-amber-700"}>{est.message}</span>
-                    ) : est?.fits ? (
-                      <span>
-                        Fits{" "}
-                        {BUCKETS.filter((b) => est.fits?.[b.key])
-                          .map((b) => b.label)
-                          .join(", ") || "nothing yet"}
-                      </span>
+                {engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting"}
+                {" · GPS art routes"}
+              </p>
+            </div>
+            <div className="rocker rocker-sm grid-cols-2" role="group" aria-label="Units">
+              <button type="button" className="rocker-key" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
+                MI
+              </button>
+              <button type="button" className="rocker-key" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
+                KM
+              </button>
+            </div>
+          </header>
+
+          {/* Screen */}
+          <div className="screen mx-4 mb-3 space-y-5 p-4">
+            {/* 1. Draw */}
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="screen-label">
+                  <b>1</b>Draw
+                </span>
+                <div className="rocker rocker-sm grid-cols-2" role="group" aria-label="Words or image">
+                  {(["text", "image"] as Mode[]).map((m) => (
+                    <button key={m} type="button" className="rocker-key" aria-pressed={mode === m} onClick={() => setMode(m)}>
+                      {m === "text" ? "Words" : "Image"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {mode === "text" ? (
+                <div>
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
+                    placeholder="RUN"
+                    maxLength={MAX_CHARS}
+                    autoCapitalize="characters"
+                    aria-label="Words to draw"
+                    className="field field-big font-display"
+                  />
+                  <div className="mt-1.5 flex justify-between text-xs text-[#6a6a66]">
+                    <span>
+                      {est?.message ? (
+                        <span className={est.ok ? "" : "text-amber-700"}>{est.message}</span>
+                      ) : est?.fits ? (
+                        <span>
+                          Fits{" "}
+                          {BUCKETS.filter((b) => est.fits?.[b.key])
+                            .map((b) => b.label)
+                            .join(", ") || "nothing yet"}
+                        </span>
+                      ) : (
+                        "Up to 12 letters, digits, space and ! ? - . ' +"
+                      )}
+                    </span>
+                    <span className="tabular-nums">
+                      {text.length}/{MAX_CHARS}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="field flex cursor-pointer items-center gap-3 border-dashed">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="" className="h-14 w-14 rounded bg-white object-contain" />
                     ) : (
-                      "Letters, digits, space and ! ? - . ' +"
+                      <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#ecebe4] text-2xl">🖼️</div>
                     )}
-                  </span>
-                  <span>
-                    {text.length}/{MAX_CHARS}
-                  </span>
+                    <div className="text-sm">
+                      <div className="font-semibold">{image ? image.name : "Drop a logo or simple drawing here"}</div>
+                      <div className="text-xs text-[#6a6a66]">PNG, JPG or SVG. Bold, simple shapes work best.</div>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
+                      className="hidden"
+                      onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {image && (
+                    <button type="button" onClick={() => void onImage(null)} className="mt-1.5 text-xs text-[#6a6a66] underline">
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* 2. Start */}
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="screen-label">
+                  <b>2</b>Start
+                </span>
+                <button type="button" onClick={useMyLocation} className="btn-3d btn-light btn-sm">
+                  <span aria-hidden="true">◎</span> My location
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
+                    if (list[0]) pickPlace(list[0]);
+                  }}
+                  placeholder="Address or place, then Enter"
+                  aria-label="Start address or place"
+                  className="field text-sm"
+                />
+                {(places.length > 0 || searching) && query.trim().length >= 3 && (
+                  <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-[#d6d1c4] bg-white text-sm shadow-xl">
+                    {searching && places.length === 0 && <li className="px-3 py-2 text-[#6a6a66]">Searching…</li>}
+                    {places.map((p, i) => (
+                      <li key={i}>
+                        <button type="button" onClick={() => pickPlace(p)} className="block w-full px-3 py-2 text-left hover:bg-orange-50">
+                          <div className="font-medium">{p.label}</div>
+                          {p.detail && <div className="text-xs text-[#6a6a66]">{p.detail}</div>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-[#6a6a66]">
+                {pin ? (
+                  <>
+                    <span className="font-semibold text-[#3d3d39]">Pinned:</span> {pinLabel}. The run starts here or as close as a good drawing allows. Drag the pin or tap the map to move it.
+                  </>
+                ) : (
+                  "Type your address, or tap the map to drop a pin."
+                )}
+              </p>
+            </section>
+
+            {/* 3. Distance */}
+            <section>
+              <span className="screen-label mb-2 block">
+                <b>3</b>How far
+              </span>
+              <div className="rocker grid-cols-3" role="group" aria-label="Distance">
+                {BUCKETS.map((b) => (
+                  <button key={b.key} type="button" className="rocker-key" aria-pressed={bucket === b.key} onClick={() => setBucket(b.key)}>
+                    {b.label}
+                    <span className="sub">up to {fmtDist(b.cap_mi, units)}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Options */}
+            <section className="flex items-end justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <span className="screen-label mb-2 block">Style</span>
+                <div className="rocker rocker-sm grid-cols-3" role="group" aria-label="Drawing style">
+                  {STYLES.map((st) => (
+                    <button
+                      key={st.key}
+                      type="button"
+                      className="rocker-key"
+                      aria-pressed={style === st.key}
+                      title={mode === "text" ? st.textHint : st.imageHint}
+                      onClick={() => setStyle(st.key)}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="shrink-0 text-center">
+                <span className="screen-label mb-2 block">Loop</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={loop}
+                  aria-label="Perfect loop: finish where you start"
+                  title="Perfect loop: finish where you start"
+                  className="toggle"
+                  onClick={() => setLoop((v) => !v)}
+                />
+              </div>
+            </section>
+
+            {/* Go */}
+            {status === "planning" ? (
+              <div className="space-y-2">
+                <div className="track" role="progressbar" aria-valuenow={progress?.pct ?? 0} aria-valuemin={0} aria-valuemax={100}>
+                  <div className="track-fill" style={{ width: `${Math.max(5, progress?.pct ?? 0)}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-sm text-[#4b4b47]">
+                  <span>{progress?.msg ?? "Working"}…</span>
+                  <button type="button" onClick={cancel} className="btn-3d btn-stop btn-sm font-display text-base">
+                    Stop
+                  </button>
                 </div>
               </div>
             ) : (
-              <div>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-zinc-300 p-3 hover:border-zinc-400">
-                  {imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl} alt="" className="h-14 w-14 rounded bg-zinc-50 object-contain" />
-                  ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded bg-zinc-100 text-2xl">🖼️</div>
-                  )}
-                  <div className="text-sm">
-                    <div className="font-medium">{image ? image.name : "Upload a logo or simple drawing"}</div>
-                    <div className="text-xs text-zinc-500">PNG, JPG or SVG. Bold, simple shapes work best.</div>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
-                    className="hidden"
-                    onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
-                  />
-                </label>
-                {image && (
-                  <button type="button" onClick={() => void onImage(null)} className="mt-1 text-xs text-zinc-500 underline">
-                    Remove image
+              <button type="button" disabled={!canGo} onClick={() => go()} className="btn-start font-display">
+                Map my run
+              </button>
+            )}
+
+            {engine === "offline" && status !== "error" && (
+              <div className="tape text-sm text-[#3d3d39]">
+                The route engine at <span className="font-mono text-xs">{API_URL || "/api"}</span> isn&apos;t answering, so runs can&apos;t be
+                mapped right now. Reload in a minute.
+              </div>
+            )}
+
+            {status === "error" && error && (
+              <div className="tape tape-red space-y-2 text-sm text-[#3d3d39]">
+                <p>{error}</p>
+                {suggest && (
+                  <button type="button" onClick={() => go(suggest)} className="btn-3d btn-dark btn-sm">
+                    Try {BUCKETS.find((b) => b.key === suggest)?.label ?? suggest} instead
                   </button>
                 )}
               </div>
             )}
-          </section>
 
-          {/* Where */}
-          <section>
-            <div className="mb-1.5 flex items-baseline justify-between">
-              <label className="text-sm font-medium">Start address or place</label>
-              <button type="button" onClick={useMyLocation} className="text-xs text-[#FC5200] hover:underline">
-                Use my location
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={async (e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
-                  if (list[0]) pickPlace(list[0]);
-                }}
-                placeholder="Type an address, then press Enter"
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-[#FC5200] focus:ring-2 focus:ring-orange-100"
-              />
-              {(places.length > 0 || searching) && query.trim().length >= 3 && (
-                <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-zinc-200 bg-white text-sm shadow-lg">
-                  {searching && places.length === 0 && <li className="px-3 py-2 text-zinc-500">Searching…</li>}
-                  {places.map((p, i) => (
-                    <li key={i}>
+            {/* Result: the race bib */}
+            {result && shown && verdict && stamp && (
+              <section className="bib space-y-3">
+                {result.options && result.options.length > 1 && (
+                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${result.options.length}, minmax(0, 1fr))` }}>
+                    {result.options.map((o, i) => (
                       <button
+                        key={i}
                         type="button"
-                        onClick={() => pickPlace(p)}
-                        className="block w-full px-3 py-2 text-left hover:bg-orange-50"
+                        className="lane"
+                        aria-pressed={i === optIdx}
+                        onClick={() => {
+                          userPicked.current = true;
+                          setOptIdx(i);
+                        }}
                       >
-                        <div className="font-medium">{p.label}</div>
-                        {p.detail && <div className="text-xs text-zinc-500">{p.detail}</div>}
+                        <div className="lane-no">LANE {i + 1}</div>
+                        <div className="text-sm font-bold capitalize leading-tight">{o.label}</div>
+                        <div className="text-[11px] leading-tight text-[#6a6a66]">
+                          {o.route.starts_at_pin || o.route.from_pin_mi <= 0.04 ? "at your pin" : `${fmtDist(o.route.from_pin_mi, units)} away`}
+                          {" · "}
+                          {(VERDICT_STYLE[o.verdict] ?? VERDICT_STYLE.rough).label.toLowerCase()} {Math.round(o.score.iou * 100)}%
+                        </div>
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <p className="mt-1.5 text-xs text-zinc-500">
-              {pin ? (
-                <>
-                  <span className="font-medium text-zinc-700">Starts at:</span> {pinLabel}. The drawing goes on the streets nearby. Drag the pin or click the map to move it.
-                </>
-              ) : (
-                "Type your address, or click the map to drop a pin where the run should start."
-              )}
-            </p>
-          </section>
-
-          {/* Distance */}
-          {/* Style */}
-          <section>
-            <label className="mb-1.5 block text-sm font-medium">Drawing style</label>
-            <div className="grid grid-cols-3 gap-2">
-              {STYLES.map((st) => (
-                <button
-                  key={st.key}
-                  type="button"
-                  onClick={() => setStyle(st.key)}
-                  className={`rounded-lg border px-2 py-2 text-sm transition ${
-                    style === st.key
-                      ? "border-[#FC5200] bg-orange-50 text-zinc-900"
-                      : "border-zinc-300 text-zinc-600 hover:border-zinc-400"
-                  }`}
-                >
-                  <div className="font-semibold">{st.label}</div>
-                  <div className="text-[11px] text-zinc-500">{mode === "text" ? st.textHint : st.imageHint}</div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <label className="mb-1.5 block text-sm font-medium">Distance</label>
-            <div className="grid grid-cols-3 gap-2">
-              {BUCKETS.map((b) => (
-                <button
-                  key={b.key}
-                  type="button"
-                  onClick={() => setBucket(b.key)}
-                  className={`rounded-lg border px-2 py-2 text-sm transition ${
-                    bucket === b.key
-                      ? "border-[#FC5200] bg-orange-50 text-zinc-900"
-                      : "border-zinc-300 text-zinc-600 hover:border-zinc-400"
-                  }`}
-                >
-                  <div className="font-semibold">{b.label}</div>
-                  <div className="text-[11px] text-zinc-500">up to {fmtDist(b.cap_mi, units)}</div>
-                </button>
-              ))}
-            </div>
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 accent-[#FC5200]" />
-              Perfect loop (finish where you start)
-            </label>
-          </section>
-
-          {/* Go */}
-          {status === "planning" ? (
-            <div className="space-y-2">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200">
-                <div className="h-full bg-[#FC5200] transition-all duration-500" style={{ width: `${progress?.pct ?? 0}%` }} />
-              </div>
-              <div className="flex items-center justify-between text-sm text-zinc-600">
-                <span>{progress?.msg ?? "Working"}…</span>
-                <button type="button" onClick={cancel} className="text-xs text-zinc-500 underline">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={!canGo}
-              onClick={() => go()}
-              className="w-full rounded-lg bg-[#FC5200] px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#e04900] disabled:cursor-not-allowed disabled:bg-zinc-300"
-            >
-              Map my run
-            </button>
-          )}
-
-          {engine === "offline" && status !== "error" && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <p>
-                The route engine at <span className="font-mono text-xs">{API_URL || "/api"}</span> isn&apos;t answering, so runs
-                can&apos;t be mapped right now. Reload in a minute; if it keeps happening, check the engine logs.
-              </p>
-            </div>
-          )}
-
-          {status === "error" && error && (
-            <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
-              <p>{error}</p>
-              {suggest && (
-                <button
-                  type="button"
-                  onClick={() => go(suggest)}
-                  className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
-                >
-                  Try {BUCKETS.find((b) => b.key === suggest)?.label ?? suggest} instead
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Result */}
-          {result && shown && verdict && (
-            <section className="space-y-3 rounded-xl border border-zinc-200 p-4">
-              {result.options && result.options.length > 1 && (
-                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${result.options.length}, minmax(0, 1fr))` }}>
-                  {result.options.map((o, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => {
-                        userPicked.current = true;
-                        setOptIdx(i);
-                      }}
-                      aria-pressed={i === optIdx}
-                      className={`rounded-lg border px-2 py-1.5 text-left text-xs transition ${
-                        i === optIdx ? "border-[#FC5200] bg-orange-50 text-zinc-900" : "border-zinc-300 text-zinc-600 hover:border-zinc-400"
-                      }`}
-                    >
-                      <div className="font-semibold capitalize">{o.label}</div>
-                      <div className="text-[11px] text-zinc-500">
-                        {o.route.starts_at_pin || o.route.from_pin_mi <= 0.04 ? "at your pin" : `${fmtDist(o.route.from_pin_mi, units)} away`}
-                        {" · "}
-                        {(VERDICT_STYLE[o.verdict] ?? VERDICT_STYLE.rough).label.toLowerCase()} {Math.round(o.score.iou * 100)}%
-                      </div>
-                    </button>
-                  ))}
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`stamp font-display ${stamp.cls}`}>{stamp.label}</span>
+                  <span className="text-right text-xs text-[#6a6a66]">
+                    {shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image"}
+                    {shown.drawing.lines && shown.drawing.lines > 1 ? ` · ${shown.drawing.lines} lines` : ""} · match {Math.round(shown.score.iou * 100)}%
+                  </span>
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${verdict.cls}`}>{verdict.label}</span>
-                <span className="text-xs text-zinc-500">
-                  {shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image"} · match {Math.round(shown.score.iou * 100)}%
-                </span>
-              </div>
-              {shown.message && <p className="text-sm text-zinc-700">{shown.message}</p>}
-              {shown.suggest_bucket && (
-                <button
-                  type="button"
-                  onClick={() => go(shown.suggest_bucket ?? undefined)}
-                  className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
-                >
-                  Try {BUCKETS.find((b) => b.key === shown.suggest_bucket)?.label ?? shown.suggest_bucket} instead
-                </button>
-              )}
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                <div>
-                  <dt className="text-xs text-zinc-500">Distance</dt>
-                  <dd className="font-semibold">{fmtDist(shown.route.distance_mi, units, true)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-zinc-500">Climb</dt>
-                  <dd className="font-semibold">
-                    {shown.route.gain_ft != null ? (
-                      fmtClimb(shown.route.gain_ft, units)
+                {shown.message && <p className="text-sm text-[#3d3d39]">{shown.message}</p>}
+                {shown.suggest_bucket && (
+                  <button type="button" onClick={() => go(shown.suggest_bucket ?? undefined)} className="btn-3d btn-dark btn-sm">
+                    Try {BUCKETS.find((b) => b.key === shown.suggest_bucket)?.label ?? shown.suggest_bucket} instead
+                  </button>
+                )}
+                <div className="flex items-end justify-between gap-3 border-y border-dashed border-[#d6d1c4] py-3">
+                  <div>
+                    <div className="font-display bib-number tabular-nums">
+                      {distPrimary}
+                      <span className="bib-unit">{units}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-[#6a6a66]">
+                      {distSecondary} · {shown.route.loop ? "perfect loop" : "one way"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {climbPrimary ? (
+                      <div className="font-display text-3xl leading-none tabular-nums">↗ {climbPrimary}</div>
                     ) : (
-                      <span className="font-normal text-zinc-500">not available</span>
+                      <div className="text-sm text-[#6a6a66]">no elevation</div>
                     )}
-                  </dd>
+                    <div className="mt-1 text-xs text-[#6a6a66]">climb</div>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <dt className="text-xs text-zinc-500">Start</dt>
-                  <dd className="font-semibold">
-                    {shown.route.starts_at_pin ? "Your pin" : shown.route.start_desc}
-                    {shown.route.starts_at_pin && (
-                      <span className="font-normal text-zinc-500"> ({shown.route.start_desc})</span>
-                    )}{" "}
-                    <span className="font-normal text-zinc-500">
-                      · {shown.route.loop ? "loop" : "one way"} · head {shown.route.start_bearing}°
-                    </span>
-                    {shown.route.approach_mi > 0.04 && (
-                      <div className="text-xs font-normal text-zinc-500">
-                        includes {fmtDist(shown.route.approach_mi, units)} getting to the drawing{shown.route.loop ? " and back" : ""}
-                      </div>
-                    )}
-                    {!shown.route.starts_at_pin && shown.route.from_pin_mi > 0.04 && (
-                      <div className="text-xs font-normal text-zinc-500">
-                        {fmtDist(shown.route.from_pin_mi, units)} from your pin, where the streets fit better
-                      </div>
-                    )}
-                  </dd>
+                <div className="text-sm">
+                  <span className="lane-no">START</span>{" "}
+                  <span className="font-semibold">{shown.route.starts_at_pin ? "Your pin" : shown.route.start_desc}</span>
+                  {shown.route.starts_at_pin && <span className="text-[#6a6a66]"> ({shown.route.start_desc})</span>}
+                  <span className="text-[#6a6a66]"> · head {shown.route.start_bearing}°</span>
+                  {shown.route.approach_mi > 0.04 && (
+                    <div className="text-xs text-[#6a6a66]">
+                      includes {fmtDist(shown.route.approach_mi, units)} getting to the drawing{shown.route.loop ? " and back" : ""}
+                    </div>
+                  )}
+                  {!shown.route.starts_at_pin && shown.route.from_pin_mi > 0.04 && (
+                    <div className="text-xs text-[#6a6a66]">{fmtDist(shown.route.from_pin_mi, units)} from your pin, where the streets fit better</div>
+                  )}
                 </div>
-              </dl>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => downloadGpx(shown)}
-                  className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
-                >
-                  Download GPX
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowIdeal((v) => !v)}
-                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm hover:border-zinc-400"
-                >
-                  {showIdeal ? "Hide" : "Show"} target shape
-                </button>
-              </div>
-              <details className="text-sm">
-                <summary className="cursor-pointer text-zinc-600">Turn-by-turn ({shown.cues.length} cues)</summary>
-                <ol className="mt-2 max-h-64 space-y-1 overflow-auto pr-1 text-xs">
-                  {shown.cues.map((c) => (
-                    <li key={c.n} className="flex gap-2">
-                      <span className="w-16 shrink-0 tabular-nums text-zinc-400">{fmtDist(c.cum_mi, units)}</span>
-                      <span>
-                        {c.word} <span className="font-medium">{c.street}</span> for {fmtDist(c.mi, units)}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </details>
-              <p className="text-xs text-zinc-500">
-                Load the GPX into Strava, Garmin, Apple Watch (WorkOutDoors) or your phone, then follow the line. Retraced streets are normal: Strava draws them on top of each other.
-              </p>
-            </section>
-          )}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => downloadGpx(shown)} className="btn-3d btn-dark">
+                    ⤓ Download GPX
+                  </button>
+                  <button type="button" onClick={() => setShowIdeal((v) => !v)} className="btn-3d btn-light">
+                    {showIdeal ? "Hide" : "Show"} target shape
+                  </button>
+                </div>
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-[#6a6a66]">Turn-by-turn ({shown.cues.length} cues)</summary>
+                  <ol className="mt-2 max-h-64 space-y-1 overflow-auto pr-1 text-xs">
+                    {shown.cues.map((c) => (
+                      <li key={c.n} className="flex gap-2">
+                        <span className="w-16 shrink-0 tabular-nums text-[#a09d93]">{fmtDist(c.cum_mi, units)}</span>
+                        <span>
+                          {c.word} <span className="font-medium">{c.street}</span> for {fmtDist(c.mi, units)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+                <p className="text-[11px] leading-relaxed text-[#8a8880]">
+                  Load the GPX into Strava, Garmin, Apple Watch (WorkOutDoors) or your phone and follow the line. Retraced streets are normal: Strava draws them on top of each other.
+                </p>
+              </section>
+            )}
+          </div>
 
-          <footer className="pt-2 text-[11px] leading-relaxed text-zinc-400">
-            Streets from OpenStreetMap. Placement and snapping are plain geometry: the drawing is scaled to the local blocks, laid onto real streets, and scored by how closely the run overlaps the shape.
+          <footer className="px-5 pb-4">
+            <p className="engraved text-[10px] tracking-[0.12em]">Streets © OpenStreetMap · plain geometry, no AI · runmapper.run</p>
           </footer>
         </div>
       </aside>
 
-      <main className="relative min-h-[38dvh]">
+      <main className="map-frame relative min-h-[36dvh]">
         <MapView pin={pin} onPick={onPick} focus={focus} route={routeCoords} ideal={shown?.drawing.ideal ?? null} showIdeal={showIdeal} start={shown?.route.start ?? null} />
       </main>
     </div>

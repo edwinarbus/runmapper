@@ -344,8 +344,7 @@ export default function MapView(props: MapViewProps) {
     apply();
   }, [props.ideal, props.start, props.showIdeal]);
 
-  const btn =
-    "rounded-md border border-zinc-200 bg-white/95 px-2.5 py-1.5 text-xs font-semibold text-zinc-800 shadow-sm hover:bg-white";
+  const btn = "btn-3d btn-light btn-sm";
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />

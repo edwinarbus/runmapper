@@ -68,11 +68,13 @@ def test_staircase_keeps_lattice_points_and_removes_diagonals():
 def test_block_letters_are_closed_rectilinear_loops_on_the_lattice():
     from runmapper_engine import font
     import numpy as np
-    lay = font.outline_layout("IO", 1, 2, loop=True)
+    lay = font.outline_layout("IO", "3x5", loop=True)
     assert len(lay["polys"]) == 3                      # the I, the O, and the O's hole
     for poly in lay["polys"]:
         assert np.allclose(poly[0], poly[-1])          # closed
         assert np.allclose(poly, np.round(poly))       # every corner on a block corner
         d = np.diff(poly, axis=0)
         assert np.all((np.abs(d[:, 0]) < 1e-9) | (np.abs(d[:, 1]) < 1e-9))   # rectilinear
-    assert lay["height"] == 5 and lay["width"] == 7    # 3-wide letters, 1-block gap, 2 rows of 2 blocks + thickness
+    assert lay["height"] == 5 and lay["width"] == 7    # two 3-wide letters with a one-cell gap
+    lay57 = font.outline_layout("V", "5x7", loop=False)
+    assert len(lay57["polys"]) == 1                    # diagonals are bridged: one solid shape, one loop

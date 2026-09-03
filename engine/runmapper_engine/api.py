@@ -17,7 +17,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from . import __version__, font
-from .pipeline import BUCKETS, INFLATION, UNIT_MIN_FT, PlanError, PlanRequest, plan_run, prepare_text
+from .pipeline import (BUCKETS, INFLATION, OUTLINE_TYPICAL_BLOCK_FT, UNIT_MIN_FT, PlanError, PlanRequest,
+                       plan_run, prepare_text)
 from .geo import FT_PER_MI
 
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
@@ -53,7 +54,11 @@ def create_app(cache_dir=None):
             rep = prepare_text(e.text, e.loop, "outline" if e.style == "outline" else "line")
         except font.FontError as ex:
             return dict(ok=False, message=str(ex))
-        need_mi = rep["min_width_ft"] * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
+        width = rep["min_width_ft"]
+        if rep.get("style") == "outline":
+            # block letters are sized by the real blocks; assume a typical one
+            width = max(width, OUTLINE_TYPICAL_BLOCK_FT * rep["units_per_width"])
+        need_mi = width * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
         fits = {k: need_mi <= v["cap_mi"] for k, v in BUCKETS.items()}
         return dict(ok=fits[e.bucket], text=rep["label"], need_mi=round(need_mi, 1),
                     fits=fits, message=None if fits[e.bucket] else

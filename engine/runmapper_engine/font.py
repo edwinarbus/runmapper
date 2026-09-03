@@ -392,37 +392,140 @@ def text_strokes(text, loop=True):
 
 # ------------------------------------------------------------------ block letters
 
-def outline_cells(text, kx=1, ky=1):
-    """The phrase as block letters one block thick, on a lattice with `kx`
-    blocks per font unit across and `ky` blocks per row (1.5 units) up: each
-    stroke of the line font covers the run of unit cells it passes through.
-    Returns (letters, width_blocks, height_blocks) with one set of cells
-    (x, y) per character, empty for a space."""
+# Dot-matrix fonts for block letters, rows top to bottom. 5x7 is the classic
+# legible one; 3x5 is for phrases that would not fit the distance at 5x7.
+# Diagonal-only neighbours are bridged (see _bridge) so every letter is a
+# solid shape whose outline is one loop, plus one loop per counter.
+PIXEL_FONTS = {
+    "5x7": {
+        "A": ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
+        "B": ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
+        "C": ("01110", "10001", "10000", "10000", "10000", "10001", "01110"),
+        "D": ("11100", "10010", "10001", "10001", "10001", "10010", "11100"),
+        "E": ("11111", "10000", "10000", "11110", "10000", "10000", "11111"),
+        "F": ("11111", "10000", "10000", "11110", "10000", "10000", "10000"),
+        "G": ("01110", "10001", "10000", "10111", "10001", "10001", "01111"),
+        "H": ("10001", "10001", "10001", "11111", "10001", "10001", "10001"),
+        "I": ("01110", "00100", "00100", "00100", "00100", "00100", "01110"),
+        "J": ("00111", "00010", "00010", "00010", "00010", "10010", "01100"),
+        "K": ("10001", "10010", "10100", "11000", "10100", "10010", "10001"),
+        "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+        "M": ("10001", "11011", "10101", "10101", "10001", "10001", "10001"),
+        "N": ("10001", "10001", "11001", "10101", "10011", "10001", "10001"),
+        "O": ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
+        "P": ("11110", "10001", "10001", "11110", "10000", "10000", "10000"),
+        "Q": ("01110", "10001", "10001", "10001", "10101", "10010", "01101"),
+        "R": ("11110", "10001", "10001", "11110", "10100", "10010", "10001"),
+        "S": ("01111", "10000", "10000", "01110", "00001", "00001", "11110"),
+        "T": ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
+        "U": ("10001", "10001", "10001", "10001", "10001", "10001", "01110"),
+        "V": ("10001", "10001", "10001", "10001", "10001", "01010", "00100"),
+        "W": ("10001", "10001", "10001", "10101", "10101", "10101", "01010"),
+        "X": ("10001", "10001", "01010", "00100", "01010", "10001", "10001"),
+        "Y": ("10001", "10001", "10001", "01010", "00100", "00100", "00100"),
+        "Z": ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
+        "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
+        "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+        "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+        "3": ("11111", "00010", "00100", "00010", "00001", "10001", "01110"),
+        "4": ("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+        "5": ("11111", "10000", "11110", "00001", "00001", "10001", "01110"),
+        "6": ("00110", "01000", "10000", "11110", "10001", "10001", "01110"),
+        "7": ("11111", "00001", "00010", "00100", "01000", "01000", "01000"),
+        "8": ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
+        "9": ("01110", "10001", "10001", "01111", "00001", "00010", "01100"),
+        "!": ("00100", "00100", "00100", "00100", "00100", "00000", "00100"),
+        "?": ("01110", "10001", "00001", "00010", "00100", "00000", "00100"),
+        "-": ("00000", "00000", "00000", "11111", "00000", "00000", "00000"),
+        ".": ("00000", "00000", "00000", "00000", "00000", "01100", "01100"),
+        "'": ("01100", "00100", "01000", "00000", "00000", "00000", "00000"),
+        "+": ("00000", "00100", "00100", "11111", "00100", "00100", "00000"),
+        " ": ("000", "000", "000", "000", "000", "000", "000"),
+    },
+    "3x5": {
+        "A": ("010", "101", "111", "101", "101"),
+        "B": ("110", "101", "110", "101", "110"),
+        "C": ("011", "100", "100", "100", "011"),
+        "D": ("110", "101", "101", "101", "110"),
+        "E": ("111", "100", "110", "100", "111"),
+        "F": ("111", "100", "110", "100", "100"),
+        "G": ("011", "100", "101", "101", "011"),
+        "H": ("101", "101", "111", "101", "101"),
+        "I": ("111", "010", "010", "010", "111"),
+        "J": ("001", "001", "001", "101", "010"),
+        "K": ("101", "101", "110", "101", "101"),
+        "L": ("100", "100", "100", "100", "111"),
+        "M": ("101", "111", "101", "101", "101"),
+        "N": ("110", "101", "101", "101", "101"),
+        "O": ("111", "101", "101", "101", "111"),
+        "P": ("110", "101", "110", "100", "100"),
+        "Q": ("111", "101", "101", "111", "001"),
+        "R": ("110", "101", "110", "101", "101"),
+        "S": ("011", "100", "010", "001", "110"),
+        "T": ("111", "010", "010", "010", "010"),
+        "U": ("101", "101", "101", "101", "111"),
+        "V": ("101", "101", "101", "101", "010"),
+        "W": ("101", "101", "101", "111", "101"),
+        "X": ("101", "101", "010", "101", "101"),
+        "Y": ("101", "101", "010", "010", "010"),
+        "Z": ("111", "001", "010", "100", "111"),
+        "0": ("111", "101", "101", "101", "111"),
+        "1": ("010", "110", "010", "010", "111"),
+        "2": ("111", "001", "111", "100", "111"),
+        "3": ("111", "001", "111", "001", "111"),
+        "4": ("101", "101", "111", "001", "001"),
+        "5": ("111", "100", "111", "001", "111"),
+        "6": ("111", "100", "111", "101", "111"),
+        "7": ("111", "001", "001", "001", "001"),
+        "8": ("111", "101", "111", "101", "111"),
+        "9": ("111", "101", "111", "001", "111"),
+        "!": ("010", "010", "010", "000", "010"),
+        "?": ("111", "001", "011", "000", "010"),
+        "-": ("000", "000", "111", "000", "000"),
+        ".": ("000", "000", "000", "000", "010"),
+        "'": ("010", "010", "000", "000", "000"),
+        "+": ("000", "010", "111", "010", "000"),
+        " ": ("00", "00", "00", "00", "00"),
+    },
+}
+
+
+def _bridge(cells):
+    """Make a pixel shape 4-connected: two cells that touch only at a corner
+    get the cell beside the lower one filled in, so diagonals become
+    staircases and the outline stays a single loop instead of a chain of
+    squares meeting at points."""
+    cells = set(cells)
+    added = True
+    while added:
+        added = False
+        for (x, y) in list(cells):
+            for dx in (-1, 1):
+                if (x + dx, y + 1) in cells and (x + dx, y) not in cells and (x, y + 1) not in cells:
+                    cells.add((x + dx, y))
+                    added = True
+    return cells
+
+
+def pixel_cells(text, font="3x5"):
+    """The phrase as block letters from a dot-matrix font: one set of unit
+    cells (x, y), y up, per character (empty for a space), one cell of space
+    between letters. Returns (letters, width_cells, height_cells)."""
     text = check_text(text)
-    gap = max(1, kx)
+    glyphs = PIXEL_FONTS[font]
+    height = len(next(iter(glyphs.values())))
     letters, x0 = [], 0
     for ch in text:
-        w, strokes = GLYPHS[ch]
-        cells = set()
-        for stroke in strokes:
-            pts = staircase(np.asarray(stroke, float), kx, ky)
-            B = np.rint(np.c_[pts[:, 0] * kx, pts[:, 1] * ky / 1.5]).astype(int)
-            if len(B) == 1:
-                cells.add((x0 + int(B[0, 0]), int(B[0, 1])))
-            for a, b in zip(B[:-1], B[1:]):
-                if a[1] == b[1]:
-                    for x in range(min(a[0], b[0]), max(a[0], b[0]) + 1):
-                        cells.add((x0 + x, int(a[1])))
-                else:
-                    for y in range(min(a[1], b[1]), max(a[1], b[1]) + 1):
-                        cells.add((x0 + int(a[0]), y))
-        letters.append(cells)
-        x0 += w * kx + 1 + gap
-    return letters, x0 - gap, int(round(H * ky / 1.5)) + 1
+        rows = glyphs[ch]
+        w = len(rows[0])
+        cells = {(x0 + c, height - 1 - r) for r, row in enumerate(rows) for c, v in enumerate(row) if v == "1"}
+        letters.append(_bridge(cells))
+        x0 += w + 1
+    return letters, x0 - 1, height
 
 
 def cells_outline(cells):
-    """Boundary of a set of unit cells as closed rectilinear polygons in block
+    """Boundary of a set of unit cells as closed rectilinear polygons in cell
     coordinates (corners only, first point repeated at the end), walked with
     the inside on the left. Cells that only touch at a corner stay on
     separate loops."""
@@ -472,13 +575,13 @@ def cells_outline(cells):
     return loops
 
 
-def outline_layout(text, kx=1, ky=1, loop=True):
-    """Block letters laid out left to right on the block lattice: closed
-    polygons per letter in block coordinates (x right, y up), the pen travel
-    of their outlines split by axis, and a rough split of the joins between
-    letters (and home again for a loop), so a caller can price each axis with
-    its own block spacing."""
-    letters, width, height = outline_cells(text, kx, ky)
+def outline_layout(text, font="3x5", loop=True):
+    """Block letters laid out left to right: closed polygons per letter in
+    cell coordinates (x right, y up), the pen travel of their outlines split
+    by axis, and a rough split of the joins between letters (and home again
+    for a loop), so a caller can price each axis with its own block spacing.
+    A cell is one block (or a whole number of blocks) on the ground."""
+    letters, width, height = pixel_cells(text, font)
     polys = []
     ink_x = ink_y = 0.0
     for cells in letters:
@@ -487,9 +590,8 @@ def outline_layout(text, kx=1, ky=1, loop=True):
             ink_x += float(d[:, 0].sum())
             ink_y += float(d[:, 1].sum())
             polys.append(poly)
-    gap = max(1, kx)
     n_join = max(0, sum(1 for c in letters if c) - 1)
-    conn_x = n_join * gap + (width if loop else 0.0)
+    conn_x = n_join * 1.0 + (width if loop else 0.0)
     conn_y = n_join * 1.0 + (height if loop else 0.0)
     return dict(polys=polys, width=width, height=height, ink_xy=(ink_x, ink_y),
-                conn_xy=(conn_x, conn_y), text=text)
+                conn_xy=(conn_x, conn_y), text=text, font=font)

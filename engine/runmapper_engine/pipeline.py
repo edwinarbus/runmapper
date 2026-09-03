@@ -42,6 +42,7 @@ INFLATION_ALIGNED = 1.08  # same, letters on the block lattice (paths are near e
 ALIGNED_OVER_CAP = 1.08   # lattice text may run this much over the bucket cap
 UNIT_MIN_FT = 230.0       # smallest font unit that still reads after GPS wobble
 OUTLINE_BLOCK_MIN_FT = 190.0   # block letters are one block thick; thinner than this they don't read
+OUTLINE_TYPICAL_BLOCK_FT = 300.0   # what the pre-flight estimate assumes a city block is
 LOGO_MIN_WIDTH_FT = 1900.0
 THICK_MIN_FT = 300.0      # two edges closer than this land on the same street
 VERDICTS = [(0.66, "great"), (0.50, "good"), (0.36, "rough")]
@@ -108,7 +109,7 @@ def prepare_text(text, loop, style="line"):
     if style == "outline":
         # Block letters: closed outlines one block thick. The reference shape
         # is the kx=ky=1 layout; "units" are blocks of that drawing.
-        lay = font.outline_layout(text, 1, 1, loop)
+        lay = font.outline_layout(text, "3x5", loop)      # the smallest legible block letters
         allp = np.vstack(lay["polys"])
         lo, hi = allp.min(0), allp.max(0)
         ctr = (lo + hi) / 2.0
@@ -213,12 +214,16 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
                 units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
 
 
-def _outline_lattice_layout(rep, kx, ky, dx, dy, loop):
-    """The phrase as block letters on the block lattice: each cell of the
-    letter grid is kx blocks wide and ky blocks tall, so strokes are that
-    thick and every corner is a street corner. Closed strokes per letter,
-    the exact length of their outlines plus a rough length of the joins."""
-    lay = rep["layout"]
+def _outline_lattice_layout(rep, fontname, kx, ky, dx, dy, loop):
+    """The phrase as block letters from a dot-matrix font on the block
+    lattice: each cell of the letter grid is kx blocks wide and ky blocks
+    tall, so strokes are that thick and every corner is a street corner.
+    Closed strokes per letter, the exact length of their outlines plus a
+    rough length of the joins."""
+    cache = rep.setdefault("_outline_layouts", {})
+    if fontname not in cache:
+        cache[fontname] = font.outline_layout(rep["label"], fontname, loop)
+    lay = cache[fontname]
     ux, uy = kx * dx, ky * dy
     allp = np.vstack(lay["polys"])
     lo, hi = allp.min(0), allp.max(0)
@@ -228,18 +233,21 @@ def _outline_lattice_layout(rep, kx, ky, dx, dy, loop):
                for i, poly in enumerate(lay["polys"])]
     ink_ft = lay["ink_xy"][0] * ux + lay["ink_xy"][1] * uy
     conn_ft = lay["conn_xy"][0] * ux + lay["conn_xy"][1] * uy
-    lw, lh = 3.0 * ux, float(lay["height"]) * uy         # one letter's footprint
+    fw, fh = (5, 7) if fontname == "5x7" else (3, 5)
+    lw, lh = fw * ux, fh * uy                          # one letter's footprint
     return dict(strokes=strokes, width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
-                unit_ft=min(ux, uy), est_ft=(ink_ft + conn_ft) * INFLATION_ALIGNED,
-                units_per_width=scale, area=lw * lh, letter_aspect=lh / lw, shape=abs(math.log(lh / lw)))
+                font=fontname, unit_ft=min(ux, uy), est_ft=(ink_ft + conn_ft) * INFLATION_ALIGNED,
+                units_per_width=scale, area=lw * lh, letter_aspect=lh / lw,
+                shape=abs(math.log((lh / lw) / (fh / fw))))
 
 
 def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=None):
     """Sizes for block letters: on the lattice with cells of kx x ky blocks
-    (strokes that thick), biggest first. Where there is a grid, nothing else:
-    free-floating block letters come out as squiggles, so when none fits the
-    caller gets the distance they would need. Without a grid, a free-floating
-    size is the only option and is capped at rough."""
+    (strokes that thick), the 5x7 font before the cruder 3x5, biggest first.
+    Where there is a grid, nothing else: free-floating block letters come out
+    as squiggles, so when none fits the caller gets the distance they would
+    need. Without a grid, a free-floating size is the only option and is
+    capped at rough."""
     out = []
     bs = g.block_spacing(90.0 - r0, window=window)
     dx, dy = bs["spacing_along"], bs["spacing_across"]
@@ -253,21 +261,24 @@ def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, win
         aligned = []
         r90 = r0 + 90.0 if r0 <= 0 else r0 - 90.0
         for rot, ddx, ddy, orient_pen in ((r0, dx, dy, 1.0), (r90, dy, dx, 0.6)):
-            for kx in (1, 2):
-                for ky in (1, 2, 3):
-                    sz = _outline_lattice_layout(rep, kx, ky, ddx, ddy, loop)
+            for fontname, rank in (("5x7", 1), ("3x5", 0)):
+                for kx, ky in ((1, 1), (2, 1), (1, 2), (2, 2)):
+                    sz = _outline_lattice_layout(rep, fontname, kx, ky, ddx, ddy, loop)
                     if sz["unit_ft"] < OUTLINE_BLOCK_MIN_FT * 0.75:
                         continue        # strokes too thin to read
-                    if not (0.45 <= sz["letter_aspect"] <= 2.6):
+                    if not (0.6 <= sz["letter_aspect"] <= 2.8):
                         continue
                     if need_ft is None or sz["est_ft"] < need_ft:
                         need_ft = sz["est_ft"]
                     if sz["est_ft"] <= cap_ft * ALIGNED_OVER_CAP:
-                        sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy, orient=orient_pen)
-                        if orient_pen < 1.0 or sz["letter_aspect"] < 0.7:
+                        sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy, orient=orient_pen,
+                                  font_rank=rank)
+                        if orient_pen < 1.0:
                             sz["max_verdict"] = "good"
                         aligned.append(sz)
-        aligned.sort(key=lambda s: (-s["orient"], -s["area"] * math.exp(-2.0 * s["shape"])))
+        # Level before tilted, the better font before the cruder one, then the
+        # biggest letters closest to the font's own proportions.
+        aligned.sort(key=lambda s: (-s["orient"], -s["font_rank"], -s["area"] * math.exp(-2.0 * s["shape"])))
         out.extend(aligned[:3])
         return out, need_ft
     wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
@@ -631,12 +642,11 @@ def _windows(g, half_ft, radius_ft, step_ft, limit_x, limit_y):
 
 def _attempt_tier(r):
     """How much a snapped attempt is worth: a good fit inside the distance
-    first, then a good drawing that runs a little over the distance (the
-    user gets told and offered the next bucket), then a rough fit, then
-    the rest."""
+    first, then a good drawing that runs a little over the distance when a
+    longer bucket exists to offer, then a rough fit, then the rest."""
     v = _capped_verdict(r)
     if v in ("good", "great"):
-        return 3 if r["fits"] else 2
+        return 3 if r["fits"] else (2 if r.get("next_bucket") else 0)
     if v == "rough" and r["fits"]:
         return 1
     return 0
@@ -799,9 +809,9 @@ def _attempt(ctx, w, progress, log, k):
         t0 = time.time()
         r = None
         if c["size"]["kind"] == "aligned" and sn_streets is not None:
-            r = _snap_one(sn_streets, c, choice, req.loop, cap_ft)
+            r = _snap_one(sn_streets, c, choice, req.loop, cap_ft, req.bucket)
         if r is None:
-            r = _snap_one(sn_full, c, choice, req.loop, cap_ft)
+            r = _snap_one(sn_full, c, choice, req.loop, cap_ft, req.bucket)
         ctx["snaps_done"] = ctx.get("snaps_done", 0) + 1
         if r is None:
             continue
@@ -832,7 +842,7 @@ def _attempt(ctx, w, progress, log, k):
             c = dict(c)
             c["width_ft"] = max(c["width_ft"] * f, choice["min_width_ft"] * 0.85)
             _progress(progress, "snap", 86, "Shrinking to fit the distance")
-            r = _snap_one(sn_full, c, choice, req.loop, cap_ft)
+            r = _snap_one(sn_full, c, choice, req.loop, cap_ft, req.bucket)
             if r is None:
                 break
             results.append(r)
@@ -896,29 +906,30 @@ def _warp_to_streets(c, lines, xtree):
     rows = np.unique(np.round(V, 0))
 
     def remap(vals, lines_, tol):
-        """Walk the real street lines, taking one per lattice position so
-        the spacing stays as close as possible to the lattice's; the start
-        is searched within a block. Returns the new positions and, per
-        position, how far its gap strays from the expected one (2*tol marks
-        a position with no usable street at all)."""
+        """Walk the real street lines, taking one per lattice position: each
+        position looks for a line within `tol` of where the lattice expects
+        it (one lattice gap on from the previous position as placed), so a
+        missing street costs only its own position and the walk recovers on
+        the next one. The start is searched within a block. Returns the new
+        positions and, per position, how far it slipped (2*tol marks a
+        position with no usable street at all)."""
         n = len(vals)
         if n == 0 or len(lines_) == 0:
             return np.array(vals, float), np.full(n, tol * 2)
         best = None
         starts = np.flatnonzero(np.abs(lines_ - vals[0]) <= max(tol, 1.0) * 1.4)
-        for s in starts:
-            new, dev, cost, j = [float(lines_[s])], [abs(lines_[s] - vals[0])], abs(lines_[s] - vals[0]), s
+        for s0 in starts:
+            new, dev, cost, j = [float(lines_[s0])], [abs(lines_[s0] - vals[0])], abs(lines_[s0] - vals[0]), s0
             for i in range(1, n):
-                exp = vals[i] - vals[i - 1]
-                # candidate next lines: further along, gap between 0.45x and 1.7x the expected
-                cand = [k for k in range(j + 1, len(lines_)) if 0.45 * exp <= lines_[k] - lines_[j] <= 1.7 * exp]
+                target = new[-1] + (vals[i] - vals[i - 1])
+                cand = [k for k in range(j + 1, len(lines_)) if abs(lines_[k] - target) <= tol]
                 if not cand:
-                    new.append(new[-1] + exp)
+                    new.append(target)
                     dev.append(tol * 2)
                     cost += tol * 2
                     continue
-                k = min(cand, key=lambda k: abs((lines_[k] - lines_[j]) - exp))
-                dev.append(abs((lines_[k] - lines_[j]) - exp))
+                k = min(cand, key=lambda k: abs(lines_[k] - target))
+                dev.append(abs(lines_[k] - target))
                 cost += dev[-1]
                 new.append(float(lines_[k]))
                 j = k
@@ -941,7 +952,11 @@ def _warp_to_streets(c, lines, xtree):
     corners = np.unique(np.vstack(warped).round(1), axis=0)
     d, _ = xtree.query(corners)
     c["corner_cover"] = float((d <= 0.25 * min(sz["dx"], sz["dy"])).mean())
-    c["warp"] = float(max(su.max() / sz["dx"] if len(su) else 0.0, sv.max() / sz["dy"] if len(sv) else 0.0))
+    # How far the lattice had to bend: the median per-line slip, in blocks.
+    # A few streets missing along a long word do not by themselves make the
+    # whole drawing "rough"; the corner check above catches real misses.
+    c["warp"] = float(max(np.median(su) / sz["dx"] if len(su) else 0.0,
+                          np.median(sv) / sz["dy"] if len(sv) else 0.0))
     if c["warp"] > 0.5:
         c["max_verdict"] = "rough"
     elif c["warp"] > 0.3:
@@ -967,7 +982,7 @@ def _snap_params(choice, cand):
                 dev_ref=float(np.clip(0.06 * w, 130, 300)), w_dev=9.0, radius=450.0, k=3)
 
 
-def _snap_one(sn, cand, choice, loop, cap_ft):
+def _snap_one(sn, cand, choice, loop, cap_ft, bucket_key="long"):
     g = sn.g
     strokes = cand["size"]["strokes"]
     center = np.array([cand["cx"], cand["cy"]])
@@ -987,8 +1002,10 @@ def _snap_one(sn, cand, choice, loop, cap_ft):
     dist_ft = path_len_ft(g, full) * 1.003
     ideal = [s["ideal"] for s in snapped]
     v = vis_match(route_xy(g, full), ideal, tol_ft=match_tolerance(cand["width_ft"]))
+    fits = dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else 1.02)
     return dict(cand=cand, nodes=full, snapped=snapped, ideal=ideal, dist_ft=dist_ft,
-                dist_mi=dist_ft / FT_PER_MI, fits=dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else 1.02),
+                dist_mi=dist_ft / FT_PER_MI, fits=fits,
+                next_bucket=None if fits else suggest_bucket(dist_ft, bucket_key),
                 iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen, graph=g)
 
 
@@ -1073,12 +1090,14 @@ def _finish(g, proj, best, choice, req, bucket):
     b0 = math.degrees(math.atan2(X[1] - X[0], Y[1] - Y[0])) % 360.0 if len(X) > 1 else 0.0
     # Where the run starts relative to the pin is in the route fields
     # (from_pin_mi, starts_at_pin); the message carries only what needs doing.
+    sug = suggest_bucket(dist_mi * FT_PER_MI, req.bucket) if v == "over" else None
     msg = _message(v) if v != "over" else (
-        f"{dist_mi:.1f} mi is over the {bucket['label']} limit. Pick a longer distance.")
+        f"{dist_mi:.1f} mi is over the {bucket['label']} limit. "
+        + ("Pick a longer distance." if sug else "Try a shorter phrase, a simpler image, or a spot with smaller blocks."))
     return dict(
         ok=v in ("great", "good", "rough"),
         verdict=v, message=msg,
-        suggest_bucket=suggest_bucket(dist_mi * FT_PER_MI, req.bucket) if v == "over" else None,
+        suggest_bucket=sug,
         score=dict(iou=round(iou, 3), cover=round(best["cover"], 3), prec=round(best["prec"], 3)),
         route=dict(coords=ll.round(6).tolist(), distance_mi=round(dist_mi, 2),
                    distance_km=round(dist_mi * 1.609344, 2),

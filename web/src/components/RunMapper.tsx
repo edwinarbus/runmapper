@@ -439,7 +439,7 @@ export default function RunMapper() {
                   {result.drawing.kind === "text" ? `“${result.drawing.label}”` : "your image"} · match {Math.round(result.score.iou * 100)}%
                 </span>
               </div>
-              <p className="text-sm text-zinc-700">{result.message}</p>
+              {result.message && <p className="text-sm text-zinc-700">{result.message}</p>}
               {result.suggest_bucket && (
                 <button
                   type="button"

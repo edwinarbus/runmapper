@@ -59,7 +59,8 @@ def main(argv=None):
     print(f"{res['verdict'].upper():6s} {r['distance_mi']:.2f} mi  gain {r['gain_ft']} ft  "
           f"iou {res['score']['iou']:.2f}  width {r['width_mi']:.2f} mi  rot {res['grid']['rot']:+.1f}  "
           f"start {r['start_desc']}  ({time.time() - t0:.0f}s)")
-    print(res["message"])
+    if res["message"]:
+        print(res["message"])
     if not a.no_preview:
         try:
             from .preview import preview_png

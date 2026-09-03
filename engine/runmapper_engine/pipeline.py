@@ -293,15 +293,13 @@ def verdict_for(iou):
 
 
 def _message(v):
-    if v == "great":
-        return "Nice. Run this and the line will read clearly."
-    if v == "good":
-        return "Good match. A few corners get squared off by the streets, but it reads."
+    """What the user should know beyond the verdict badge: nothing for a good
+    or great fit, a hint when the drawing is rough or impossible here."""
+    if v in ("great", "good"):
+        return ""
     if v == "rough":
-        return ("It's recognisable but rough here. A denser street grid nearby, or a "
-                "longer distance so it can be drawn bigger, would sharpen it.")
-    return ("Hm, the streets here don't line up with that shape. Try a different "
-            "location, a shorter phrase, or a simpler image.")
+        return "The streets here only roughly follow the shape. A denser street grid or a longer distance would sharpen it."
+    return "The streets here don't line up with that shape. Try another location, a shorter phrase, or a simpler image."
 
 
 def _capped_verdict(r):
@@ -952,15 +950,10 @@ def _finish(g, proj, best, choice, req, bucket):
         la, lo = proj.to_ll(poly[:, 0], poly[:, 1])
         ideal_ll.append(np.c_[la, lo].round(6).tolist())
     b0 = math.degrees(math.atan2(X[1] - X[0], Y[1] - Y[0])) % 360.0 if len(X) > 1 else 0.0
+    # Where the run starts relative to the pin is in the route fields
+    # (from_pin_mi, starts_at_pin); the message carries only what needs doing.
     msg = _message(v) if v != "over" else (
-        f"Best attempt is {dist_mi:.1f} mi, over the {bucket['label']} limit. Pick a longer distance.")
-    if not on_pin and from_pin_ft > 0.08 * FT_PER_MI:
-        where = _compass(float(X[0] - px), float(Y[0] - py))
-        if best.get("spot", {}).get("dist_ft", 0.0) > 0:
-            msg = (f"Starts {from_pin_ft / FT_PER_MI:.1f} mi {where} of your pin, where the streets "
-                   f"fit this better. ") + msg
-        else:
-            msg = f"Starts {from_pin_ft / FT_PER_MI:.1f} mi {where} of your pin. " + msg
+        f"{dist_mi:.1f} mi is over the {bucket['label']} limit. Pick a longer distance.")
     return dict(
         ok=v in ("great", "good", "rough"),
         verdict=v, message=msg,

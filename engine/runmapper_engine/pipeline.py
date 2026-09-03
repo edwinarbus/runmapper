@@ -86,6 +86,20 @@ def _progress(cb, stage, pct, msg):
         cb(dict(stage=stage, pct=int(pct), msg=msg))
 
 
+def _monotone(cb):
+    """Wrap a progress callback so the percentage never goes backwards, even
+    though the spot search repeats the place-and-snap stages."""
+    if cb is None:
+        return None
+    last = [0]
+
+    def wrapped(ev):
+        last[0] = max(last[0], int(ev.get("pct", 0)))
+        cb(dict(ev, pct=last[0]))
+
+    return wrapped
+
+
 # ------------------------------------------------------------------ strokes
 
 def prepare_text(text, loop):
@@ -312,6 +326,7 @@ def match_tolerance(width_ft):
 
 def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     t_start = time.time()
+    progress = _monotone(progress)
     bucket = BUCKETS.get(req.bucket)
     if bucket is None:
         raise PlanError("Pick a distance: 5k, 10k or long.")

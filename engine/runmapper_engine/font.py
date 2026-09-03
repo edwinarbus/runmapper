@@ -22,6 +22,7 @@ from .strokes import Stroke
 
 H = 3.0          # glyph height in units
 GAP = 1.0        # space between letters, in units
+LINE_GAP = 1.5   # space between two lines of text, in units (one lattice row)
 MAX_CHARS = 12
 VIRTUAL_PENALTY = 1.5   # legibility cost of drawing a line the letter does not have
 
@@ -378,16 +379,72 @@ def staircase(points, kx, ky):
     return np.c_[out[:, 0] / kx, out[:, 1] * 1.5 / ky]
 
 
-def text_strokes(text, loop=True):
-    """The phrase as one open, normalised Stroke plus its layout stats."""
-    lay = layout(text, loop=loop)
-    pts = lay["points"]
-    lo, hi = pts.min(0), pts.max(0)
+def split_lines(text):
+    """Where a phrase breaks onto two lines: at the space that balances the
+    two halves best, or in the middle of a long single word. Short phrases
+    stay on one line (a single element)."""
+    text = check_text(text)
+    if len(text.replace(" ", "")) < 4:
+        return [text]
+
+    def width(s):
+        return sum(GLYPHS[c][0] + GAP for c in s) - GAP if s else 0.0
+
+    cuts = [i for i, c in enumerate(text) if c == " "]
+    if cuts:
+        i = min(cuts, key=lambda i: abs(width(text[:i].strip()) - width(text[i + 1:].strip())))
+        a, b = text[:i].strip(), text[i + 1:].strip()
+        return [a, b] if a and b else [text]
+    if len(text) >= 8:
+        i = len(text) // 2
+        return [text[:i], text[i:]]
+    return [text]
+
+
+def text_strokes(text, loop=True, lines=1):
+    """The phrase as open, normalised Strokes (one per line) plus its layout
+    stats. With lines=2 the phrase is split by split_lines and the second
+    line sits one lattice row below the first; returns None when the phrase
+    does not split."""
+    if lines == 1:
+        lay = layout(text, loop=loop)
+        pts = lay["points"]
+        lo, hi = pts.min(0), pts.max(0)
+        ctr = (lo + hi) / 2.0
+        scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
+        s = Stroke((pts - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
+        lay["scale_units_per_norm"] = scale     # font units per normalised unit
+        lay["lines"] = 1
+        return [s], lay
+    parts = split_lines(text)
+    if len(parts) < 2:
+        return None
+    lays = [layout(part, loop=False) for part in parts]
+    pts_list = []
+    y0 = 0.0
+    for lay in lays:
+        P = lay["points"].copy()
+        P[:, 1] += y0
+        pts_list.append(P)
+        y0 -= H + LINE_GAP
+    allp = np.vstack(pts_list)
+    lo, hi = allp.min(0), allp.max(0)
     ctr = (lo + hi) / 2.0
     scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
-    s = Stroke((pts - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
-    lay["scale_units_per_norm"] = scale     # font units per normalised unit
-    return [s], lay
+    strokes = [Stroke((P - ctr) / scale, name=f"text:{parts[i]}", closed=False, kind="text")
+               for i, P in enumerate(pts_list)]
+    widths = [lay["units_wide"] for lay in lays]
+    units_wide = max(widths)
+    height = H * len(lays) + LINE_GAP * (len(lays) - 1)
+    # the hop from one line to the next: down a row, and across if the lines
+    # differ in width (the next line can be run backwards, so only half of it)
+    hops = sum((H + LINE_GAP) + 0.5 * abs(a - b) for a, b in zip(widths[:-1], widths[1:]))
+    walk = sum(lay["walk_units"] for lay in lays) + hops
+    ret = (units_wide + height) if loop else 0.0
+    return strokes, dict(lines=len(lays), parts=parts, layouts=lays, points_list=pts_list,
+                         text=check_text(text), units_wide=units_wide, height_units=height,
+                         walk_units=walk, return_units=ret, total_units=walk + ret,
+                         scale_units_per_norm=scale)
 
 
 # ------------------------------------------------------------------ block letters
@@ -575,23 +632,39 @@ def cells_outline(cells):
     return loops
 
 
-def outline_layout(text, font="3x5", loop=True):
-    """Block letters laid out left to right: closed polygons per letter in
-    cell coordinates (x right, y up), the pen travel of their outlines split
-    by axis, and a rough split of the joins between letters (and home again
-    for a loop), so a caller can price each axis with its own block spacing.
-    A cell is one block (or a whole number of blocks) on the ground."""
-    letters, width, height = pixel_cells(text, font)
+def outline_layout(text, font="3x5", loop=True, lines=1):
+    """Block letters laid out left to right (on one or two lines): closed
+    polygons per letter in cell coordinates (x right, y up), the pen travel
+    of their outlines split by axis, and a rough split of the joins between
+    letters and lines (and home again for a loop), so a caller can price
+    each axis with its own block spacing. A cell is one block (or a whole
+    number of blocks) on the ground. Returns None when two lines are asked
+    for and the phrase does not split."""
+    parts = split_lines(text) if lines == 2 else [check_text(text)]
+    if lines == 2 and len(parts) < 2:
+        return None
     polys = []
     ink_x = ink_y = 0.0
-    for cells in letters:
-        for poly in cells_outline(cells):
-            d = np.abs(np.diff(poly, axis=0))
-            ink_x += float(d[:, 0].sum())
-            ink_y += float(d[:, 1].sum())
-            polys.append(poly)
-    n_join = max(0, sum(1 for c in letters if c) - 1)
-    conn_x = n_join * 1.0 + (width if loop else 0.0)
-    conn_y = n_join * 1.0 + (height if loop else 0.0)
+    n_join = 0
+    widths = []
+    y0 = 0
+    height_font = None
+    for part in parts:
+        letters, width, height_font = pixel_cells(part, font)
+        widths.append(width)
+        for cells in letters:
+            for poly in cells_outline({(x, y + y0) for (x, y) in cells}):
+                d = np.abs(np.diff(poly, axis=0))
+                ink_x += float(d[:, 0].sum())
+                ink_y += float(d[:, 1].sum())
+                polys.append(poly)
+        n_join += max(0, sum(1 for c in letters if c) - 1)
+        y0 -= height_font + 1
+    width = max(widths)
+    height = height_font * len(parts) + (len(parts) - 1)
+    hops_x = sum(0.5 * abs(a - b) for a, b in zip(widths[:-1], widths[1:]))
+    hops_y = (height_font + 1) * (len(parts) - 1)
+    conn_x = n_join * 1.0 + hops_x + (width if loop else 0.0)
+    conn_y = n_join * 1.0 + hops_y + (height if loop else 0.0)
     return dict(polys=polys, width=width, height=height, ink_xy=(ink_x, ink_y),
-                conn_xy=(conn_x, conn_y), text=text, font=font)
+                conn_xy=(conn_x, conn_y), text=check_text(text), font=font, lines=len(parts), parts=parts)

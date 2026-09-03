@@ -78,3 +78,16 @@ def test_block_letters_are_closed_rectilinear_loops_on_the_lattice():
     assert lay["height"] == 5 and lay["width"] == 7    # two 3-wide letters with a one-cell gap
     lay57 = font.outline_layout("V", "5x7", loop=False)
     assert len(lay57["polys"]) == 1                    # diagonals are bridged: one solid shape, one loop
+
+
+def test_two_line_layouts_split_at_the_best_space():
+    from runmapper_engine import font
+    assert font.split_lines("NO ON G") == ["NO", "ON G"]
+    assert font.split_lines("HELLO WORLD") == ["HELLO", "WORLD"]
+    assert font.split_lines("RUN") == ["RUN"]
+    strokes, lay = font.text_strokes("NO ON G", loop=True, lines=2)
+    assert len(strokes) == 2 and lay["lines"] == 2
+    assert lay["height_units"] == 2 * font.H + font.LINE_GAP
+    assert font.text_strokes("RUN", loop=True, lines=2) is None
+    lay = font.outline_layout("NO ON G", "3x5", loop=True, lines=2)
+    assert lay["lines"] == 2 and lay["height"] == 11 and lay["width"] == 14

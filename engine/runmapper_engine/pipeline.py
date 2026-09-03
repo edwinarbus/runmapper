@@ -105,23 +105,30 @@ def _monotone(cb):
 
 # ------------------------------------------------------------------ strokes
 
-def prepare_text(text, loop, style="line"):
+def prepare_text(text, loop, style="line", lines=1):
+    """The phrase as strokes plus what it costs. lines=2 stacks it on two
+    lines (None when it does not split)."""
     if style == "outline":
         # Block letters: closed outlines one block thick. The reference shape
         # is the kx=ky=1 layout; "units" are blocks of that drawing.
-        lay = font.outline_layout(text, "3x5", loop)      # the smallest legible block letters
+        lay = font.outline_layout(text, "3x5", loop, lines)      # the smallest legible block letters
+        if lay is None:
+            return None
         allp = np.vstack(lay["polys"])
         lo, hi = allp.min(0), allp.max(0)
         ctr = (lo + hi) / 2.0
         scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
         strokes = [Stroke((poly - ctr) / scale, name=f"block{i}", closed=True, kind="outline")
                    for i, poly in enumerate(lay["polys"])]
-        return dict(kind="text", style="outline", strokes=strokes, label=lay["text"],
+        return dict(kind="text", style="outline", lines=lines, strokes=strokes, label=lay["text"],
                     ink_norm=sum(lay["ink_xy"]) / scale, conn_norm=sum(lay["conn_xy"]) / scale,
                     min_width_ft=OUTLINE_BLOCK_MIN_FT * scale, units_per_width=scale, layout=lay)
-    strokes, lay = font.text_strokes(text, loop=loop)
+    got = font.text_strokes(text, loop=loop, lines=lines)
+    if got is None:
+        return None
+    strokes, lay = got
     unit_norm = 1.0 / lay["scale_units_per_norm"]          # normalised size of one font unit
-    return dict(kind="text", style="line", strokes=strokes, label=lay["text"],
+    return dict(kind="text", style="line", lines=lines, strokes=strokes, label=lay["text"],
                 ink_norm=lay["walk_units"] * unit_norm,
                 conn_norm=lay["return_units"] * unit_norm,
                 min_width_ft=UNIT_MIN_FT * lay["scale_units_per_norm"],
@@ -200,6 +207,27 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
     and the exact Manhattan length of the run in feet."""
     lay = rep["layout"]
     ux, uy = kx * dx, (2.0 / 3.0) * ky * dy         # feet per font unit, x and y
+    if lay.get("lines", 1) > 1:
+        # Two lines: one staircased stroke per line, the second a lattice row
+        # below the first; the hop between lines and the way home are priced
+        # roughly (the assembler picks the cheapest joins).
+        Ps = [font.staircase(P, kx, ky) for P in lay["points_list"]]
+        walk_ft = 0.0
+        for P in Ps:
+            d = np.abs(np.diff(P, axis=0))
+            walk_ft += float(d[:, 0].sum() * ux + d[:, 1].sum() * uy)
+        widths = [l["units_wide"] for l in lay["layouts"]]
+        walk_ft += sum((font.H + font.LINE_GAP) * uy + 0.5 * abs(a - b) * ux for a, b in zip(widths[:-1], widths[1:]))
+        ret_ft = (lay["units_wide"] * ux + lay["height_units"] * uy) if loop else 0.0
+        allp = np.vstack(Ps)
+        lo, hi = allp.min(0), allp.max(0)
+        ctr = (lo + hi) / 2.0
+        scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
+        strokes = [Stroke((P - ctr) / scale, name=f"text:{lay['parts'][i]}", closed=False, kind="text")
+                   for i, P in enumerate(Ps)]
+        return dict(strokes=strokes, width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
+                    unit_ft=min(ux, uy), est_ft=(walk_ft + ret_ft) * INFLATION_ALIGNED,
+                    units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
     P = font.staircase(lay["points"], kx, ky)
     d = np.abs(np.diff(P, axis=0))
     walk_ft = float(d[:, 0].sum() * ux + d[:, 1].sum() * uy)
@@ -222,7 +250,7 @@ def _outline_lattice_layout(rep, fontname, kx, ky, dx, dy, loop):
     rough length of the joins."""
     cache = rep.setdefault("_outline_layouts", {})
     if fontname not in cache:
-        cache[fontname] = font.outline_layout(rep["label"], fontname, loop)
+        cache[fontname] = font.outline_layout(rep["label"], fontname, loop, rep.get("lines", 1))
     lay = cache[fontname]
     ux, uy = kx * dx, ky * dy
     allp = np.vstack(lay["polys"])
@@ -442,7 +470,11 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     style = req.style if req.style in ("auto", "line", "outline") else "auto"
     if req.text:
         try:
-            reps = [prepare_text(req.text, req.loop, "outline" if style == "outline" else "line")]
+            text_style = "outline" if style == "outline" else "line"
+            reps = [prepare_text(req.text, req.loop, text_style)]
+            two = prepare_text(req.text, req.loop, text_style, lines=2)
+            if two is not None:
+                reps.append(two)          # the same phrase on two lines: shorter, bigger letters
         except font.FontError as ex:
             raise PlanError(str(ex)) from ex
     elif req.image_bytes:
@@ -498,6 +530,7 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
 
     ctx = dict(choice=choice, cap_ft=cap_ft, g=g, tree=tree, req=req, bucket=bucket,
                t_start=t_start, sn_full=Snapper(g), streets=None, spots_snapped=0)
+    ctx["text_reps"] = [r for r in fitting if r["kind"] == "text"] if choice["kind"] == "text" else [choice]
 
     # Spots to try: the pin first, then nearby spots whose streets form a
     # clearly more regular grid, nearest first. The first spot that gives a
@@ -681,13 +714,35 @@ def _attempt(ctx, w, progress, log, k):
 
     # Wandering streets inflate a snapped route well beyond the ideal length;
     # shrink the free-floating size budget accordingly before choosing sizes.
-    rep = dict(choice)
-    if regularity < IRREGULAR_STREETS:
-        rep["width_max_ft"] = choice["width_max_ft"] / (1.0 + (IRREGULAR_STREETS - regularity))
+    def budgeted(r):
+        r = dict(r)
+        if regularity < IRREGULAR_STREETS:
+            r["width_max_ft"] = r["width_max_ft"] / (1.0 + (IRREGULAR_STREETS - regularity))
+        return r
+
+    rep = budgeted(choice)
 
     # Sizes to try.
     if choice["kind"] == "text":
-        sizes, need_ft = text_size_candidates(rep, cap_ft, g, r0, regularity, req.loop, log=log, window=window)
+        # Every layout of the phrase (one line, two lines) contributes sizes;
+        # lattice sizes are ranked together, biggest letters first, one line
+        # preferred at equal size.
+        sizes, need_ft = [], None
+        for rep0 in ctx.get("text_reps", [choice]):
+            s_, n_ = text_size_candidates(budgeted(rep0), cap_ft, g, r0, regularity, req.loop,
+                                          log=log, window=window)
+            for sz in s_:
+                sz["lines"] = rep0.get("lines", 1)
+                sz["rep"] = rep0
+            sizes += s_
+            if n_ is not None and (need_ft is None or n_ < need_ft):
+                need_ft = n_
+        aligned = [sz for sz in sizes if sz["kind"] == "aligned"]
+        aligned.sort(key=lambda sz: (-sz.get("orient", 1.0), -sz.get("font_rank", 0),
+                                     -sz["area"] * math.exp(-2.0 * sz["shape"]) * (0.85 if sz["lines"] > 1 else 1.0)))
+        free = [sz for sz in sizes if sz["kind"] != "aligned"]
+        free.sort(key=lambda sz: sz["lines"])
+        sizes = aligned[:4] + free
         if not sizes:
             need_mi = (need_ft or choice["min_width_ft"] * (choice["ink_norm"] + choice["conn_norm"]) * INFLATION) / FT_PER_MI
             sug = suggest_bucket(need_mi * FT_PER_MI, req.bucket)
@@ -1113,7 +1168,7 @@ def _finish(g, proj, best, choice, req, bucket):
                    width_mi=round(best["cand"]["width_ft"] / FT_PER_MI, 2),
                    n_points=int(len(ll))),
         drawing=dict(kind=choice["kind"], style=choice.get("style") or choice["kind"], label=label,
-                     strokes=len(best["ideal"]), ideal=ideal_ll),
+                     lines=int(best["cand"]["size"].get("lines", 1)), strokes=len(best["ideal"]), ideal=ideal_ll),
         bucket=dict(key=req.bucket, label=bucket["label"], cap_mi=bucket["cap_mi"]),
         cues=cues,
         gpx=gpx_string(ll, prof["ele"] if prof["gain"] is not None else None, name=name, desc=desc),

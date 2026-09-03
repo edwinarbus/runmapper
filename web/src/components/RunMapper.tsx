@@ -7,6 +7,7 @@ import {
   BUCKETS,
   type Bucket,
   type EstimateResult,
+  type PlanOption,
   type PlanResult,
   type ProgressEvent,
   STYLES,
@@ -56,6 +57,7 @@ export default function RunMapper() {
   const [status, setStatus] = useState<Status>("idle");
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<PlanResult | null>(null);
+  const [optIdx, setOptIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [suggest, setSuggest] = useState<Bucket | null>(null);
   const [showIdeal, setShowIdeal] = useState(false);
@@ -192,6 +194,7 @@ export default function RunMapper() {
         setProgress,
         ctl.signal,
       );
+      setOptIdx(0);
       setResult(r);
       setStatus("done");
     } catch (e) {
@@ -209,8 +212,10 @@ export default function RunMapper() {
 
   const cancel = () => abort.current?.abort();
 
-  const routeCoords = useMemo(() => result?.route.coords ?? null, [result]);
-  const verdict = result ? VERDICT_STYLE[result.verdict] ?? VERDICT_STYLE.rough : null;
+  // The option on show: one of the answers, or the result itself when there is only one.
+  const shown: PlanOption | PlanResult | null = result ? (result.options?.[optIdx] ?? result) : null;
+  const routeCoords = useMemo(() => shown?.route.coords ?? null, [shown]);
+  const verdict = shown ? VERDICT_STYLE[shown.verdict] ?? VERDICT_STYLE.rough : null;
 
   return (
     <div className="grid h-dvh grid-rows-[auto_1fr] md:grid-cols-[420px_1fr] md:grid-rows-1">
@@ -456,34 +461,56 @@ export default function RunMapper() {
           )}
 
           {/* Result */}
-          {result && verdict && (
+          {result && shown && verdict && (
             <section className="space-y-3 rounded-xl border border-zinc-200 p-4">
+              {result.options && result.options.length > 1 && (
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${result.options.length}, minmax(0, 1fr))` }}>
+                  {result.options.map((o, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setOptIdx(i)}
+                      aria-pressed={i === optIdx}
+                      className={`rounded-lg border px-2 py-1.5 text-left text-xs transition ${
+                        i === optIdx ? "border-[#FC5200] bg-orange-50 text-zinc-900" : "border-zinc-300 text-zinc-600 hover:border-zinc-400"
+                      }`}
+                    >
+                      <div className="font-semibold capitalize">{o.label}</div>
+                      <div className="text-[11px] text-zinc-500">
+                        {o.route.starts_at_pin || o.route.from_pin_mi <= 0.04 ? "at your pin" : `${fmtDist(o.route.from_pin_mi, units)} away`}
+                        {" · "}
+                        {(VERDICT_STYLE[o.verdict] ?? VERDICT_STYLE.rough).label.toLowerCase()} {Math.round(o.score.iou * 100)}%
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${verdict.cls}`}>{verdict.label}</span>
                 <span className="text-xs text-zinc-500">
-                  {result.drawing.kind === "text" ? `“${result.drawing.label}”` : "your image"} · match {Math.round(result.score.iou * 100)}%
+                  {shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image"} · match {Math.round(shown.score.iou * 100)}%
                 </span>
               </div>
-              {result.message && <p className="text-sm text-zinc-700">{result.message}</p>}
-              {result.suggest_bucket && (
+              {shown.message && <p className="text-sm text-zinc-700">{shown.message}</p>}
+              {shown.suggest_bucket && (
                 <button
                   type="button"
-                  onClick={() => go(result.suggest_bucket ?? undefined)}
+                  onClick={() => go(shown.suggest_bucket ?? undefined)}
                   className="rounded-md bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
                 >
-                  Try {BUCKETS.find((b) => b.key === result.suggest_bucket)?.label ?? result.suggest_bucket} instead
+                  Try {BUCKETS.find((b) => b.key === shown.suggest_bucket)?.label ?? shown.suggest_bucket} instead
                 </button>
               )}
               <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                 <div>
                   <dt className="text-xs text-zinc-500">Distance</dt>
-                  <dd className="font-semibold">{fmtDist(result.route.distance_mi, units, true)}</dd>
+                  <dd className="font-semibold">{fmtDist(shown.route.distance_mi, units, true)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-zinc-500">Climb</dt>
                   <dd className="font-semibold">
-                    {result.route.gain_ft != null ? (
-                      fmtClimb(result.route.gain_ft, units)
+                    {shown.route.gain_ft != null ? (
+                      fmtClimb(shown.route.gain_ft, units)
                     ) : (
                       <span className="font-normal text-zinc-500">not available</span>
                     )}
@@ -492,21 +519,21 @@ export default function RunMapper() {
                 <div className="col-span-2">
                   <dt className="text-xs text-zinc-500">Start</dt>
                   <dd className="font-semibold">
-                    {result.route.starts_at_pin ? "Your pin" : result.route.start_desc}
-                    {result.route.starts_at_pin && (
-                      <span className="font-normal text-zinc-500"> ({result.route.start_desc})</span>
+                    {shown.route.starts_at_pin ? "Your pin" : shown.route.start_desc}
+                    {shown.route.starts_at_pin && (
+                      <span className="font-normal text-zinc-500"> ({shown.route.start_desc})</span>
                     )}{" "}
                     <span className="font-normal text-zinc-500">
-                      · {result.route.loop ? "loop" : "one way"} · head {result.route.start_bearing}°
+                      · {shown.route.loop ? "loop" : "one way"} · head {shown.route.start_bearing}°
                     </span>
-                    {result.route.approach_mi > 0.04 && (
+                    {shown.route.approach_mi > 0.04 && (
                       <div className="text-xs font-normal text-zinc-500">
-                        includes {fmtDist(result.route.approach_mi, units)} getting to the drawing{result.route.loop ? " and back" : ""}
+                        includes {fmtDist(shown.route.approach_mi, units)} getting to the drawing{shown.route.loop ? " and back" : ""}
                       </div>
                     )}
-                    {!result.route.starts_at_pin && result.route.from_pin_mi > 0.04 && (
+                    {!shown.route.starts_at_pin && shown.route.from_pin_mi > 0.04 && (
                       <div className="text-xs font-normal text-zinc-500">
-                        {fmtDist(result.route.from_pin_mi, units)} from your pin, where the streets fit better
+                        {fmtDist(shown.route.from_pin_mi, units)} from your pin, where the streets fit better
                       </div>
                     )}
                   </dd>
@@ -515,7 +542,7 @@ export default function RunMapper() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => downloadGpx(result)}
+                  onClick={() => downloadGpx(shown)}
                   className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
                 >
                   Download GPX
@@ -529,9 +556,9 @@ export default function RunMapper() {
                 </button>
               </div>
               <details className="text-sm">
-                <summary className="cursor-pointer text-zinc-600">Turn-by-turn ({result.cues.length} cues)</summary>
+                <summary className="cursor-pointer text-zinc-600">Turn-by-turn ({shown.cues.length} cues)</summary>
                 <ol className="mt-2 max-h-64 space-y-1 overflow-auto pr-1 text-xs">
-                  {result.cues.map((c) => (
+                  {shown.cues.map((c) => (
                     <li key={c.n} className="flex gap-2">
                       <span className="w-16 shrink-0 tabular-nums text-zinc-400">{fmtDist(c.cum_mi, units)}</span>
                       <span>
@@ -554,7 +581,7 @@ export default function RunMapper() {
       </aside>
 
       <main className="relative min-h-[38dvh]">
-        <MapView pin={pin} onPick={onPick} focus={focus} route={routeCoords} ideal={result?.drawing.ideal ?? null} showIdeal={showIdeal} start={result?.route.start ?? null} />
+        <MapView pin={pin} onPick={onPick} focus={focus} route={routeCoords} ideal={shown?.drawing.ideal ?? null} showIdeal={showIdeal} start={shown?.route.start ?? null} />
       </main>
     </div>
   );

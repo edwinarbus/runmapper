@@ -51,11 +51,11 @@ LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
 FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
 MAX_SNAPS = 5
 TIME_BUDGET_S = 170.0
-SEARCH_RADIUS_FT = 0.9 * FT_PER_MI   # how far from the pin the drawing may move for better streets
+SEARCH_RADIUS_FT = 1.6 * FT_PER_MI   # how far the search goes for the "best fit" option
 WINDOW_STEP_FT = 1500.0              # spacing of the spots tried around the pin
 MAX_BOX_HALF_FT = 2.0 * FT_PER_MI    # never fetch more than a 4 x 4 mile box of streets
-MAX_SNAPPED_SPOTS = 10               # spots that get the full snap treatment
-BAND_FT = 2400.0                     # spots this much farther out are tried only if nearer ones fail
+MAX_SNAPPED_SPOTS = 14               # spots that get the full snap treatment
+BAND_FT = 2400.0                     # width of the distance bands the options are drawn from
 PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
 STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
 
@@ -507,58 +507,98 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
         log(f"  pin grid regularity={pin_w['regularity']:.2f} bearing={pin_w['bearing']:.1f}; "
             f"{len(eligible)} more regular spots within {SEARCH_RADIUS_FT / FT_PER_MI:.1f} mi")
 
-    # The pin first. If it does not give a good fit, the spots are tried in
-    # bands of distance: every spot in the nearest band, then the next band,
-    # and the search stops at the first band with a good fit in it, so the
-    # run starts as close to the pin as a good drawing allows.
+    # Three answers: the best fit close to the pin (the first band, 0.45 mi),
+    # the best a bit farther out (the second band), and the best fit anywhere
+    # in the search area (the most regular grids farther out). Spots are
+    # tried nearest group first, as long as time allows.
+    pin_w["band"] = 0
+    near = [pin_w] + [w for w in eligible if w["band"] == 0]
+    mid = [w for w in eligible if w["band"] == 1][:5]
+    far = sorted([w for w in eligible if w["band"] >= 2 and w["regularity"] >= max(need_reg, 0.8)],
+                 key=lambda w: (-w["regularity"], w["dist_ft"]))[:4]
     attempts, errors = [], []
-    band_done = -1
-    for k, w in enumerate([pin_w] + eligible):
-        if k > 0:
-            band = w["band"]
-            if band != band_done and any(_attempt_tier(r) == 3 for r in attempts):
+    k = 0
+    stop = False
+    for group in (near, mid, far):
+        for w in group:
+            if k > 0 and (ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.7 * TIME_BUDGET_S):
+                stop = True
                 break
-            if ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.65 * TIME_BUDGET_S:
-                break
-            band_done = band
-            _progress(progress, "place", min(30 + 4 * k, 60),
-                      f"Looking {w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} for better streets")
-        else:
-            _progress(progress, "place", 28, "Trying placements near your pin")
-        try:
-            r = _attempt(ctx, w, progress, log, k)
-        except PlanError as ex:
-            errors.append(ex)
+            if k == 0:
+                _progress(progress, "place", 28, "Trying placements near your pin")
+            else:
+                _progress(progress, "place", min(30 + 3 * k, 60),
+                          f"Looking {w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} for better streets")
+            try:
+                r = _attempt(ctx, w, progress, log, k)
+            except PlanError as ex:
+                errors.append(ex)
+                if log:
+                    log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi): {ex}")
+                k += 1
+                continue
+            r["spot"] = w
+            attempts.append(r)
             if log:
-                log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi): {ex}")
-            continue
-        r["spot"] = w
-        attempts.append(r)
-        if log:
-            log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])}): "
-                f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
-                f"{'' if r['fits'] else ' (over the cap)'}")
+                log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])}): "
+                    f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
+                    f"{'' if r['fits'] else ' (over the cap)'}")
+            k += 1
+        if stop:
+            break
     if not attempts:
         if errors:
             raise errors[0]
         raise PlanError("Couldn't route that shape onto these streets. Try a different spot.")
-    best = _pick_attempt(attempts)
+    opts = _pick_options(attempts)
 
-    _progress(progress, "finish", 90, "Measuring distance and climb")
-    # The winning snap lives in its own graph (street centrelines only for
-    # lattice text); measure, cue and start it there.
-    out = _finish(best["graph"], proj, best, choice, req, bucket)
+    _progress(progress, "finish", 90, f"Measuring distance and climb ({len(opts)} option{'s' if len(opts) > 1 else ''})")
+    finished = []
+    for label, r in opts:
+        # Each snap lives in its own graph (street centrelines only for
+        # lattice text); measure, cue and start it there.
+        o = _finish(r["graph"], proj, r, choice, req, bucket)
+        o["label"] = label
+        gb = r["gb"]
+        o["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
+                         rot=r["cand"]["rot"], aspect=round(r["cand"].get("aspect", 1.0), 3),
+                         size_kind=r["cand"]["size"]["kind"],
+                         blocks=[round(r["cand"]["size"].get("dx") or 0), round(r["cand"]["size"].get("dy") or 0)])
+        finished.append(o)
+        if log:
+            log(f"  option '{label}': {o['verdict']} iou={o['score']['iou']} {o['route']['distance_mi']} mi, "
+                f"{o['route']['from_pin_mi']} mi from the pin")
+    out = dict(finished[0])
+    out["options"] = [{k_: v for k_, v in o.items() if not k_.startswith("_")} for o in finished]
     sn_streets = ctx["streets"][1] if ctx["streets"] else None
-    out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=ctx["snaps_done"] if "snaps_done" in ctx else 0,
+    out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=ctx.get("snaps_done", 0),
                          dijkstra=ctx["sn_full"].n_dijkstra + (sn_streets.n_dijkstra if sn_streets else 0),
                          nodes=int(len(g.ids)), spots=len(attempts) + len(errors))
-    gb = best["gb"]
-    out["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
-                       rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
-                       size_kind=best["cand"]["size"]["kind"],
-                       blocks=[round(best["cand"]["size"].get("dx") or 0), round(best["cand"]["size"].get("dy") or 0)])
     _progress(progress, "done", 100, "Done")
     return out
+
+
+def _pick_options(attempts):
+    """Up to three answers from the snapped attempts, nearest first: the best
+    of the first distance band, the best of the second, and the best of the
+    farther bands (the "even farther for the best fit" one). A farther option
+    is only worth offering when it is at least as good, by tier, as a nearer
+    one, so a worse drawing never hides behind a bigger distance."""
+    def quality(r):
+        return (_attempt_tier(r), r["iou"])
+
+    opts = []
+    for label, lo, hi in (("closest", 0, 0), ("farther", 1, 1), ("best fit", 2, 99)):
+        pool = [r for r in attempts if lo <= r["spot"]["band"] <= hi]
+        if not pool:
+            continue
+        best = max(pool, key=quality)
+        if opts and _attempt_tier(best) < max(_attempt_tier(o) for _, o in opts):
+            continue
+        opts.append((label, best))
+    if not opts:
+        opts = [("closest", max(attempts, key=quality))]
+    return opts
 
 
 def _compass(dx, dy):
@@ -608,12 +648,6 @@ def _attempt_tier(r):
     if v == "rough" and r["fits"]:
         return 1
     return 0
-
-
-def _pick_attempt(attempts):
-    """The nearest spot with a good fit; otherwise the best fit, nearer spots
-    winning ties."""
-    return max(attempts, key=lambda r: (_attempt_tier(r), round(r["iou"], 1), -r["spot"]["dist_ft"]))
 
 
 def _streets_graph(ctx):

@@ -109,9 +109,15 @@ export interface PlanResult {
   cues: Cue[];
   gpx: string;
   name: string;
-  timing?: { total_s: number; snaps: number; dijkstra: number; nodes: number };
+  timing?: { total_s: number; snaps: number; dijkstra: number; nodes: number; spots?: number };
   grid?: { bearing: number; regularity: number; rot: number; aspect: number; size_kind: string };
+  /** Up to three answers, nearest first: the best fit close to the pin, a
+   *  better one a bit farther, and the best fit farther still. The top-level
+   *  fields repeat the first option. */
+  options?: PlanOption[];
 }
+
+export type PlanOption = Omit<PlanResult, "options" | "type" | "timing"> & { label: string };
 
 export interface PlanInput {
   text?: string;
@@ -204,7 +210,7 @@ export async function estimate(text: string, bucket: Bucket, loop: boolean, styl
   return res.json();
 }
 
-export function downloadGpx(result: PlanResult) {
+export function downloadGpx(result: { gpx: string; name: string }) {
   const blob = new Blob([result.gpx], { type: "application/gpx+xml" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

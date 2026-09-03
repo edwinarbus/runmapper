@@ -63,6 +63,10 @@ def main(argv=None):
           f"start {r['start_desc']}  ({time.time() - t0:.0f}s)")
     if res["message"]:
         print(res["message"])
+    if len(res.get("options", [])) > 1:
+        for o in res["options"]:
+            print(f"  option {o['label']}: {o['verdict']} match {o['score']['iou']:.2f}, {o['route']['distance_mi']} mi, "
+                  f"{o['route']['from_pin_mi']} mi from the pin")
     if not a.no_preview:
         try:
             from .preview import preview_png

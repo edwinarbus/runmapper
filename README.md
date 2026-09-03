@@ -20,7 +20,7 @@ Everything is plain geometry and graph search on OpenStreetMap data. **No AI API
 | `engine/runmapper_engine/image.py`, `svgin.py`, `raster.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is (thinning and contour tracing in plain numpy) |
 | `engine/runmapper_engine/pipeline.py` | The end-to-end plan: sizes from the distance bucket, street fetch, placement scan, snapping, verdict |
 | `engine/runmapper_engine/api.py` | `POST /api/plan` streams progress then the result; `POST /api/estimate`; `GET /api/health` |
-| `web/` | Next.js 16 app: the form, the MapLibre map (streets or satellite, with the route drawn in start to finish), progress, result card, GPX download |
+| `web/` | Next.js 16 app: the form, the MapLibre map (streets or satellite, the route drawn in start to finish with direction chevrons), progress, the result bib, GPX download and share |
 | `web/api/index.py`, `web/scripts/vercel-install.sh`, `web/vercel.json` | The engine as a Vercel Python function inside the same project |
 | `engine/Dockerfile`, `engine/modal_app.py` | Optional: host the engine somewhere else |
 
@@ -47,7 +47,7 @@ npm install
 npm run dev                       # proxies /api to the engine on port 8000
 ```
 
-Open http://localhost:3000, type `RUN`, search a place (or click the map), pick ~5K, and hit **Map my run**. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
+Open http://localhost:3000, type `RUN`, search a place (or click the map), pick ~5K, and hit **Map my run**. A result's **Copy link** button gives a URL that carries the setup (`?t=RUN&lat=…&lon=…&d=5k&loop=1&s=line`, the start being the route's start); opening it fills the form in, and nothing runs until **Map my run**. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
 
 **Command line, no web app**
 

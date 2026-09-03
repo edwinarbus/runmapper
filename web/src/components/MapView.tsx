@@ -52,10 +52,13 @@ export interface MapViewProps {
   ideal: [number, number][][] | null;
   showIdeal: boolean;
   start: [number, number] | null;
+  /** The last point of a one-way route; null for loops. */
+  finish: [number, number] | null;
 }
 
 type LngLat = [number, number];
 const EMPTY = { type: "FeatureCollection" as const, features: [] };
+const ARROW = "route-arrow";
 
 function lineFeature(coords: [number, number][]) {
   return {
@@ -83,6 +86,39 @@ function metres(a: LngLat, b: LngLat) {
 
 const easeInOut = (u: number) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
 
+const reducedMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+
+/** A small white chevron placed along the route so the direction of travel
+ *  is obvious. It points +x, which MapLibre turns along the line. */
+function arrowImage(): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const s = 28;
+  const c = document.createElement("canvas");
+  c.width = s;
+  c.height = s;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.beginPath();
+  g.moveTo(10, 7);
+  g.lineTo(18, 14);
+  g.lineTo(10, 21);
+  g.strokeStyle = "rgba(140, 40, 0, 0.9)";
+  g.lineWidth = 6;
+  g.stroke();
+  g.strokeStyle = "#ffffff";
+  g.lineWidth = 3;
+  g.stroke();
+  return g.getImageData(0, 0, s, s);
+}
+
+/** Padding around a framed route: generous on a big map, tighter on a phone. */
+function framePadding(m: maplibregl.Map) {
+  const el = m.getContainer();
+  return Math.max(28, Math.min(64, Math.round(Math.min(el.clientWidth, el.clientHeight) * 0.12)));
+}
+
 export default function MapView(props: MapViewProps) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -98,6 +134,12 @@ export default function MapView(props: MapViewProps) {
     latest.current = props;
   });
 
+  // Direction chevrons are hidden while the line is still growing.
+  const setArrows = (visible: boolean) => {
+    const m = map.current;
+    if (m?.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
+  };
+
   // Push the current props into the map's sources and layers. While the
   // route is being drawn in, the route source is left to the animation.
   const apply = () => {
@@ -107,11 +149,16 @@ export default function MapView(props: MapViewProps) {
     const route = m.getSource("route") as maplibregl.GeoJSONSource | undefined;
     const ideal = m.getSource("ideal") as maplibregl.GeoJSONSource | undefined;
     const start = m.getSource("start") as maplibregl.GeoJSONSource | undefined;
-    if (!anim.current && !pendingDraw.current) route?.setData(p.route && p.route.length > 1 ? lineFeature(p.route) : EMPTY);
+    const finish = m.getSource("finish") as maplibregl.GeoJSONSource | undefined;
+    if (!anim.current && !pendingDraw.current) {
+      route?.setData(p.route && p.route.length > 1 ? lineFeature(p.route) : EMPTY);
+      setArrows(true);
+    }
     ideal?.setData(
       p.ideal ? { type: "FeatureCollection", features: p.ideal.filter((s) => s.length > 1).map(lineFeature) } : EMPTY,
     );
     start?.setData(p.start ? pointFeature([p.start[1], p.start[0]]) : EMPTY);
+    finish?.setData(p.finish ? pointFeature([p.finish[1], p.finish[0]]) : EMPTY);
     m.setLayoutProperty("ideal", "visibility", p.showIdeal ? "visible" : "none");
   };
 
@@ -127,6 +174,16 @@ export default function MapView(props: MapViewProps) {
   const stopDraw = () => {
     cancelAnim();
     setDrawing(false);
+  };
+
+  // Frame the whole route.
+  const fit = (duration = 700) => {
+    const m = map.current;
+    const r = latest.current.route;
+    if (!m || !r || r.length < 2) return;
+    const b = new maplibregl.LngLatBounds();
+    for (const [lat, lon] of r) b.extend([lon, lat]);
+    m.fitBounds(b, { padding: framePadding(m), duration, maxZoom: 16 });
   };
 
   // Draw the route in from start to finish, the way Strava plays an activity
@@ -151,14 +208,16 @@ export default function MapView(props: MapViewProps) {
     const cum = [0];
     for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + metres(pts[i - 1], pts[i]));
     const total = cum[cum.length - 1];
-    if (total <= 0) {
+    if (total <= 0 || reducedMotion()) {
       routeSrc.setData(lineFromLngLat(pts));
+      setArrows(true);
       return;
     }
     const duration = Math.min(7000, 2600 + 550 * (total / 1609.344));
     const token = Math.random();
     const t0 = performance.now();
     setDrawing(true);
+    setArrows(false);
     routeSrc.setData(lineFromLngLat([pts[0], pts[0]]));
     headSrc.setData(pointFeature(pts[0]));
     let k = 1;
@@ -187,6 +246,7 @@ export default function MapView(props: MapViewProps) {
         src.setData(lineFromLngLat(pts));
         head.setData(EMPTY);
         anim.current = null;
+        setArrows(true);
         setDrawing(false);
       }
     };
@@ -224,10 +284,23 @@ export default function MapView(props: MapViewProps) {
     });
     const setup = () => {
       if (ready.current || m.getSource("route")) return;
+      if (!m.hasImage(ARROW)) {
+        const img = arrowImage();
+        if (img) m.addImage(ARROW, img, { pixelRatio: 2 });
+      }
       m.addSource("route", { type: "geojson", data: EMPTY });
       m.addSource("ideal", { type: "geojson", data: EMPTY });
       m.addSource("start", { type: "geojson", data: EMPTY });
+      m.addSource("finish", { type: "geojson", data: EMPTY });
       m.addSource("head", { type: "geojson", data: EMPTY });
+      // A soft shadow under the line lifts it off the map a little.
+      m.addLayer({
+        id: "route-shadow",
+        type: "line",
+        source: "route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.16, "line-blur": 6, "line-translate": [0, 2] },
+      });
       m.addLayer({
         id: "route-casing",
         type: "line",
@@ -249,11 +322,35 @@ export default function MapView(props: MapViewProps) {
         layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
         paint: { "line-color": "#2563eb", "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.8 },
       });
+      if (m.hasImage(ARROW)) {
+        m.addLayer({
+          id: "route-arrows",
+          type: "symbol",
+          source: "route",
+          layout: {
+            "symbol-placement": "line",
+            "symbol-spacing": 70,
+            "icon-image": ARROW,
+            "icon-size": 0.85,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-rotation-alignment": "map",
+            "icon-pitch-alignment": "map",
+            visibility: "none",
+          },
+        });
+      }
       m.addLayer({
         id: "start",
         type: "circle",
         source: "start",
         paint: { "circle-radius": 7, "circle-color": "#12b886", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
+      });
+      m.addLayer({
+        id: "finish",
+        type: "circle",
+        source: "finish",
+        paint: { "circle-radius": 6, "circle-color": "#17171b", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
       });
       m.addLayer({
         id: "head",
@@ -271,6 +368,9 @@ export default function MapView(props: MapViewProps) {
     (window as unknown as { __runmapperMap?: maplibregl.Map }).__runmapperMap = m;
     return () => {
       cancelAnim();
+      // The marker belongs to this map; a remount must make a fresh one.
+      marker.current?.remove();
+      marker.current = null;
       m.remove();
       map.current = null;
       ready.current = false;
@@ -333,22 +433,21 @@ export default function MapView(props: MapViewProps) {
       return () => clearTimeout(t);
     }
     (m.getSource("route") as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY);
-    const b = new maplibregl.LngLatBounds();
-    for (const [lat, lon] of props.route) b.extend([lon, lat]);
-    m.fitBounds(b, { padding: 60, duration: 900, maxZoom: 16 });
+    fit(900);
     const timer = setTimeout(() => startDrawRef.current(), 950);
     return () => clearTimeout(timer);
   }, [props.route]);
 
   useEffect(() => {
     apply();
-  }, [props.ideal, props.start, props.showIdeal]);
+  }, [props.ideal, props.start, props.finish, props.showIdeal]);
 
   const btn = "btn-3d btn-light btn-sm";
+  const hasRoute = Boolean(props.route && props.route.length > 1);
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />
-      <div className="absolute top-2.5 left-2.5 z-10 flex gap-2">
+      <div className="absolute top-2.5 left-2.5 z-10 flex flex-wrap gap-2">
         <button
           type="button"
           className={btn}
@@ -357,12 +456,22 @@ export default function MapView(props: MapViewProps) {
         >
           {basemap === "streets" ? "Satellite" : "Map"}
         </button>
-        {props.route && props.route.length > 1 && (
+        {hasRoute && (
           <button type="button" className={btn} onClick={startDraw} disabled={drawing} aria-label="Replay the route drawing">
             {drawing ? "Drawing…" : "▶ Replay"}
           </button>
         )}
+        {hasRoute && (
+          <button type="button" className={btn} onClick={() => fit()} aria-label="Fit the whole route on screen">
+            ⌖ Fit
+          </button>
+        )}
       </div>
+      {!props.pin && (
+        <div className="chip pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2" role="status">
+          Search a place, or tap the map to set your start
+        </div>
+      )}
     </div>
   );
 }

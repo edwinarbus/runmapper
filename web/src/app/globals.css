@@ -469,6 +469,125 @@ body {
   color: var(--strava-deep);
 }
 
+.lane:hover {
+  filter: brightness(1.03);
+}
+/* A lane still being searched for. */
+.lane-ghost {
+  border: 2px dashed #cfcabd;
+  background: transparent;
+  box-shadow: none;
+  color: #a09d93;
+  cursor: default;
+}
+.lane-ghost:active {
+  transform: none;
+}
+@keyframes ghost-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* New answers rise into place. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.bib,
+.lane {
+  animation: rise-in 0.35s ease-out backwards;
+}
+.lane.lane-ghost {
+  animation: ghost-pulse 1.4s ease-in-out infinite;
+}
+
+/* The cue sheet. */
+.cues > li + li {
+  border-top: 1px dashed #e6e2d6;
+}
+
+/* Hex screws holding the deck together. */
+.screw {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #767884, #2c2d34 65%, #15161a);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    0 0 0 2px #141418,
+    0 0 0 3px rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+.screw::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: #0f0f13;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.screw-tl { top: 10px; left: 10px; transform: rotate(-30deg); }
+.screw-tr { top: 10px; right: 10px; transform: rotate(50deg); }
+.screw-bl { bottom: 10px; left: 10px; transform: rotate(15deg); }
+.screw-br { bottom: 10px; right: 10px; transform: rotate(-60deg); }
+
+/* A hint floating over the map. */
+.chip {
+  max-width: min(90%, 440px);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  background: rgba(23, 23, 27, 0.88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+/* Keyboard focus: an orange ring, only when it came from the keyboard. */
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(252, 82, 0, 0.75);
+  outline-offset: 2px;
+}
+.btn-3d:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+::selection {
+  background: rgba(252, 82, 0, 0.3);
+}
+
+/* The deck's own scrollbar: thin and dark, like the ground. */
+.panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3b44 transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-busy,
+  .lane-ghost,
+  .bib,
+  .lane {
+    animation: none;
+  }
+  .track-fill,
+  .rocker-key,
+  .toggle,
+  .toggle::after,
+  .btn-start,
+  .btn-3d,
+  .lane,
+  .field {
+    transition: none;
+  }
+}
+
 /* Map frame: an inner shadow so the deck reads as sitting on the ground. */
 .map-frame::after {
   content: "";

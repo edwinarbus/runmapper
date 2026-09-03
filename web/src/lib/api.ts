@@ -214,13 +214,18 @@ export async function estimate(text: string, bucket: Bucket, loop: boolean, styl
   return res.json();
 }
 
+/** "RUN loop from Dolores Park" -> "run-loop-from-dolores-park.gpx" */
+export function gpxFileName(name: string): string {
+  const slug = name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "route";
+  return `${slug}.gpx`;
+}
+
 export function downloadGpx(result: { gpx: string; name: string }) {
   const blob = new Blob([result.gpx], { type: "application/gpx+xml" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const slug = result.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "route";
   a.href = url;
-  a.download = `${slug}.gpx`;
+  a.download = gpxFileName(result.name);
   document.body.appendChild(a);
   a.click();
   a.remove();

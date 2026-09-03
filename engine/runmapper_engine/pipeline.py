@@ -416,7 +416,10 @@ def match_tolerance(width_ft):
 
 # ------------------------------------------------------------------ main
 
-def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
+def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_option=None):
+    """Plan the run. `progress` gets stage events; `on_option` gets each
+    finished answer (closest, farther, best fit) the moment it is ready, so a
+    caller can show routes one by one; the return value carries them all."""
     t_start = time.time()
     progress = _monotone(progress)
     bucket = BUCKETS.get(req.bucket)
@@ -516,18 +519,25 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     mid = [w for w in eligible if w["band"] == 1][:5]
     far = sorted([w for w in eligible if w["band"] >= 2 and w["regularity"] >= max(need_reg, 0.8)],
                  key=lambda w: (-w["regularity"], w["dist_ft"]))[:4]
-    attempts, errors = [], []
+    attempts, errors, finished = [], [], []
     k = 0
     stop = False
-    for group in (near, mid, far):
+
+    def quality(r):
+        return (_attempt_tier(r), r["iou"])
+
+    for label, group, (pct_lo, pct_hi) in (("closest", near, (28, 48)), ("farther", mid, (50, 68)),
+                                            ("best fit", far, (70, 88))):
+        ctx["pct_lo"], ctx["pct_hi"] = pct_lo, pct_hi
+        group_attempts = []
         for w in group:
             if k > 0 and (ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.7 * TIME_BUDGET_S):
                 stop = True
                 break
             if k == 0:
-                _progress(progress, "place", 28, "Trying placements near your pin")
+                _progress(progress, "place", pct_lo, "Trying placements near your pin")
             else:
-                _progress(progress, "place", min(30 + 3 * k, 60),
+                _progress(progress, "place", pct_lo,
                           f"Looking {w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} for better streets")
             try:
                 r = _attempt(ctx, w, progress, log, k)
@@ -539,36 +549,41 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
                 continue
             r["spot"] = w
             attempts.append(r)
+            group_attempts.append(r)
             if log:
                 log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])}): "
                     f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
                     f"{'' if r['fits'] else ' (over the cap)'}")
             k += 1
+        # This group's answer, finished and handed out right away. A farther
+        # answer is only offered when it is at least as good, by tier, as a
+        # nearer one, so a worse drawing never hides behind a bigger distance.
+        if group_attempts:
+            best = max(group_attempts, key=quality)
+            if not finished or _attempt_tier(best) >= max(o["_tier"] for o in finished):
+                _progress(progress, "finish", pct_hi, f"Measuring distance and climb (option {len(finished) + 1})")
+                o = _finish(best["graph"], proj, best, choice, req, bucket)
+                o["label"] = label
+                gb = best["gb"]
+                o["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
+                                 rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
+                                 size_kind=best["cand"]["size"]["kind"],
+                                 blocks=[round(best["cand"]["size"].get("dx") or 0),
+                                         round(best["cand"]["size"].get("dy") or 0)])
+                o["_tier"] = _attempt_tier(best)
+                finished.append(o)
+                if log:
+                    log(f"  option '{label}': {o['verdict']} iou={o['score']['iou']} {o['route']['distance_mi']} mi, "
+                        f"{o['route']['from_pin_mi']} mi from the pin")
+                if on_option:
+                    on_option(dict({k_: v for k_, v in o.items() if not k_.startswith("_")}, index=len(finished) - 1))
         if stop:
             break
-    if not attempts:
+    if not finished:
         if errors:
             raise errors[0]
         raise PlanError("Couldn't route that shape onto these streets. Try a different spot.")
-    opts = _pick_options(attempts)
-
-    _progress(progress, "finish", 90, f"Measuring distance and climb ({len(opts)} option{'s' if len(opts) > 1 else ''})")
-    finished = []
-    for label, r in opts:
-        # Each snap lives in its own graph (street centrelines only for
-        # lattice text); measure, cue and start it there.
-        o = _finish(r["graph"], proj, r, choice, req, bucket)
-        o["label"] = label
-        gb = r["gb"]
-        o["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
-                         rot=r["cand"]["rot"], aspect=round(r["cand"].get("aspect", 1.0), 3),
-                         size_kind=r["cand"]["size"]["kind"],
-                         blocks=[round(r["cand"]["size"].get("dx") or 0), round(r["cand"]["size"].get("dy") or 0)])
-        finished.append(o)
-        if log:
-            log(f"  option '{label}': {o['verdict']} iou={o['score']['iou']} {o['route']['distance_mi']} mi, "
-                f"{o['route']['from_pin_mi']} mi from the pin")
-    out = dict(finished[0])
+    out = {k_: v for k_, v in finished[0].items() if k_ != "_tier"}
     out["options"] = [{k_: v for k_, v in o.items() if not k_.startswith("_")} for o in finished]
     sn_streets = ctx["streets"][1] if ctx["streets"] else None
     out["timing"] = dict(total_s=round(time.time() - t_start, 1), snaps=ctx.get("snaps_done", 0),
@@ -576,29 +591,6 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
                          nodes=int(len(g.ids)), spots=len(attempts) + len(errors))
     _progress(progress, "done", 100, "Done")
     return out
-
-
-def _pick_options(attempts):
-    """Up to three answers from the snapped attempts, nearest first: the best
-    of the first distance band, the best of the second, and the best of the
-    farther bands (the "even farther for the best fit" one). A farther option
-    is only worth offering when it is at least as good, by tier, as a nearer
-    one, so a worse drawing never hides behind a bigger distance."""
-    def quality(r):
-        return (_attempt_tier(r), r["iou"])
-
-    opts = []
-    for label, lo, hi in (("closest", 0, 0), ("farther", 1, 1), ("best fit", 2, 99)):
-        pool = [r for r in attempts if lo <= r["spot"]["band"] <= hi]
-        if not pool:
-            continue
-        best = max(pool, key=quality)
-        if opts and _attempt_tier(best) < max(_attempt_tier(o) for _, o in opts):
-            continue
-        opts.append((label, best))
-    if not opts:
-        opts = [("closest", max(attempts, key=quality))]
-    return opts
 
 
 def _compass(dx, dy):
@@ -802,7 +794,7 @@ def _attempt(ctx, w, progress, log, k):
     for i, c in enumerate(picks[:MAX_SNAPS]):
         if time.time() - t_start > TIME_BUDGET_S and results:
             break
-        _progress(progress, "snap", min(40 + 12 * k + int(10 * i / max(len(picks), 1)), 85),
+        _progress(progress, "snap", int(ctx.get("pct_lo", 40) + (ctx.get("pct_hi", 85) - ctx.get("pct_lo", 40)) * (0.3 + 0.6 * i / max(len(picks), 1))),
                   f"Snapping to streets ({i + 1} of {min(len(picks), MAX_SNAPS)})")
         t0 = time.time()
         r = None

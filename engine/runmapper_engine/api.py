@@ -93,7 +93,8 @@ def create_app(cache_dir=None):
                 gate.acquire()
             try:
                 res = plan_run(req, progress=lambda ev: q.put(dict(type="progress", **ev)),
-                               cache_dir=cache_dir, log=slog)
+                               cache_dir=cache_dir, log=slog,
+                               on_option=lambda o: q.put(dict(type="option", **o)))
                 q.put(dict(type="result", **{k: v for k, v in res.items() if not k.startswith("_")}))
                 slog(f"done {res.get('verdict')} {res['route']['distance_mi']:.2f} mi "
                      f"iou={res['score']['iou']:.2f} in {time.time() - t0:.1f}s")

@@ -118,6 +118,8 @@ export interface PlanResult {
 }
 
 export type PlanOption = Omit<PlanResult, "options" | "type" | "timing"> & { label: string };
+/** Streamed while planning: one answer, the moment it is ready. */
+export type PlanOptionEvent = PlanOption & { type: "option"; index: number };
 
 export interface PlanInput {
   text?: string;
@@ -141,6 +143,7 @@ export async function planRun(
   input: PlanInput,
   onProgress: (p: ProgressEvent) => void,
   signal?: AbortSignal,
+  onOption?: (o: PlanOptionEvent) => void,
 ): Promise<PlanResult> {
   const fd = new FormData();
   fd.set("text", input.text ?? "");
@@ -184,6 +187,7 @@ export async function planRun(
       if (!line) continue;
       const ev = JSON.parse(line);
       if (ev.type === "progress") onProgress(ev as ProgressEvent);
+      else if (ev.type === "option") onOption?.(ev as PlanOptionEvent);
       else if (ev.type === "result") result = ev as PlanResult;
       else if (ev.type === "error") throw new PlanError(ev.message || "Something went wrong.", ev.suggest_bucket ?? null);
     }

@@ -58,6 +58,7 @@ export default function RunMapper() {
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<PlanResult | null>(null);
   const [optIdx, setOptIdx] = useState(0);
+  const userPicked = useRef(false);        // the user chose a tab while options were still arriving
   const [error, setError] = useState<string | null>(null);
   const [suggest, setSuggest] = useState<Bucket | null>(null);
   const [showIdeal, setShowIdeal] = useState(false);
@@ -188,14 +189,29 @@ export default function RunMapper() {
     setProgress({ type: "progress", stage: "start", pct: 1, msg: "Starting" });
     const ctl = new AbortController();
     abort.current = ctl;
+    userPicked.current = false;
+    const arrived: PlanOption[] = [];
     try {
       const r = await planRun(
         { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style },
         setProgress,
         ctl.signal,
+        (o) => {
+          // Show each route the moment it is found: the card and the map
+          // follow the newest one unless the user has picked a tab.
+          const { type: _t, index, ...opt } = o;
+          void _t;
+          arrived[index] = opt;
+          const first = arrived.find(Boolean);
+          if (!first) return;
+          setResult({ ...first, type: "result", options: arrived.filter(Boolean) });
+          if (!userPicked.current) setOptIdx(arrived.filter(Boolean).length - 1);
+        },
       );
-      setOptIdx(0);
-      setResult(r);
+      // The final answer repeats the streamed options; keep those objects so
+      // the route on show is not redrawn.
+      setResult(arrived.length && r.options && r.options.length === arrived.filter(Boolean).length ? { ...r, options: arrived.filter(Boolean) } : r);
+      if (!arrived.length) setOptIdx(0);
       setStatus("done");
     } catch (e) {
       if ((e as Error).name === "AbortError") {
@@ -469,7 +485,10 @@ export default function RunMapper() {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setOptIdx(i)}
+                      onClick={() => {
+                        userPicked.current = true;
+                        setOptIdx(i);
+                      }}
                       aria-pressed={i === optIdx}
                       className={`rounded-lg border px-2 py-1.5 text-left text-xs transition ${
                         i === optIdx ? "border-[#FC5200] bg-orange-50 text-zinc-900" : "border-zinc-300 text-zinc-600 hover:border-zinc-400"

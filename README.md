@@ -20,7 +20,7 @@ Everything is plain geometry and graph search on OpenStreetMap data. **No AI API
 | `engine/runmapper_engine/image.py`, `svgin.py`, `raster.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is (thinning and contour tracing in plain numpy) |
 | `engine/runmapper_engine/pipeline.py` | The end-to-end plan: sizes from the distance bucket, street fetch, placement scan, snapping, verdict |
 | `engine/runmapper_engine/api.py` | `POST /api/plan` streams progress then the result; `POST /api/estimate`; `GET /api/health` |
-| `web/` | Next.js 16 app: the form, the MapLibre map, progress, result card, GPX download |
+| `web/` | Next.js 16 app: the form, the MapLibre map (streets or satellite, with the route drawn in start to finish), progress, result card, GPX download |
 | `web/api/index.py`, `web/scripts/vercel-install.sh`, `web/vercel.json` | The engine as a Vercel Python function inside the same project |
 | `engine/Dockerfile`, `engine/modal_app.py` | Optional: host the engine somewhere else |
 
@@ -128,4 +128,4 @@ Neither is needed for words or for logos that are already clean shapes.
 - On Vercel a request may take at most 300 s and carry at most 4.5 MB, so uploads are downscaled in the browser before they are sent, and a route that needs several slow Overpass mirrors in a row can time out; try again a minute later.
 - Diagonal letters (K N Q R V X Y Z 0 7) need bigger letters than rectilinear ones to read on a grid. A word full of them may need the next distance up.
 - Cities without a grid (old European centres) rarely produce crisp text; the app will tell you.
-- Map tiles are OpenFreeMap; street data © OpenStreetMap contributors (ODbL).
+- Map tiles are OpenFreeMap; the satellite view is Esri World Imagery with Esri's road and place-name reference tiles (attribution shown on the map); street data © OpenStreetMap contributors (ODbL).

@@ -25,15 +25,17 @@ def main(argv=None):
                     help="directory for cached street data")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--name", default="", help="name for the output files")
+    ap.add_argument("--style", choices=("auto", "line", "outline"), default="auto",
+                    help="line: one line per letter / a single line through an image; outline: block letters / the image's outline")
     a = ap.parse_args(argv)
 
     if os.path.exists(a.what):
         with open(a.what, "rb") as f:
-            req = PlanRequest(lat=a.lat, lon=a.lon, bucket=a.bucket, loop=not a.no_loop,
+            req = PlanRequest(lat=a.lat, lon=a.lon, bucket=a.bucket, loop=not a.no_loop, style=a.style,
                               image_bytes=f.read(), image_name=os.path.basename(a.what))
         slug = a.name or os.path.splitext(os.path.basename(a.what))[0]
     else:
-        req = PlanRequest(lat=a.lat, lon=a.lon, bucket=a.bucket, loop=not a.no_loop, text=a.what)
+        req = PlanRequest(lat=a.lat, lon=a.lon, bucket=a.bucket, loop=not a.no_loop, text=a.what, style=a.style)
         slug = a.name or "".join(c if c.isalnum() else "-" for c in a.what.strip().lower()).strip("-") or "text"
 
     def log(m):

@@ -388,3 +388,108 @@ def text_strokes(text, loop=True):
     s = Stroke((pts - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
     lay["scale_units_per_norm"] = scale     # font units per normalised unit
     return [s], lay
+
+
+# ------------------------------------------------------------------ block letters
+
+def outline_cells(text, kx=1, ky=1):
+    """The phrase as block letters one block thick, on a lattice with `kx`
+    blocks per font unit across and `ky` blocks per row (1.5 units) up: each
+    stroke of the line font covers the run of unit cells it passes through.
+    Returns (letters, width_blocks, height_blocks) with one set of cells
+    (x, y) per character, empty for a space."""
+    text = check_text(text)
+    gap = max(1, kx)
+    letters, x0 = [], 0
+    for ch in text:
+        w, strokes = GLYPHS[ch]
+        cells = set()
+        for stroke in strokes:
+            pts = staircase(np.asarray(stroke, float), kx, ky)
+            B = np.rint(np.c_[pts[:, 0] * kx, pts[:, 1] * ky / 1.5]).astype(int)
+            if len(B) == 1:
+                cells.add((x0 + int(B[0, 0]), int(B[0, 1])))
+            for a, b in zip(B[:-1], B[1:]):
+                if a[1] == b[1]:
+                    for x in range(min(a[0], b[0]), max(a[0], b[0]) + 1):
+                        cells.add((x0 + x, int(a[1])))
+                else:
+                    for y in range(min(a[1], b[1]), max(a[1], b[1]) + 1):
+                        cells.add((x0 + int(a[0]), y))
+        letters.append(cells)
+        x0 += w * kx + 1 + gap
+    return letters, x0 - gap, int(round(H * ky / 1.5)) + 1
+
+
+def cells_outline(cells):
+    """Boundary of a set of unit cells as closed rectilinear polygons in block
+    coordinates (corners only, first point repeated at the end), walked with
+    the inside on the left. Cells that only touch at a corner stay on
+    separate loops."""
+    nxt = {}
+
+    def add(a, b):
+        nxt.setdefault(a, []).append(b)
+
+    for (x, y) in cells:
+        if (x, y - 1) not in cells:
+            add((x, y), (x + 1, y))
+        if (x + 1, y) not in cells:
+            add((x + 1, y), (x + 1, y + 1))
+        if (x, y + 1) not in cells:
+            add((x + 1, y + 1), (x, y + 1))
+        if (x - 1, y) not in cells:
+            add((x, y + 1), (x, y))
+    loops = []
+    while nxt:
+        start = next(iter(nxt))
+        loop = [start]
+        cur, d_in = start, None
+        while True:
+            cands = nxt.get(cur)
+            if not cands:
+                break
+            if len(cands) > 1 and d_in is not None:
+                # a touching corner: take the left turn, which keeps this loop
+                # hugging its own inside
+                cands.sort(key=lambda n: -(d_in[0] * (n[1] - cur[1]) - d_in[1] * (n[0] - cur[0])))
+            n = cands.pop(0)
+            if not cands:
+                del nxt[cur]
+            d_in = (n[0] - cur[0], n[1] - cur[1])
+            cur = n
+            if cur == start:
+                break
+            loop.append(cur)
+        pts = []
+        m = len(loop)
+        for i in range(m):
+            p, q, r = loop[i - 1], loop[i], loop[(i + 1) % m]
+            if (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0]) != 0:
+                pts.append(q)
+        if len(pts) >= 4:
+            loops.append(np.array(pts + [pts[0]], float))
+    return loops
+
+
+def outline_layout(text, kx=1, ky=1, loop=True):
+    """Block letters laid out left to right on the block lattice: closed
+    polygons per letter in block coordinates (x right, y up), the pen travel
+    of their outlines split by axis, and a rough split of the joins between
+    letters (and home again for a loop), so a caller can price each axis with
+    its own block spacing."""
+    letters, width, height = outline_cells(text, kx, ky)
+    polys = []
+    ink_x = ink_y = 0.0
+    for cells in letters:
+        for poly in cells_outline(cells):
+            d = np.abs(np.diff(poly, axis=0))
+            ink_x += float(d[:, 0].sum())
+            ink_y += float(d[:, 1].sum())
+            polys.append(poly)
+    gap = max(1, kx)
+    n_join = max(0, sum(1 for c in letters if c) - 1)
+    conn_x = n_join * gap + (width if loop else 0.0)
+    conn_y = n_join * 1.0 + (height if loop else 0.0)
+    return dict(polys=polys, width=width, height=height, ink_xy=(ink_x, ink_y),
+                conn_xy=(conn_x, conn_y), text=text)

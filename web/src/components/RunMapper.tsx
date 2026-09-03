@@ -9,6 +9,8 @@ import {
   type EstimateResult,
   type PlanResult,
   type ProgressEvent,
+  STYLES,
+  type Style,
   type Units,
   PlanError,
   checkHealth,
@@ -50,6 +52,7 @@ export default function RunMapper() {
   const [focus, setFocus] = useState<(LatLon & { zoom?: number; key: number }) | null>(null);
   const [bucket, setBucket] = useState<Bucket>("5k");
   const [loop, setLoop] = useState(true);
+  const [style, setStyle] = useState<Style>("auto");
   const [status, setStatus] = useState<Status>("idle");
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
   const [result, setResult] = useState<PlanResult | null>(null);
@@ -104,10 +107,10 @@ export default function RunMapper() {
         setEst(null);
         return;
       }
-      estimate(text, bucket, loop).then(setEst).catch(() => setEst(null));
+      estimate(text, bucket, loop, style).then(setEst).catch(() => setEst(null));
     }, 300);
     return () => clearTimeout(t);
-  }, [text, bucket, loop, mode]);
+  }, [text, bucket, loop, mode, style]);
 
   // Place search.
   useEffect(() => {
@@ -185,7 +188,7 @@ export default function RunMapper() {
     abort.current = ctl;
     try {
       const r = await planRun(
-        { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop },
+        { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style },
         setProgress,
         ctl.signal,
       );
@@ -357,6 +360,28 @@ export default function RunMapper() {
           </section>
 
           {/* Distance */}
+          {/* Style */}
+          <section>
+            <label className="mb-1.5 block text-sm font-medium">Drawing style</label>
+            <div className="grid grid-cols-3 gap-2">
+              {STYLES.map((st) => (
+                <button
+                  key={st.key}
+                  type="button"
+                  onClick={() => setStyle(st.key)}
+                  className={`rounded-lg border px-2 py-2 text-sm transition ${
+                    style === st.key
+                      ? "border-[#FC5200] bg-orange-50 text-zinc-900"
+                      : "border-zinc-300 text-zinc-600 hover:border-zinc-400"
+                  }`}
+                >
+                  <div className="font-semibold">{st.label}</div>
+                  <div className="text-[11px] text-zinc-500">{mode === "text" ? st.textHint : st.imageHint}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section>
             <label className="mb-1.5 block text-sm font-medium">Distance</label>
             <div className="grid grid-cols-3 gap-2">

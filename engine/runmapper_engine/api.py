@@ -41,6 +41,7 @@ def create_app(cache_dir=None):
         text: str
         bucket: str = "10k"
         loop: bool = True
+        style: str = "auto"
 
     @app.post("/api/estimate")
     def estimate(e: Estimate):
@@ -49,7 +50,7 @@ def create_app(cache_dir=None):
         if b is None:
             raise HTTPException(400, "unknown bucket")
         try:
-            rep = prepare_text(e.text, e.loop)
+            rep = prepare_text(e.text, e.loop, "outline" if e.style == "outline" else "line")
         except font.FontError as ex:
             return dict(ok=False, message=str(ex))
         need_mi = rep["min_width_ft"] * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
@@ -61,7 +62,7 @@ def create_app(cache_dir=None):
     @app.post("/api/plan")
     async def plan(text: str = Form(""), lat: float = Form(...), lon: float = Form(...),
                    bucket: str = Form("10k"), loop: bool = Form(True), name: str = Form(""),
-                   image: UploadFile | None = File(None)):
+                   style: str = Form("auto"), image: UploadFile | None = File(None)):
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise HTTPException(400, "bad coordinates")
         data, fname = None, ""
@@ -71,7 +72,8 @@ def create_app(cache_dir=None):
                 raise HTTPException(413, "image too large (6 MB max)")
             fname = image.filename
         req = PlanRequest(lat=lat, lon=lon, bucket=bucket, loop=loop, name=name,
-                          text=text.strip() or None, image_bytes=data, image_name=fname)
+                          text=text.strip() or None, image_bytes=data, image_name=fname,
+                          style=style if style in ("auto", "line", "outline") else "auto")
         q: "queue.Queue[dict | None]" = queue.Queue()
         # Server log lines (Vercel/Railway/Modal capture stdout). Coordinates
         # are rounded to about a kilometre so visitors' start addresses are

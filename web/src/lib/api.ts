@@ -32,6 +32,15 @@ export const BUCKETS: { key: Bucket; label: string; cap_mi: number }[] = [
 ];
 
 export type Units = "mi" | "km";
+
+/** How the drawing is traced: auto (one line for words, closest match for
+ *  images), line (one line), or outline (block letters / the image's edge). */
+export type Style = "auto" | "line" | "outline";
+export const STYLES: { key: Style; label: string; textHint: string; imageHint: string }[] = [
+  { key: "auto", label: "Auto", textHint: "one line per letter", imageHint: "closest match" },
+  { key: "line", label: "Line", textHint: "one line per letter", imageHint: "a single line" },
+  { key: "outline", label: "Outline", textHint: "block letters", imageHint: "trace the edge" },
+];
 const MI_KM = 1.609344;
 const FT_M = 0.3048;
 
@@ -95,7 +104,7 @@ export interface PlanResult {
     width_mi: number;
     n_points: number;
   };
-  drawing: { kind: string; label: string; strokes: number; ideal: [number, number][][] };
+  drawing: { kind: string; style?: string; label: string; strokes: number; ideal: [number, number][][] };
   bucket: { key: Bucket; label: string; cap_mi: number };
   cues: Cue[];
   gpx: string;
@@ -111,6 +120,7 @@ export interface PlanInput {
   lon: number;
   bucket: Bucket;
   loop: boolean;
+  style?: Style;
 }
 
 export class PlanError extends Error {
@@ -132,6 +142,7 @@ export async function planRun(
   fd.set("lon", String(input.lon));
   fd.set("bucket", input.bucket);
   fd.set("loop", input.loop ? "true" : "false");
+  fd.set("style", input.style ?? "auto");
   if (input.image) fd.set("image", input.image, input.image.name);
 
   let res: Response;
@@ -183,11 +194,11 @@ export interface EstimateResult {
   message?: string | null;
 }
 
-export async function estimate(text: string, bucket: Bucket, loop: boolean): Promise<EstimateResult> {
+export async function estimate(text: string, bucket: Bucket, loop: boolean, style: Style = "auto"): Promise<EstimateResult> {
   const res = await fetch(`${API_URL}/api/estimate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, bucket, loop }),
+    body: JSON.stringify({ text, bucket, loop, style }),
   });
   if (!res.ok) throw new Error(`estimate failed: ${res.status}`);
   return res.json();

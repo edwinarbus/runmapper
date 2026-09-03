@@ -41,6 +41,7 @@ INFLATION = 1.22          # snapped length / ideal length, free placement
 INFLATION_ALIGNED = 1.08  # same, letters on the block lattice (paths are near exact)
 ALIGNED_OVER_CAP = 1.08   # lattice text may run this much over the bucket cap
 UNIT_MIN_FT = 230.0       # smallest font unit that still reads after GPS wobble
+OUTLINE_BLOCK_MIN_FT = 190.0   # block letters are one block thick; thinner than this they don't read
 LOGO_MIN_WIDTH_FT = 1900.0
 THICK_MIN_FT = 300.0      # two edges closer than this land on the same street
 VERDICTS = [(0.66, "great"), (0.50, "good"), (0.36, "rough")]
@@ -69,6 +70,7 @@ class PlanRequest:
     image_bytes: bytes | None = None
     image_name: str = ""
     name: str = ""
+    style: str = "auto"       # auto | line | outline
     extra: dict = field(default_factory=dict)
 
 
@@ -102,17 +104,30 @@ def _monotone(cb):
 
 # ------------------------------------------------------------------ strokes
 
-def prepare_text(text, loop):
+def prepare_text(text, loop, style="line"):
+    if style == "outline":
+        # Block letters: closed outlines one block thick. The reference shape
+        # is the kx=ky=1 layout; "units" are blocks of that drawing.
+        lay = font.outline_layout(text, 1, 1, loop)
+        allp = np.vstack(lay["polys"])
+        lo, hi = allp.min(0), allp.max(0)
+        ctr = (lo + hi) / 2.0
+        scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
+        strokes = [Stroke((poly - ctr) / scale, name=f"block{i}", closed=True, kind="outline")
+                   for i, poly in enumerate(lay["polys"])]
+        return dict(kind="text", style="outline", strokes=strokes, label=lay["text"],
+                    ink_norm=sum(lay["ink_xy"]) / scale, conn_norm=sum(lay["conn_xy"]) / scale,
+                    min_width_ft=OUTLINE_BLOCK_MIN_FT * scale, units_per_width=scale, layout=lay)
     strokes, lay = font.text_strokes(text, loop=loop)
     unit_norm = 1.0 / lay["scale_units_per_norm"]          # normalised size of one font unit
-    return dict(kind="text", strokes=strokes, label=lay["text"],
+    return dict(kind="text", style="line", strokes=strokes, label=lay["text"],
                 ink_norm=lay["walk_units"] * unit_norm,
                 conn_norm=lay["return_units"] * unit_norm,
                 min_width_ft=UNIT_MIN_FT * lay["scale_units_per_norm"],
                 units_per_width=lay["scale_units_per_norm"], layout=lay)
 
 
-def prepare_image(data, name, loop):
+def prepare_image(data, name, loop, style="auto"):
     head = data[:2000].lower()
     is_svg = name.lower().endswith(".svg") or b"<svg" in head
     reps = []
@@ -158,8 +173,16 @@ def prepare_image(data, name, loop):
             min_w = max(LOGO_MIN_WIDTH_FT, THICK_MIN_FT / max(r["thick"], 1e-3))
         else:
             min_w = max(LOGO_MIN_WIDTH_FT, 250.0 / max(feat, 1e-3))
-        out.append(dict(kind=r["kind"], strokes=strokes, ink_norm=ink, conn_norm=conn,
+        out.append(dict(kind=r["kind"], style=r["kind"], strokes=strokes, ink_norm=ink, conn_norm=conn,
                         min_width_ft=min_w, thick=r["thick"], feature=feat, label=name or "image"))
+    if style == "line":
+        out = [r for r in out if r["kind"] == "center"]
+        if not out:
+            raise PlanError("Couldn't trace a single line through that image. Try the Outline style.")
+    elif style == "outline":
+        out = [r for r in out if r["kind"] == "outline"]
+        if not out:
+            raise PlanError("Couldn't trace an outline from that image (it is line art). Try the Line style.")
     return out
 
 
@@ -190,12 +213,83 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
                 units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
 
 
+def _outline_lattice_layout(rep, kx, ky, dx, dy, loop):
+    """The phrase as block letters on the block lattice: each cell of the
+    letter grid is kx blocks wide and ky blocks tall, so strokes are that
+    thick and every corner is a street corner. Closed strokes per letter,
+    the exact length of their outlines plus a rough length of the joins."""
+    lay = rep["layout"]
+    ux, uy = kx * dx, ky * dy
+    allp = np.vstack(lay["polys"])
+    lo, hi = allp.min(0), allp.max(0)
+    ctr = (lo + hi) / 2.0
+    scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
+    strokes = [Stroke((poly - ctr) / scale, name=f"block{i}", closed=True, kind="outline")
+               for i, poly in enumerate(lay["polys"])]
+    ink_ft = lay["ink_xy"][0] * ux + lay["ink_xy"][1] * uy
+    conn_ft = lay["conn_xy"][0] * ux + lay["conn_xy"][1] * uy
+    lw, lh = 3.0 * ux, float(lay["height"]) * uy         # one letter's footprint
+    return dict(strokes=strokes, width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
+                unit_ft=min(ux, uy), est_ft=(ink_ft + conn_ft) * INFLATION_ALIGNED,
+                units_per_width=scale, area=lw * lh, letter_aspect=lh / lw, shape=abs(math.log(lh / lw)))
+
+
+def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=None):
+    """Sizes for block letters: on the lattice with cells of kx x ky blocks
+    (strokes that thick), biggest first. Where there is a grid, nothing else:
+    free-floating block letters come out as squiggles, so when none fits the
+    caller gets the distance they would need. Without a grid, a free-floating
+    size is the only option and is capped at rough."""
+    out = []
+    bs = g.block_spacing(90.0 - r0, window=window)
+    dx, dy = bs["spacing_along"], bs["spacing_across"]
+    has_grid = (regularity >= LATTICE_MIN_REGULARITY and dx and dy
+                and bs["conf_along"] >= 0.15 and bs["conf_across"] >= 0.15)
+    if log:
+        log(f"  grid rot={r0:+.1f} regularity={regularity:.2f} block along={dx} across={dy} "
+            f"conf={bs['conf_along']:.2f}/{bs['conf_across']:.2f} lattice={has_grid} (block letters)")
+    need_ft = None
+    if has_grid:
+        aligned = []
+        r90 = r0 + 90.0 if r0 <= 0 else r0 - 90.0
+        for rot, ddx, ddy, orient_pen in ((r0, dx, dy, 1.0), (r90, dy, dx, 0.6)):
+            for kx in (1, 2):
+                for ky in (1, 2, 3):
+                    sz = _outline_lattice_layout(rep, kx, ky, ddx, ddy, loop)
+                    if sz["unit_ft"] < OUTLINE_BLOCK_MIN_FT * 0.75:
+                        continue        # strokes too thin to read
+                    if not (0.45 <= sz["letter_aspect"] <= 2.6):
+                        continue
+                    if need_ft is None or sz["est_ft"] < need_ft:
+                        need_ft = sz["est_ft"]
+                    if sz["est_ft"] <= cap_ft * ALIGNED_OVER_CAP:
+                        sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy, orient=orient_pen)
+                        if orient_pen < 1.0 or sz["letter_aspect"] < 0.7:
+                            sz["max_verdict"] = "good"
+                        aligned.append(sz)
+        aligned.sort(key=lambda s: (-s["orient"], -s["area"] * math.exp(-2.0 * s["shape"])))
+        out.extend(aligned[:3])
+        return out, need_ft
+    wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
+    rots = {round(r0, 1), 0.0}
+    if abs(r0) > 6.0:
+        rots.add(round(r0 / 2.0, 1))
+    rots = sorted(rots, key=abs)
+    unit = wmax / rep["units_per_width"]
+    if wmax >= rep["min_width_ft"]:
+        out.append(dict(strokes=rep["strokes"], width_ft=wmax, aspect=1.0, rots=rots, kind="free",
+                        unit_ft=unit, est_ft=None, units_per_width=rep["units_per_width"], max_verdict="rough"))
+    return out, need_ft
+
+
 def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=None):
     """Sizes to try for text: letters on the block lattice at whole-block
     multiples (biggest first), plus a free-floating fallback only where the
     letters would still span well over a block. Returns (sizes, need_ft) where
     need_ft is the smallest lattice layout's length, for the suggestion when
     nothing fits."""
+    if rep.get("style") == "outline":
+        return _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=log, window=window)
     out = []
     bs = g.block_spacing(90.0 - r0, window=window)
     dx, dy = bs["spacing_along"], bs["spacing_across"]
@@ -331,13 +425,14 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None):
     cap_ft = bucket["cap_mi"] * FT_PER_MI
 
     _progress(progress, "strokes", 3, "Reading the shape")
+    style = req.style if req.style in ("auto", "line", "outline") else "auto"
     if req.text:
         try:
-            reps = [prepare_text(req.text, req.loop)]
+            reps = [prepare_text(req.text, req.loop, "outline" if style == "outline" else "line")]
         except font.FontError as ex:
             raise PlanError(str(ex)) from ex
     elif req.image_bytes:
-        reps = prepare_image(req.image_bytes, req.image_name, req.loop)
+        reps = prepare_image(req.image_bytes, req.image_name, req.loop, style)
     else:
         raise PlanError("Type a phrase or upload an image.")
 
@@ -972,7 +1067,8 @@ def _finish(g, proj, best, choice, req, bucket):
                    from_pin_mi=round(from_pin_ft / FT_PER_MI, 2),
                    width_mi=round(best["cand"]["width_ft"] / FT_PER_MI, 2),
                    n_points=int(len(ll))),
-        drawing=dict(kind=choice["kind"], label=label, strokes=len(best["ideal"]), ideal=ideal_ll),
+        drawing=dict(kind=choice["kind"], style=choice.get("style") or choice["kind"], label=label,
+                     strokes=len(best["ideal"]), ideal=ideal_ll),
         bucket=dict(key=req.bucket, label=bucket["label"], cap_mi=bucket["cap_mi"]),
         cues=cues,
         gpx=gpx_string(ll, prof["ele"] if prof["gain"] is not None else None, name=name, desc=desc),

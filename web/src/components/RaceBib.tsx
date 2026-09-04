@@ -168,7 +168,10 @@ export function BibStack({
   };
   // The browser took the pointer away (a scroll, a second finger, a system
   // gesture): let go of a drag in progress; a fling on its way keeps going.
-  const onLostCapture = () => {
+  // A touch is held by whatever it landed on until the bib takes it, and
+  // that hand-off fires the same event from the inner element: not a loss.
+  const onLostCapture = (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
     if (!ptr.current) return;
     ptr.current = null;
     setDrag((d) => (d.live ? IDLE : d));

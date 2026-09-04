@@ -7,14 +7,21 @@ import { isDrawing } from "@/lib/drawing";
 import { TILE, compass, verdictOf } from "@/lib/labels";
 import Icon from "./Icon";
 
-// The answers as race bibs pinned in a stack: the one on show in front, the
-// others peeking out above it by their sponsor band. The distance is the bib
-// number, the word is the runner's name, the verdict is a rubber stamp, and
-// the stub along the bottom carries the GPX, the link and the target shape.
+// The answers as race bibs pinned in a pile: the one on show in front, the
+// others behind it, peeking out above by their sponsor band. The distance is
+// the bib number, the word is the runner's name, the verdict is a rubber
+// stamp, and the stub along the bottom carries the GPX and the GIF.
+//
+// The bib just behind the front is the next answer, drawn whole, so dragging
+// the front bib aside is a peek at it (let go and the front springs back) or
+// a throw (it flies off, the next bib comes forward, and the thrown one goes
+// to the back of the pile). A tap on any band brings that bib to the front.
 
 const PEEK = 30;                       // how much of a bib behind shows, in px
+const BACK_SCALE = 0.94;               // the bibs behind are a little smaller, as if farther away
+const REVEAL_AT = 0.4;                 // the drag, as a share of the bib's width, that brings the next bib fully forward
 const TILT = [-1.4, 1.1, -0.7, 0.9];  // back bibs hang a little crooked
-const IDLE = { dx: 0, live: false, out: 0 as const, on: -1 };
+const IDLE = { dx: 0, w: 0, live: false, out: 0 as const, on: -1 };
 
 export interface BibActions {
   units: Units;
@@ -83,6 +90,98 @@ function Band({ index, o, units }: { index: number; o: PlanOption; units: Units 
   );
 }
 
+/** The paper under the band: the number, the stamp, the name, the start
+ *  line and the stub. Live on the front bib; on the bibs behind, a picture
+ *  of itself, so a peek shows the whole answer. */
+function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actions: BibActions; live: boolean }) {
+  const distPrimary = (units === "mi" ? o.route.distance_mi : o.route.distance_km).toFixed(2);
+  const distSecondary = units === "mi" ? `${o.route.distance_km.toFixed(2)} km` : `${o.route.distance_mi.toFixed(2)} mi`;
+  const climb = o.route.gain_ft != null ? (units === "mi" ? `${Math.round(o.route.gain_ft)} ft climb` : `${Math.round(o.route.gain_ft * 0.3048)} m climb`) : null;
+  const word = o.drawing.kind === "text" ? o.drawing.label : isDrawing(o.drawing.label) ? "Your drawing" : "Logo run";
+  const tryLabel = o.suggest_bucket ? `Try ${BUCKETS.find((b) => b.key === o.suggest_bucket)?.label ?? o.suggest_bucket} instead` : null;
+  return (
+    <>
+      <div className="bib-body">
+        <div className="bib-stamp">
+          <Stamp verdict={o.verdict} pct={Math.round(o.score.iou * 100)} />
+        </div>
+        <div className="bib-num font-display">
+          {distPrimary}
+          <span className="bib-unit">{units}</span>
+        </div>
+        <div className="bib-sub font-display">
+          {distSecondary} · {o.route.loop ? "loop" : "one way"} · {TILE[o.bucket.key] ?? o.bucket.label}
+          {climb ? ` · ${climb}` : ""}
+        </div>
+        <div className="bib-name font-display">
+          {word}
+          {o.drawing.lines && o.drawing.lines > 1 ? <span className="bib-name-sub">{o.drawing.lines} lines</span> : null}
+        </div>
+        <div className="bib-start">
+          <span className="bib-k font-display">Start</span>
+          <span>
+            <b>{o.route.starts_at_pin ? "Your pin" : o.route.start_desc}</b>
+            {o.route.starts_at_pin && <span className="bib-dim"> ({o.route.start_desc})</span>}
+            {" · "}head {compass(o.route.start_bearing)} ({o.route.start_bearing}°)
+            {o.route.approach_mi > 0.04 && ` · ${fmtDist(o.route.approach_mi, units)} to the drawing${o.route.loop ? " and back" : ""}`}
+            {!o.route.starts_at_pin && o.route.from_pin_mi > 0.04 && ` · ${fmtDist(o.route.from_pin_mi, units)} from your pin, where the streets fit better`}
+          </span>
+        </div>
+        {o.message && <p className="bib-msg">{o.message}</p>}
+        {tryLabel &&
+          (live ? (
+            <button type="button" onClick={() => actions.onTry(o.suggest_bucket as Bucket)} className="pbtn pbtn-ink">
+              {tryLabel}
+            </button>
+          ) : (
+            <span className="pbtn pbtn-ink">{tryLabel}</span>
+          ))}
+      </div>
+      <div className="bib-crease" aria-hidden="true" />
+      <div className="bib-stub">
+        {live ? (
+          <>
+            <button
+              type="button"
+              onClick={actions.onGpx}
+              className="pbtn pbtn-orange"
+              title={actions.canShare ? "The route as a GPX file: send it to Strava, Garmin or your watch app" : "Download the route as a GPX file"}
+            >
+              <Icon name="download" />
+              GPX
+            </button>
+            <button
+              type="button"
+              onClick={actions.onGif}
+              className="pbtn"
+              disabled={actions.gif.busy}
+              aria-busy={actions.gif.busy}
+              title="Download the route drawing itself in, as a GIF to post"
+            >
+              <Icon name="download" />
+              {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="pbtn pbtn-orange">
+              <Icon name="download" />
+              GPX
+            </span>
+            <span className="pbtn">
+              <Icon name="download" />
+              GIF
+            </span>
+          </>
+        )}
+        <span className="bib-sponsor font-display" aria-hidden="true">
+          drawmy<span>.run</span>
+        </span>
+      </div>
+    </>
+  );
+}
+
 export function BibStack({
   options,
   index,
@@ -99,15 +198,19 @@ export function BibStack({
   const { units } = actions;
   const count = options.length;
 
-  // Swiping the front bib flings it off and brings the next one (or the
-  // previous, swiping the other way) to the front. Vertical movement is
-  // left to the panel's scroll; a tap on the stub's buttons is still a tap.
-  // The drag belongs to the bib it started on: if another route arrives
-  // and the front bib changes under the finger, the new one starts clean.
+  // Dragging the front bib aside brings the next one forward underneath it;
+  // a throw (far enough, or fast enough) sends the front bib off and makes
+  // the next one the front. Vertical movement is left to the panel's
+  // scroll; a tap on the stub's buttons is still a tap. The drag belongs to
+  // the bib it started on: if another route arrives and the front bib
+  // changes under the finger, the new one starts clean.
   const ptr = useRef<{ id: number; x0: number; y0: number; axis: "x" | null; lastX: number; lastT: number; vx: number } | null>(null);
   const swiped = useRef(false);
-  const [drag, setDrag] = useState<{ dx: number; live: boolean; out: -1 | 0 | 1; on: number }>(IDLE);
+  const [drag, setDrag] = useState<{ dx: number; w: number; live: boolean; out: -1 | 0 | 1; on: number }>(IDLE);
+  // A bib that came forward under a throw is already in place: no settling in.
+  const [arrived, setArrived] = useState<"pick" | "throw">("pick");
   const active = drag.on === index;
+  const live = active && drag.live;
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (ptr.current || (active && drag.out !== 0) || count < 2) return;   // one finger at a time
@@ -140,7 +243,7 @@ export function BibStack({
     if (dt > 0) p.vx = (e.clientX - p.lastX) / dt;
     p.lastX = e.clientX;
     p.lastT = e.timeStamp;
-    setDrag({ dx, live: true, out: 0, on: index });
+    setDrag({ dx, w: e.currentTarget.offsetWidth || 320, live: true, out: 0, on: index });
   };
   const onPointerUp = (e: ReactPointerEvent<HTMLElement>) => {
     const p = ptr.current;
@@ -153,21 +256,25 @@ export function BibStack({
     }, 60);
     const dx = e.clientX - p.x0;
     const w = e.currentTarget.offsetWidth || 320;
-    const fling = e.type !== "pointercancel" && (Math.abs(dx) > Math.max(64, w * 0.22) || Math.abs(p.vx) > 0.6);
-    if (!fling) {
-      setDrag(IDLE);
+    // A throw: dragged past the point where the next bib is fully forward
+    // (two fifths of the width), or flicked. Anything shorter was a peek.
+    const thrown = e.type !== "pointercancel" && (Math.abs(dx) > Math.max(90, w * REVEAL_AT) || Math.abs(p.vx) > 0.6);
+    if (!thrown) {
+      setDrag(IDLE);   // a peek: the front bib springs back
       return;
     }
+    // Thrown either way, the bib underneath is the one that comes forward.
     const dir: -1 | 1 = (Math.abs(dx) > 8 ? dx : p.vx) < 0 ? -1 : 1;
-    setDrag({ dx: dir * (w + 140), live: false, out: dir, on: index });
-    const next = dir < 0 ? (index + 1) % count : (index - 1 + count) % count;
+    setDrag({ dx: dir * (w + 140), w, live: false, out: dir, on: index });
+    const next = (index + 1) % count;
     window.setTimeout(() => {
+      setArrived("throw");
       onPick(next);
       setDrag(IDLE);
     }, 230);
   };
   // The browser took the pointer away (a scroll, a second finger, a system
-  // gesture): let go of a drag in progress; a fling on its way keeps going.
+  // gesture): let go of a drag in progress; a throw on its way keeps going.
   // A touch is held by whatever it landed on until the bib takes it, and
   // that hand-off fires the same event from the inner element: not a loss.
   const onLostCapture = (e: ReactPointerEvent<HTMLElement>) => {
@@ -179,13 +286,14 @@ export function BibStack({
 
   const o = options[index];
   if (!o) return null;
-  const behind = options.map((_, i) => i).filter((i) => i !== index);
+  // The pile behind the front bib, farthest first: the next answer is nearest,
+  // the one after it behind that, round to the one just thrown at the back.
+  const behind = Array.from({ length: count - 1 }, (_, k) => (index + count - 1 - k) % count);
   const n = behind.length + (planning ? 1 : 0);
   const v = verdictOf(o.verdict);
-  const distPrimary = (units === "mi" ? o.route.distance_mi : o.route.distance_km).toFixed(2);
-  const distSecondary = units === "mi" ? `${o.route.distance_km.toFixed(2)} km` : `${o.route.distance_mi.toFixed(2)} mi`;
-  const climb = o.route.gain_ft != null ? (units === "mi" ? `${Math.round(o.route.gain_ft)} ft climb` : `${Math.round(o.route.gain_ft * 0.3048)} m climb`) : null;
-  const word = o.drawing.kind === "text" ? o.drawing.label : isDrawing(o.drawing.label) ? "Your drawing" : "Logo run";
+  // How far the next bib has come forward under the drag: all the way once
+  // the front bib is thrown, so the two hand over without a jump.
+  const reveal = active ? (drag.out ? 1 : Math.min(1, Math.abs(drag.dx) / ((drag.w || 320) * REVEAL_AT))) : 0;
 
   return (
     <div className="bibs" style={{ paddingTop: n * PEEK }}>
@@ -210,22 +318,9 @@ export function BibStack({
         </defs>
       </svg>
 
-      {behind.map((i, r) => (
-        <button
-          key={i}
-          type="button"
-          className="bib bib-back"
-          style={{ top: r * PEEK, zIndex: r + 1, transform: `rotate(${TILT[r % TILT.length]}deg)` }}
-          onClick={() => onPick(i)}
-          aria-label={`Show route ${i + 1}, ${options[i].label}: ${awayLabel(options[i], units)}, ${verdictOf(options[i].verdict).label}`}
-        >
-          <SafetyPin corner="tl" />
-          <SafetyPin corner="tr" />
-          <Band index={i} o={options[i]} units={units} />
-        </button>
-      ))}
+      {/* Still searching: a ghost bib at the very back of the pile. */}
       {planning && (
-        <div className="bib bib-back bib-ghost" style={{ top: behind.length * PEEK, zIndex: behind.length + 1 }} aria-hidden="true">
+        <div className="bib bib-back bib-ghost" style={{ top: 0, zIndex: 1, transform: `scale(${BACK_SCALE})` }} aria-hidden="true">
           <div className="bib-band font-display">
             <span className="bib-lane">
               <b>{options.length + 1}</b>
@@ -235,19 +330,53 @@ export function BibStack({
           </div>
         </div>
       )}
+      {behind.map((i, r) => {
+        const slot = r + (planning ? 1 : 0);
+        const t = r === behind.length - 1 ? reveal : 0;   // only the nearest comes forward
+        const tilt = TILT[i % TILT.length];
+        return (
+          <div
+            key={i}
+            className="bib bib-back"
+            style={{
+              top: slot * PEEK,
+              zIndex: slot + 1,
+              transform: `translateY(${PEEK * t}px) rotate(${tilt * (1 - t)}deg) scale(${BACK_SCALE + (1 - BACK_SCALE) * t})`,
+              transition: live ? "none" : "transform 0.24s ease-out, top 0.24s ease-out",
+            }}
+          >
+            <SafetyPin corner="tl" />
+            <SafetyPin corner="tr" />
+            <button
+              type="button"
+              className="bib-band-btn"
+              onClick={() => {
+                setArrived("pick");
+                onPick(i);
+              }}
+              aria-label={`Show route ${i + 1}, ${options[i].label}: ${awayLabel(options[i], units)}, ${verdictOf(options[i].verdict).label}`}
+            >
+              <Band index={i} o={options[i]} units={units} />
+            </button>
+            <div aria-hidden="true" inert>
+              <Paper o={options[i]} units={units} actions={actions} live={false} />
+            </div>
+          </div>
+        );
+      })}
 
       <article
         key={index}
-        className={`bib bib-front${active && (drag.live || drag.out) ? " bib-drag" : ""}`}
+        className={`bib bib-front${live || (active && drag.out) ? " bib-drag" : ""}${arrived === "throw" ? " bib-still" : ""}`}
         style={{
           zIndex: n + 1,
           transform: active && drag.dx ? `translateX(${drag.dx}px) rotate(${drag.dx / 24}deg)` : undefined,
-          transition: active && drag.live ? "none" : "transform 0.24s ease-out, opacity 0.24s ease-out",
+          transition: live ? "none" : "transform 0.24s ease-out, opacity 0.24s ease-out",
           opacity: active && drag.out ? 0.35 : 1,
         }}
         tabIndex={0}
         aria-roledescription="carousel"
-        aria-label={`Route ${index + 1} of ${count}, ${o.label}. Swipe, or use the arrow keys, for the others.`}
+        aria-label={`Route ${index + 1} of ${count}, ${o.label}. Swipe for the next route, or use the arrow keys.`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -264,9 +393,11 @@ export function BibStack({
           if (count < 2) return;
           if (e.key === "ArrowRight") {
             e.preventDefault();
+            setArrived("pick");
             onPick((index + 1) % count);
           } else if (e.key === "ArrowLeft") {
             e.preventDefault();
+            setArrived("pick");
             onPick((index - 1 + count) % count);
           }
         }}
@@ -276,65 +407,7 @@ export function BibStack({
         <SafetyPin corner="bl" />
         <SafetyPin corner="br" />
         <Band index={index} o={o} units={units} />
-        <div className="bib-body">
-          <div className="bib-stamp">
-            <Stamp verdict={o.verdict} pct={Math.round(o.score.iou * 100)} />
-          </div>
-          <div className="bib-num font-display">
-            {distPrimary}
-            <span className="bib-unit">{units}</span>
-          </div>
-          <div className="bib-sub font-display">
-            {distSecondary} · {o.route.loop ? "loop" : "one way"} · {TILE[o.bucket.key] ?? o.bucket.label}
-            {climb ? ` · ${climb}` : ""}
-          </div>
-          <div className="bib-name font-display">
-            {word}
-            {o.drawing.lines && o.drawing.lines > 1 ? <span className="bib-name-sub">{o.drawing.lines} lines</span> : null}
-          </div>
-          <div className="bib-start">
-            <span className="bib-k font-display">Start</span>
-            <span>
-              <b>{o.route.starts_at_pin ? "Your pin" : o.route.start_desc}</b>
-              {o.route.starts_at_pin && <span className="bib-dim"> ({o.route.start_desc})</span>}
-              {" · "}head {compass(o.route.start_bearing)} ({o.route.start_bearing}°)
-              {o.route.approach_mi > 0.04 && ` · ${fmtDist(o.route.approach_mi, units)} to the drawing${o.route.loop ? " and back" : ""}`}
-              {!o.route.starts_at_pin && o.route.from_pin_mi > 0.04 && ` · ${fmtDist(o.route.from_pin_mi, units)} from your pin, where the streets fit better`}
-            </span>
-          </div>
-          {o.message && <p className="bib-msg">{o.message}</p>}
-          {o.suggest_bucket && (
-            <button type="button" onClick={() => actions.onTry(o.suggest_bucket as Bucket)} className="pbtn pbtn-ink">
-              Try {BUCKETS.find((b) => b.key === o.suggest_bucket)?.label ?? o.suggest_bucket} instead
-            </button>
-          )}
-        </div>
-        <div className="bib-crease" aria-hidden="true" />
-        <div className="bib-stub">
-          <button
-            type="button"
-            onClick={actions.onGpx}
-            className="pbtn pbtn-orange"
-            title={actions.canShare ? "The route as a GPX file: send it to Strava, Garmin or your watch app" : "Download the route as a GPX file"}
-          >
-            <Icon name="download" />
-            GPX
-          </button>
-          <button
-            type="button"
-            onClick={actions.onGif}
-            className="pbtn"
-            disabled={actions.gif.busy}
-            aria-busy={actions.gif.busy}
-            title="Download the route drawing itself in, as a GIF to post"
-          >
-            <Icon name="download" />
-            {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
-          </button>
-          <span className="bib-sponsor font-display" aria-hidden="true">
-            drawmy<span>.run</span>
-          </span>
-        </div>
+        <Paper o={o} units={units} actions={actions} live />
         <span className="sr-only">{v.label}</span>
       </article>
     </div>

@@ -675,25 +675,49 @@ details[open] > .disclose svg {
 .bib-front:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 2px var(--orange), 0 18px 30px -12px rgba(0, 0, 0, 0.8);
 }
+/* Lifted off the pins while it is dragged: a deeper shadow, no settling. */
 .bib-drag {
   animation: none;
   user-select: none;
   cursor: grabbing;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 30px 44px -14px rgba(0, 0, 0, 0.85), 0 8px 14px rgba(0, 0, 0, 0.4);
 }
+/* A bib that came forward under a throw is already in place. */
+.bib-still {
+  animation: none;
+}
+/* The bibs behind: whole bibs, a little smaller, hanging from their top
+   edge so they can come forward under the front one. */
 .bib-back {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  width: auto;                 /* stretched between left and right, a little narrower than the front bib */
-  bottom: 14px;                /* a whole bib behind, its crooked bottom corners tucked in */
-  display: flex;               /* a button centres its content; the band has to sit at the top */
-  flex-direction: column;
-  padding: 0;
-  cursor: pointer;
+  left: 0;
+  right: 0;
+  width: auto;
+  transform-origin: 50% 0;
   box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.3);
+  animation: bib-in 0.25s ease-out backwards;
 }
-.bib-back:hover .bib-band {
+.bib-band-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bib-band-btn:hover .bib-band {
   filter: brightness(1.08);
+}
+.bib-band-btn:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: -2px;
+}
+@keyframes bib-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .bib-ghost {
   cursor: default;
@@ -1206,6 +1230,7 @@ summary:focus-visible {
   .dot-busy,
   .rise,
   .bib-front,
+  .bib-back,
   .bib-ghost,
   .flap-bot,
   .flap-cursor,

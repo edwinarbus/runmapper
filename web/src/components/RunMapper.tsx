@@ -467,7 +467,7 @@ export default function RunMapper() {
     <div className="grid h-dvh grid-rows-[auto_1fr] md:grid-cols-[440px_1fr] md:grid-rows-1">
       <aside
         ref={aside}
-        className={`tower panel-scroll overflow-y-auto border-b border-[var(--line)] md:max-h-none md:border-r md:border-b-0 ${showResult ? "max-h-[56dvh]" : "max-h-[64dvh]"}`}
+        className={`tower panel-scroll overflow-x-hidden overflow-y-auto border-b border-[var(--line)] md:max-h-none md:border-r md:border-b-0 ${showResult ? "max-h-[56dvh]" : "max-h-[64dvh]"}`}
       >
         <div className="checker" aria-hidden="true" />
         <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">

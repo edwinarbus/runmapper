@@ -29,8 +29,8 @@ const FALLBACK_STYLE: maplibregl.StyleSpecification = {
 
 export type Basemap = "night" | "day" | "satellite";
 const BASEMAPS: { key: Basemap; label: string }[] = [
-  { key: "night", label: "Night" },
   { key: "day", label: "Day" },
+  { key: "night", label: "Night" },
   { key: "satellite", label: "Sat" },
 ];
 const styleFor = (b: Basemap) => (b === "satellite" ? SATELLITE_STYLE : b === "day" ? DAY_STYLE : NIGHT_STYLE);

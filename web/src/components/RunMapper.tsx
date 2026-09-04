@@ -491,11 +491,11 @@ export default function RunMapper() {
               <span className="logo-word" aria-hidden="true">
                 <span className="logo-draw">DRAWMY</span>
                 <span className="logo-run">
-                  <span className="logo-period">.</span>RUN
+                  <span className="logo-period" />RUN
                 </span>
               </span>
             </h1>
-            <p className="eyebrow mt-1.5 truncate">{engine === "online" && status !== "planning" ? "GPS art for runners" : statusWord}</p>
+            <p className="eyebrow mt-1.5 truncate">{engine === "online" && status !== "planning" ? "Workout GPS art" : statusWord}</p>
           </div>
           <Seg
             className="mt-1 shrink-0"

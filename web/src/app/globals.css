@@ -21,9 +21,18 @@
   --paper: #f6f3ec;
   --paper-ink: #17171a;
   --paper-ink-2: #6b6a64;
-  --key: linear-gradient(180deg, #2a2a31, #1c1c21);
-  --key-hover: linear-gradient(180deg, #34343c, #222227);
-  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --key: linear-gradient(180deg, #31313a, #1a1a1f);
+  --key-hover: linear-gradient(180deg, #3a3a44, #212127);
+  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  /* A key pressed into its socket: the face darker and lit from below, the
+     socket's top edge and sides shadowing it, a black rim where the deck
+     ends and a thread of light on the deck's lower edge. */
+  --key-down: linear-gradient(180deg, #0e0e11, #1c1c21);
+  --sunk: inset 0 5px 8px -2px rgba(0, 0, 0, 0.85), inset 2px 0 3px -2px rgba(0, 0, 0, 0.6), inset -2px 0 3px -2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07);
+  --orange-down: linear-gradient(180deg, #b93a00 0%, #e04600 35%, #ff6a1f 100%);
+  --sunk-orange: inset 0 5px 8px -2px rgba(0, 0, 0, 0.6), inset 2px 0 3px -2px rgba(0, 0, 0, 0.35), inset -2px 0 3px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07);
+  --white-down: linear-gradient(180deg, #bdbab1 0%, #dedbd3 40%, #f7f5f0 100%);
+  --sunk-white: inset 0 5px 8px -2px rgba(0, 0, 0, 0.45), inset 2px 0 3px -2px rgba(0, 0, 0, 0.25), inset -2px 0 3px -2px rgba(0, 0, 0, 0.25), inset 0 -1px 0 #fff, 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07);
   --slot: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 1px 0 rgba(255, 255, 255, 0.05);
   --grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
   --grain-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.26 0 0 0 0 0.2 0 0 0 0.22 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
@@ -67,8 +76,8 @@ body {
 }
 
 /* The wordmark: drawmy.run in enamel capitals with a lip of shadow, the
-   .run in orange. The period is set a little smaller and tucked in, so it
-   reads as the dot in the address rather than a gap. */
+   run in orange, and the period the green start marker, a small dot standing
+   on the baseline the way a full stop does. */
 .logo {
   display: inline-block;
   font-size: 1.75rem;
@@ -86,8 +95,12 @@ body {
 }
 .logo-period {
   display: inline-block;
-  margin: 0 -0.02em 0 -0.06em;
-  font-size: 0.82em;
+  width: 0.19em;
+  height: 0.19em;
+  margin: 0 0.08em 0 0.06em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #7cf0c4 0%, #12b886 55%, #0a8a63 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
   vertical-align: baseline;
 }
 .logo-draw,
@@ -411,18 +424,20 @@ body {
 .tile[data-pressed]:not(:disabled),
 .tile[aria-pressed="true"] {
   transform: translateY(4px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 #050506, 0 1px 3px rgba(0, 0, 0, 0.5);
+  background: var(--key-down);
+  box-shadow: var(--sunk);
 }
 .tile:active:not(:disabled),
 .tile[data-pressed]:not(:disabled) {
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
-.tile[aria-pressed="true"],
+/* The chosen key stays down in its socket, lit orange. */
+.tile[aria-pressed="true"]:not(:disabled),
 .tile[aria-pressed="true"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff6a1f, #ef4c00);
+  background: var(--orange-down);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 0 0 #050506, 0 0 18px rgba(252, 82, 0, 0.35);
+  box-shadow: var(--sunk-orange), 0 0 18px rgba(252, 82, 0, 0.3);
 }
 .tile .big-label {
   display: block;
@@ -575,7 +590,8 @@ body {
 .btn:active:not(:disabled),
 .btn[data-pressed]:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: var(--key-hi), 0 0 0 #050506, 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: var(--key-down);
+  box-shadow: var(--sunk);
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
@@ -602,7 +618,8 @@ body {
 }
 .btn-fill:active:not(:disabled),
 .btn-fill[data-pressed]:not(:disabled) {
-  box-shadow: inset 0 1px 0 #fff, 0 0 0 #8f8d86, 0 1px 2px rgba(0, 0, 0, 0.5);
+  background: var(--white-down);
+  box-shadow: var(--sunk-white);
 }
 .btn-orange {
   background: linear-gradient(180deg, #ff6a1f, #ef4c00);
@@ -616,7 +633,8 @@ body {
 }
 .btn-orange:active:not(:disabled),
 .btn-orange[data-pressed]:not(:disabled) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 var(--orange-deep), 0 1px 3px rgba(0, 0, 0, 0.4);
+  background: var(--orange-down);
+  box-shadow: var(--sunk-orange);
 }
 .btn-sm {
   height: 36px;
@@ -657,7 +675,8 @@ body {
 .go:active:not(:disabled),
 .go[data-pressed]:not(:disabled) {
   transform: translateY(6px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 0 0 var(--orange-deep), 0 3px 8px rgba(252, 82, 0, 0.25);
+  background: linear-gradient(180deg, #b93a00 0%, #de4500 35%, #ff6f26 100%);
+  box-shadow: inset 0 6px 10px -2px rgba(0, 0, 0, 0.6), inset 2px 0 4px -2px rgba(0, 0, 0, 0.35), inset -2px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px rgba(252, 82, 0, 0.2);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
@@ -1107,7 +1126,8 @@ details[open] > .disclose svg {
 .pbtn:active,
 .pbtn[data-pressed] {
   transform: translateY(3px);
-  box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(23, 23, 26, 0.22), 0 0 0 #b9b5aa, 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, #cfcbc0, #ebe8e0);
+  box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.38), inset 2px 0 3px -2px rgba(0, 0, 0, 0.2), inset -2px 0 3px -2px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(23, 23, 26, 0.25), inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(23, 23, 26, 0.28);
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
@@ -1116,9 +1136,9 @@ details[open] > .disclose svg {
 }
 .pbtn[aria-pressed="true"] {
   transform: translateY(3px);
-  background: var(--paper-ink);
+  background: linear-gradient(180deg, #0f0f12, #202024);
   color: var(--paper);
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.55);
 }
 .pbtn svg {
   position: relative;
@@ -1139,7 +1159,8 @@ details[open] > .disclose svg {
 }
 .pbtn-orange:active,
 .pbtn-orange[data-pressed] {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 0 #a33500, 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: var(--orange-down);
+  box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.15), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px rgba(23, 23, 26, 0.25);
 }
 .pbtn-ink {
   margin-top: 10px;
@@ -1154,7 +1175,8 @@ details[open] > .disclose svg {
 }
 .pbtn-ink:active,
 .pbtn-ink[data-pressed] {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 #000, 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(180deg, #0c0c0e, #202024);
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
 /* Safety pins through the corners. */
 .pin {
@@ -1266,7 +1288,8 @@ details[open] > .disclose svg {
 .map-btn:active:not(:disabled),
 .map-btn[data-pressed]:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 #050506, 0 1px 3px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(180deg, rgba(14, 14, 17, 0.97), rgba(28, 28, 33, 0.97));
+  box-shadow: var(--sunk);
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
@@ -1277,14 +1300,15 @@ details[open] > .disclose svg {
 /* A key that is on (the target shape showing) lights up white, whether or
    not a pointer is resting on it. */
 .map-btn[aria-pressed="true"],
-.map-btn[aria-pressed="true"]:hover:not(:disabled) {
+.map-btn[aria-pressed="true"]:hover {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
   box-shadow: inset 0 1px 0 #fff, 0 3px 0 #8f8d86, 0 5px 10px rgba(0, 0, 0, 0.45);
 }
 .map-btn[aria-pressed="true"]:active,
 .map-btn[aria-pressed="true"][data-pressed] {
-  box-shadow: inset 0 1px 0 #fff, 0 0 0 #8f8d86, 0 1px 3px rgba(0, 0, 0, 0.5);
+  background: var(--white-down);
+  box-shadow: var(--sunk-white);
 }
 .map-btn svg {
   position: relative;
@@ -1348,6 +1372,7 @@ details[open] > .disclose svg {
 .map-seg .map-btn:active,
 .map-seg .map-btn[data-pressed] {
   transform: scale(0.94);
+  background: transparent;
   box-shadow: none;
   transition: transform 0.05s ease-out;
 }
@@ -1372,7 +1397,8 @@ details[open] > .disclose svg {
 .map-round:active:not(:disabled),
 .map-round[data-pressed]:not(:disabled) {
   transform: translateY(5px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 0 var(--orange-deep), 0 2px 6px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, #b93a00 0%, #de4500 35%, #ff6f26 100%);
+  box-shadow: inset 0 5px 8px -2px rgba(0, 0, 0, 0.6), inset 2px 0 4px -2px rgba(0, 0, 0, 0.35), inset -2px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px #000, 0 3px 8px rgba(0, 0, 0, 0.35);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
@@ -1417,6 +1443,11 @@ details[open] > .disclose svg {
 }
 .maplibregl-ctrl-attrib a {
   color: #e6e6e0 !important;
+}
+/* Unfolded, the line of text sits on centre with the button: the pill is
+   the button's 24px and the line 14px, so the line needs 3px more above. */
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+  padding-top: 3px;
 }
 .maplibregl-ctrl-attrib-button .maplibregl-ctrl-icon {
   filter: invert(1);

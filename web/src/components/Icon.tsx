@@ -46,6 +46,7 @@ const PATHS = {
     </>
   ),
   back: <path d="M19 12H5M11 18l-6-6 6-6" />,
+  chevrons: <path d="m3 6 5.5 6L3 18M10 6l5.5 6-5.5 6M17 6l5.5 6-5.5 6" />,
   forward: <path d="M5 12h14M13 6l6 6-6 6" />,
   eye: (
     <>

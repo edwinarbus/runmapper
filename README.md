@@ -20,7 +20,7 @@ Everything is plain geometry and graph search on OpenStreetMap data. **No AI API
 | `engine/runmapper_engine/image.py`, `svgin.py`, `raster.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is (thinning and contour tracing in plain numpy) |
 | `engine/runmapper_engine/pipeline.py` | The end-to-end plan: sizes from the distance bucket, street fetch, placement scan, snapping, verdict |
 | `engine/runmapper_engine/api.py` | `POST /api/plan` streams progress then the result; `POST /api/estimate`; `GET /api/health` |
-| `web/` | Next.js 16 app: the form, the MapLibre map (streets or satellite, the route drawn in start to finish with direction chevrons, a replay button and a GIF export of the drawing), progress, the answer card, GPX download and share |
+| `web/` | Next.js 16 app: the form with a live trace of the typed word, the MapLibre map (night, day or satellite; the route drawn in start to finish with direction chevrons and mile or km marks; a replay button and a GIF export of the drawing), progress, the answers as numbered lanes, GPX download and share |
 | `web/api/index.py`, `web/scripts/vercel-install.sh`, `web/vercel.json` | The engine as a Vercel Python function inside the same project |
 | `engine/Dockerfile`, `engine/modal_app.py` | Optional: host the engine somewhere else |
 
@@ -47,7 +47,7 @@ npm install
 npm run dev                       # proxies /api to the engine on port 8000
 ```
 
-Open http://localhost:3000, type `RUN`, search a place (or click the map), pick ~5K, and hit **Map my run**. A result's **Copy link** button gives a URL that carries the setup (`?t=RUN&lat=…&lon=…&d=5k&loop=1&s=line`, the start being the route's start); opening it fills the form in, and nothing runs until **Map my run**. **Save GIF** on the map records the route drawing itself in (frames grabbed from the map canvas, encoded in the browser with gifenc) and downloads it with a caption, ready to post. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
+Open http://localhost:3000, type `RUN` (the panel traces the word the way it will be run, from `POST /api/estimate`, which now returns the strokes), search a place (or click the map), pick 5K, and hit **Map my run**. A result's **Copy link** button gives a URL that carries the setup (`?t=RUN&lat=…&lon=…&d=5k&loop=1&s=line`, the start being the route's start); opening it fills the form in, and nothing runs until **Map my run**. **Save GIF** on the map records the route drawing itself in (frames grabbed from the map canvas, encoded in the browser with gifenc) and downloads it with a caption, ready to post. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
 
 **Command line, no web app**
 
@@ -129,4 +129,4 @@ Neither is needed for words or for logos that are already clean shapes.
 - On Vercel a request may take at most 300 s and carry at most 4.5 MB, so uploads are downscaled in the browser before they are sent, and a route that needs several slow Overpass mirrors in a row can time out; try again a minute later.
 - Diagonal letters (K N Q R V X Y Z 0 7) need bigger letters than rectilinear ones to read on a grid. A word full of them may need the next distance up.
 - Cities without a grid (old European centres) rarely produce crisp text; the app will tell you.
-- Map tiles are OpenFreeMap; the satellite view is Esri World Imagery with Esri's road and place-name reference tiles (attribution shown on the map); street data © OpenStreetMap contributors (ODbL).
+- Map tiles are OpenFreeMap (the `dark` style at night, `positron` by day; override with `NEXT_PUBLIC_MAP_STYLE_NIGHT` and `NEXT_PUBLIC_MAP_STYLE`); the satellite view is Esri World Imagery with Esri's road and place-name reference tiles (attribution shown on the map); street data © OpenStreetMap contributors (ODbL).

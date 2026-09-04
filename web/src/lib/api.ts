@@ -196,12 +196,19 @@ export async function planRun(
   return result;
 }
 
+/** One stroke of the word as it will be run: normalised points, y down. */
+export interface EstimateStroke {
+  pts: [number, number][];
+  closed: boolean;
+}
+
 export interface EstimateResult {
   ok: boolean;
   text?: string;
   need_mi?: number;
   fits?: Record<Bucket, boolean>;
   message?: string | null;
+  strokes?: EstimateStroke[];
 }
 
 export async function estimate(text: string, bucket: Bucket, loop: boolean, style: Style = "auto"): Promise<EstimateResult> {

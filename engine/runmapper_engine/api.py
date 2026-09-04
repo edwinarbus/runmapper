@@ -60,8 +60,12 @@ def create_app(cache_dir=None):
             width = max(width, OUTLINE_TYPICAL_BLOCK_FT * rep["units_per_width"])
         need_mi = width * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
         fits = {k: need_mi <= v["cap_mi"] for k, v in BUCKETS.items()}
+        # The strokes themselves (normalised, y down) so the page can show
+        # the word the way it will be run.
+        strokes = [dict(pts=[[round(float(x), 3), round(float(-y), 3)] for x, y in s.pts],
+                        closed=bool(s.closed)) for s in rep["strokes"]]
         return dict(ok=fits[e.bucket], text=rep["label"], need_mi=round(need_mi, 1),
-                    fits=fits, message=None if fits[e.bucket] else
+                    fits=fits, strokes=strokes, message=None if fits[e.bucket] else
                     f"“{rep['label']}” needs about {need_mi:.1f} mi to stay readable.")
 
     @app.post("/api/plan")

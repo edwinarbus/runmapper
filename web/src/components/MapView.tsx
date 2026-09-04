@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
+import { type DistanceMarker, metres } from "@/lib/geo";
 import Icon from "./Icon";
 
-export const MAP_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/positron";
+export const DAY_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/positron";
+export const NIGHT_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE_NIGHT || "https://tiles.openfreemap.org/styles/dark";
 export const STRAVA_ORANGE = "#FC5200";
 
 // Satellite view: Esri's World Imagery with its road and place-name
@@ -36,10 +38,16 @@ export const SATELLITE_STYLE: maplibregl.StyleSpecification = {
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
-  layers: [{ id: "bg", type: "background", paint: { "background-color": "#f4f4f5" } }],
+  layers: [{ id: "bg", type: "background", paint: { "background-color": "#141417" } }],
 };
 
-export type Basemap = "streets" | "satellite";
+export type Basemap = "night" | "day" | "satellite";
+const BASEMAPS: { key: Basemap; label: string }[] = [
+  { key: "night", label: "Night" },
+  { key: "day", label: "Day" },
+  { key: "satellite", label: "Sat" },
+];
+const styleFor = (b: Basemap) => (b === "satellite" ? SATELLITE_STYLE : b === "day" ? DAY_STYLE : NIGHT_STYLE);
 
 export interface LatLon {
   lat: number;
@@ -56,6 +64,8 @@ export interface MapViewProps {
   start: [number, number] | null;
   /** The last point of a one-way route; null for loops. */
   finish: [number, number] | null;
+  /** Mile or kilometre marks along the route. */
+  markers: DistanceMarker[];
   /** Stamped on an exported GIF, e.g. “RUN” · 3.28 mi · runmapper.run */
   caption: string;
   /** File name stem for the exported GIF. */
@@ -83,16 +93,8 @@ function lineFromLngLat(coords: LngLat[]) {
   return { type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: coords } };
 }
 
-function pointFeature(p: LngLat) {
-  return { type: "Feature" as const, properties: {}, geometry: { type: "Point" as const, coordinates: p } };
-}
-
-/** Planar metres between two lon/lat points; plenty for a run-sized route. */
-function metres(a: LngLat, b: LngLat) {
-  const k = Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180));
-  const dx = (b[0] - a[0]) * 111320 * k;
-  const dy = (b[1] - a[1]) * 110540;
-  return Math.hypot(dx, dy);
+function pointFeature(p: LngLat, properties: Record<string, number | string> = {}) {
+  return { type: "Feature" as const, properties, geometry: { type: "Point" as const, coordinates: p } };
 }
 
 const easeInOut = (u: number) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
@@ -121,6 +123,30 @@ function arrowImage(): ImageData | null {
   g.strokeStyle = "#ffffff";
   g.lineWidth = 3;
   g.stroke();
+  return g.getImageData(0, 0, s, s);
+}
+
+/** A mile (or km) marker: a white disc with an orange ring and the number. */
+function markerImage(n: number): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const s = 52;
+  const c = document.createElement("canvas");
+  c.width = s;
+  c.height = s;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  g.beginPath();
+  g.arc(s / 2, s / 2, s / 2 - 4, 0, Math.PI * 2);
+  g.fillStyle = "#ffffff";
+  g.fill();
+  g.lineWidth = 5;
+  g.strokeStyle = STRAVA_ORANGE;
+  g.stroke();
+  g.fillStyle = "#151517";
+  g.font = `700 ${n >= 10 ? 21 : 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(String(n), s / 2, s / 2 + 1);
   return g.getImageData(0, 0, s, s);
 }
 
@@ -207,7 +233,8 @@ export default function MapView(props: MapViewProps) {
   const pendingDraw = useRef(false);   // a draw is about to start: keep the full line hidden until then
   const rec = useRef<{ frames: Frame[]; timer: number } | null>(null);
   const seen = useRef(new WeakSet<object>());   // routes already drawn in once
-  const [basemap, setBasemap] = useState<Basemap>("streets");
+  const applied = useRef<Basemap>("night");     // the style the map currently shows
+  const [basemap, setBasemap] = useState<Basemap>("night");
   const [drawing, setDrawing] = useState(false);
   const [gif, setGif] = useState<GifState>(GIF_IDLE);
   const startDrawRef = useRef<(onDone?: () => void) => void>(() => undefined);
@@ -215,10 +242,13 @@ export default function MapView(props: MapViewProps) {
     latest.current = props;
   });
 
-  // Direction chevrons are hidden while the line is still growing.
-  const setArrows = (visible: boolean) => {
+  // Chevrons and distance marks are hidden while the line is still growing.
+  const setDecor = (visible: boolean) => {
     const m = map.current;
-    if (m?.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
+    if (!m) return;
+    for (const id of ["route-arrows", "miles"]) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+    }
   };
 
   // Push the current props into the map's sources and layers. While the
@@ -231,15 +261,24 @@ export default function MapView(props: MapViewProps) {
     const ideal = m.getSource("ideal") as maplibregl.GeoJSONSource | undefined;
     const start = m.getSource("start") as maplibregl.GeoJSONSource | undefined;
     const finish = m.getSource("finish") as maplibregl.GeoJSONSource | undefined;
+    const miles = m.getSource("miles") as maplibregl.GeoJSONSource | undefined;
     if (!anim.current && !pendingDraw.current) {
       route?.setData(p.route && p.route.length > 1 ? lineFeature(p.route) : EMPTY);
-      setArrows(true);
+      setDecor(true);
     }
     ideal?.setData(
       p.ideal ? { type: "FeatureCollection", features: p.ideal.filter((s) => s.length > 1).map(lineFeature) } : EMPTY,
     );
     start?.setData(p.start ? pointFeature([p.start[1], p.start[0]]) : EMPTY);
     finish?.setData(p.finish ? pointFeature([p.finish[1], p.finish[0]]) : EMPTY);
+    for (const mk of p.markers) {
+      const id = `mk-${mk.n}`;
+      if (!m.hasImage(id)) {
+        const img = markerImage(mk.n);
+        if (img) m.addImage(id, img, { pixelRatio: 2 });
+      }
+    }
+    miles?.setData({ type: "FeatureCollection", features: p.markers.map((mk) => pointFeature([mk.lon, mk.lat], { n: mk.n })) });
     m.setLayoutProperty("ideal", "visibility", p.showIdeal ? "visible" : "none");
   };
 
@@ -294,18 +333,18 @@ export default function MapView(props: MapViewProps) {
     }
     const pts: LngLat[] = r.map(([lat, lon]) => [lon, lat]);
     const cum = [0];
-    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + metres(pts[i - 1], pts[i]));
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + metres(r[i - 1], r[i]));
     const total = cum[cum.length - 1];
     if (total <= 0 || (reducedMotion() && !onDone)) {
       routeSrc.setData(lineFromLngLat(pts));
-      setArrows(true);
+      setDecor(true);
       return;
     }
     const duration = Math.min(7000, 2600 + 550 * (total / 1609.344));
     const token = Math.random();
     const t0 = performance.now();
     setDrawing(true);
-    setArrows(false);
+    setDecor(false);
     routeSrc.setData(lineFromLngLat([pts[0], pts[0]]));
     headSrc.setData(pointFeature(pts[0]));
     let k = 1;
@@ -334,7 +373,7 @@ export default function MapView(props: MapViewProps) {
         src.setData(lineFromLngLat(pts));
         head.setData(EMPTY);
         anim.current = null;
-        setArrows(true);
+        setDecor(true);
         setDrawing(false);
         onDone?.();
       }
@@ -399,7 +438,7 @@ export default function MapView(props: MapViewProps) {
     if (!el.current || map.current) return;
     const m = new maplibregl.Map({
       container: el.current,
-      style: MAP_STYLE,
+      style: styleFor(applied.current),
       // A world view until the user searches, clicks, or shares their location.
       center: [10, 25],
       zoom: 1.4,
@@ -434,21 +473,25 @@ export default function MapView(props: MapViewProps) {
       m.addSource("ideal", { type: "geojson", data: EMPTY });
       m.addSource("start", { type: "geojson", data: EMPTY });
       m.addSource("finish", { type: "geojson", data: EMPTY });
+      m.addSource("miles", { type: "geojson", data: EMPTY });
       m.addSource("head", { type: "geojson", data: EMPTY });
-      // A soft shadow under the line lifts it off the map a little.
+      // Under the line: an orange glow at night, a soft shadow by day.
+      const night = applied.current === "night";
       m.addLayer({
         id: "route-shadow",
         type: "line",
         source: "route",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#000000", "line-width": 14, "line-opacity": 0.16, "line-blur": 6, "line-translate": [0, 2] },
+        paint: night
+          ? { "line-color": STRAVA_ORANGE, "line-width": 18, "line-opacity": 0.45, "line-blur": 12 }
+          : { "line-color": "#000000", "line-width": 14, "line-opacity": 0.16, "line-blur": 6, "line-translate": [0, 2] },
       });
       m.addLayer({
         id: "route-casing",
         type: "line",
         source: "route",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.9 },
+        paint: { "line-color": night ? "#141417" : "#ffffff", "line-width": 9, "line-opacity": 0.9 },
       });
       m.addLayer({
         id: "route",
@@ -462,7 +505,7 @@ export default function MapView(props: MapViewProps) {
         type: "line",
         source: "ideal",
         layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
-        paint: { "line-color": "#2563eb", "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.8 },
+        paint: { "line-color": night ? "#7cc4ff" : "#2563eb", "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.85 },
       });
       if (m.hasImage(ARROW)) {
         m.addLayer({
@@ -495,6 +538,18 @@ export default function MapView(props: MapViewProps) {
         paint: { "circle-radius": 6, "circle-color": "#17171b", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
       });
       m.addLayer({
+        id: "miles",
+        type: "symbol",
+        source: "miles",
+        layout: {
+          "icon-image": ["concat", "mk-", ["to-string", ["get", "n"]]],
+          "icon-size": 1,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          visibility: "none",
+        },
+      });
+      m.addLayer({
         id: "head",
         type: "circle",
         source: "head",
@@ -520,15 +575,12 @@ export default function MapView(props: MapViewProps) {
     };
   }, []);
 
-  // Streets or satellite. Switching styles drops every source and layer, so
-  // `setup` runs again on style.load and puts the route back.
+  // Night, day or satellite. Switching styles drops every source and layer,
+  // so `setup` runs again on style.load and puts the route back.
   useEffect(() => {
     const m = map.current;
-    if (!m) return;
-    const want = basemap === "satellite" ? SATELLITE_STYLE : MAP_STYLE;
-    const current = m.getStyle();
-    const isSat = Boolean(current?.sources && "imagery" in current.sources);
-    if ((basemap === "satellite") === isSat) return;
+    if (!m || applied.current === basemap) return;
+    applied.current = basemap;
     cancelAnim();
     abortGif();
     const t = setTimeout(() => {
@@ -536,7 +588,7 @@ export default function MapView(props: MapViewProps) {
       setGif(GIF_IDLE);
     }, 0);
     ready.current = false;
-    m.setStyle(want);
+    m.setStyle(styleFor(basemap));
     return () => clearTimeout(t);
   }, [basemap]);
 
@@ -550,7 +602,7 @@ export default function MapView(props: MapViewProps) {
       return;
     }
     if (!marker.current) {
-      marker.current = new maplibregl.Marker({ draggable: true, color: "#18181b" })
+      marker.current = new maplibregl.Marker({ draggable: true, color: STRAVA_ORANGE })
         .setLngLat([props.pin.lon, props.pin.lat])
         .addTo(m);
       marker.current.on("dragend", () => {
@@ -608,7 +660,7 @@ export default function MapView(props: MapViewProps) {
 
   useEffect(() => {
     apply();
-  }, [props.ideal, props.start, props.finish, props.showIdeal]);
+  }, [props.ideal, props.start, props.finish, props.showIdeal, props.markers]);
 
   const hasRoute = Boolean(props.route && props.route.length > 1);
   const busy = gif.phase !== "idle";
@@ -616,17 +668,14 @@ export default function MapView(props: MapViewProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="map-btn"
-          onClick={() => setBasemap((b) => (b === "streets" ? "satellite" : "streets"))}
-          aria-pressed={basemap === "satellite"}
-          disabled={busy}
-        >
-          <Icon name="layers" />
-          {basemap === "streets" ? "Satellite" : "Map"}
-        </button>
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
+        <div className="map-seg" role="group" aria-label="Basemap">
+          {BASEMAPS.map((b) => (
+            <button key={b.key} type="button" className="map-btn" aria-pressed={basemap === b.key} onClick={() => setBasemap(b.key)} disabled={busy}>
+              {b.label}
+            </button>
+          ))}
+        </div>
         {hasRoute && (
           <button type="button" className="map-btn" onClick={() => fit()} aria-label="Fit the whole route on screen" disabled={busy}>
             <Icon name="frame" />
@@ -636,7 +685,7 @@ export default function MapView(props: MapViewProps) {
       </div>
       {hasRoute && (
         <div className="absolute right-3 bottom-3 z-10 flex flex-col items-end gap-2">
-          <button type="button" className="map-btn map-btn-dark" onClick={recordGif} disabled={busy || drawing} aria-label="Save the route drawing as a GIF">
+          <button type="button" className="map-btn" onClick={recordGif} disabled={busy || drawing} aria-label="Save the route drawing as a GIF">
             <Icon name="film" />
             {gifLabel}
           </button>

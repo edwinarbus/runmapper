@@ -30,6 +30,7 @@ import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
 import Icon from "./Icon";
+import Seg from "./Seg";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
 import Stopwatch from "./Stopwatch";
@@ -158,6 +159,27 @@ export default function RunMapper() {
   useEffect(() => {
     const t = setTimeout(() => setUnits(detectUnits()), 0);
     return () => clearTimeout(t);
+  }, []);
+
+  // Every key goes down when pressed and springs back when let go, and a
+  // tap shows the press for at least a tenth of a second, however quick.
+  useEffect(() => {
+    const down = (e: PointerEvent) => {
+      if (e.button > 0) return;
+      const key = (e.target as HTMLElement | null)?.closest?.("button:not(:disabled)") as HTMLElement | null;
+      if (!key) return;
+      key.dataset.pressed = "";
+      const t0 = performance.now();
+      const up = () => {
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        window.setTimeout(() => delete key.dataset.pressed, Math.max(0, 110 - (performance.now() - t0)));
+      };
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    };
+    document.addEventListener("pointerdown", down);
+    return () => document.removeEventListener("pointerdown", down);
   }, []);
 
   // Phones can hand the GPX straight to Strava, Garmin or Komoot.
@@ -478,27 +500,38 @@ export default function RunMapper() {
         <div className="checker" aria-hidden="true" />
         <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
           <div className="min-w-0">
-            <h1 className="font-display text-[2.2rem] leading-none sm:text-[2.7rem]">
-              DRAWMY<span className="text-[var(--orange)]">.RUN</span>
+            {/* The wordmark: enamel letters, the dot a start marker, and a route drawn in beneath along the streets. */}
+            <h1 className="logo font-display" aria-label="drawmy.run">
+              <span className="logo-word" aria-hidden="true">
+                <span className="logo-draw">DRAWMY</span>
+                <span className="logo-dot" />
+                <span className="logo-run">RUN</span>
+              </span>
+              <svg className="logo-trace" viewBox="0 0 160 12" aria-hidden="true" preserveAspectRatio="none">
+                <path className="logo-trace-case" d="M2 10h26V2h22v8h24V2h22v8h24V2h20" />
+                <path className="logo-trace-line" d="M2 10h26V2h22v8h24V2h22v8h24V2h20" />
+              </svg>
             </h1>
             <p className="eyebrow mt-2 truncate">
               <span className={`dot ${dotCls}`} aria-hidden="true" />
               {engine === "online" && status !== "planning" ? "GPS art for runners" : statusWord}
             </p>
           </div>
-          <div className="seg mt-1 shrink-0 grid-cols-2" role="group" aria-label="Units">
-            <button type="button" className="seg-btn" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
-              mi
-            </button>
-            <button type="button" className="seg-btn" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
-              km
-            </button>
-          </div>
+          <Seg
+            className="mt-1 shrink-0"
+            options={[
+              { key: "mi", label: "mi" },
+              { key: "km", label: "km" },
+            ]}
+            value={units}
+            onChange={setUnits}
+            label="Units"
+          />
         </header>
         <div className="rule" />
 
         {showResult && result && shown ? (
-          <div className="rise">
+          <div key="result" className="rise">
             <div className="flex items-center justify-between gap-3 px-6 py-4">
               <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>
                 <Icon name="back" />
@@ -556,7 +589,7 @@ export default function RunMapper() {
             </section>
           </div>
         ) : (
-          <div>
+          <div key="setup" className="rise">
             {/* 01 Draw */}
             <section className="px-6 py-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -564,16 +597,15 @@ export default function RunMapper() {
                   <span className="num">01</span>
                   <span>Draw</span>
                 </div>
-                <div className="seg grid-cols-3" role="group" aria-label="Words, a drawing or an image">
-                  {MODES.map((m) => (
-                    <button key={m.key} type="button" className="seg-btn" aria-pressed={mode === m.key} title={m.hint} onClick={() => setMode(m.key)}>
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
+                <Seg
+                  options={MODES.map((m) => ({ key: m.key, label: m.label, title: m.hint }))}
+                  value={mode}
+                  onChange={setMode}
+                  label="Words, a drawing or an image"
+                />
               </div>
               {mode === "text" ? (
-                <div>
+                <div key="text" className="rise">
                   <FlapWord
                     value={text}
                     onChange={setText}
@@ -593,9 +625,11 @@ export default function RunMapper() {
                   </div>
                 </div>
               ) : mode === "draw" ? (
-                <DrawPad strokes={draw} onChange={setDraw} />
+                <div key="draw" className="rise">
+                  <DrawPad strokes={draw} onChange={setDraw} />
+                </div>
               ) : (
-                <div>
+                <div key="image" className="rise">
                   <label className="well flex cursor-pointer items-center gap-3 p-3">
                     {imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -607,11 +641,11 @@ export default function RunMapper() {
                     )}
                     <div className="min-w-0 text-sm">
                       <div className="truncate font-semibold">{image ? image.name : "Choose a logo or a simple drawing"}</div>
-                      <div className="text-xs text-[var(--ink-2)]">PNG, JPG or SVG. Bold, simple shapes work best.</div>
+                      <div className="text-xs text-[var(--ink-2)]">Bold, simple shapes work best.</div>
                     </div>
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg"
+                      accept="image/*,.svg,.heic,.heif"
                       className="hidden"
                       onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
                     />
@@ -723,20 +757,12 @@ export default function RunMapper() {
               <>
                 <section className="flex items-center justify-between gap-4 px-6 py-4">
                   <span className="eyebrow">Style</span>
-                  <div className="seg grid-cols-3" role="group" aria-label="Drawing style">
-                    {STYLES.map((st) => (
-                      <button
-                        key={st.key}
-                        type="button"
-                        className="seg-btn"
-                        aria-pressed={style === st.key}
-                        title={mode === "text" ? st.textHint : st.imageHint}
-                        onClick={() => setStyle(st.key)}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
+                  <Seg
+                    options={STYLES.map((st) => ({ key: st.key, label: st.label, title: mode === "text" ? st.textHint : st.imageHint }))}
+                    value={style}
+                    onChange={setStyle}
+                    label="Drawing style"
+                  />
                 </section>
                 <div className="rule" />
               </>

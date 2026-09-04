@@ -18,6 +18,7 @@ import {
   setDecor,
 } from "@/lib/maplayers";
 import Icon from "./Icon";
+import Seg from "./Seg";
 
 // Used when the basemap style can't be fetched, so the route still shows.
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
@@ -33,9 +34,11 @@ const BASEMAPS: { key: Basemap; label: string }[] = [
   { key: "satellite", label: "Sat" },
 ];
 const styleFor = (b: Basemap) => (b === "satellite" ? SATELLITE_STYLE : b === "day" ? DAY_STYLE : NIGHT_STYLE);
-const LIGHT = "(prefers-color-scheme: light)";
-/** Day or night to match the device's setting; night when there is none. */
-const deviceBasemap = (): Basemap => (typeof window !== "undefined" && window.matchMedia?.(LIGHT).matches ? "day" : "night");
+const DARK = "(prefers-color-scheme: dark)";
+const PHONE = "(max-width: 767px)";
+/** The day map, except on a phone set to dark, which gets the night map. */
+const deviceBasemap = (): Basemap =>
+  typeof window !== "undefined" && window.matchMedia?.(DARK).matches && window.matchMedia?.(PHONE).matches ? "night" : "day";
 
 export interface LatLon {
   lat: number;
@@ -258,12 +261,12 @@ export default function MapView(props: MapViewProps) {
     };
   }, []);
 
-  // Day and night follow the device's setting until a basemap is picked by hand.
+  // A phone's day and night follow its setting until a basemap is picked by hand.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia(LIGHT);
+    const mq = window.matchMedia(DARK);
     const follow = () => {
-      if (!chosen.current) setBasemap(mq.matches ? "day" : "night");
+      if (!chosen.current) setBasemap(deviceBasemap());
     };
     mq.addEventListener("change", follow);
     return () => mq.removeEventListener("change", follow);
@@ -357,17 +360,16 @@ export default function MapView(props: MapViewProps) {
       <div ref={el} className="h-full w-full" aria-label="Map" />
       {/* Keys on the glass, all one height: the basemap in a slot, then the route keys; zoom at the right. */}
       <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2" style={{ right: "calc(0.75rem + 36px + 0.5rem)" }}>
-        <div className="map-seg" role="group" aria-label="Basemap">
-          {BASEMAPS.map((b) => (
-            <button key={b.key} type="button" className="map-btn" aria-pressed={basemap === b.key} onClick={() => {
-                chosen.current = true;
-                setBasemap(b.key);
-              }}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
+        <Seg
+          map
+          options={BASEMAPS}
+          value={basemap}
+          label="Basemap"
+          onChange={(k) => {
+            chosen.current = true;
+            setBasemap(k);
+          }}
+        />
         {hasRoute && (
           <button type="button" className="map-btn map-icon" onClick={() => fit()} title="Bring the whole route back on screen" aria-label="Recenter">
             <Icon name="frame" />

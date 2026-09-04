@@ -327,7 +327,13 @@ export default function RunMapper() {
   const showResult = Boolean(result && shown && !editing);
   const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image") : "";
   const summary = shown ? [drawingLabel, TILE[shown.bucket.key] ?? shown.bucket.label, shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
-  const caption = shown ? `${shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "Logo run"} · ${fmtDist(shown.route.distance_mi, units)} · runmapper.run` : "";
+  const caption = useMemo(
+    () => ({
+      word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : "Logo run") : "",
+      stats: shown ? `${fmtDist(shown.route.distance_mi, units)} · ${shown.route.loop ? "loop" : "one way"}` : "",
+    }),
+    [shown, units],
+  );
   const styleHint = STYLES.find((s) => s.key === style);
 
   // When the answer takes over the screen, show it from the top.

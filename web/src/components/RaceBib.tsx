@@ -42,18 +42,20 @@ function SafetyPin({ corner }: { corner: "tl" | "tr" | "bl" | "br" }) {
   );
 }
 
-/** The verdict, stamped on in ink that never quite takes evenly. */
+/** The verdict, stamped on in ink that never quite takes evenly: a heavy
+ *  outer ring, a hairline inside it, the word, a rule, the overlap. */
 function Stamp({ verdict, pct }: { verdict: string; pct: number }) {
   const v = verdictOf(verdict);
   return (
-    <svg className="stamp" viewBox="0 0 224 78" role="img" aria-label={`${v.label}, ${pct}% overlap`}>
-      <g filter="url(#bib-ink)" fill="none" stroke={v.ink}>
-        <rect x="4" y="4" width="216" height="70" rx="7" strokeWidth="4.5" />
-        <rect x="12" y="12" width="200" height="54" rx="3" strokeWidth="1.6" />
-        <text x="112" y="46" textAnchor="middle" fill={v.ink} stroke="none" className="stamp-t">
+    <svg className="stamp" viewBox="0 0 240 92" role="img" aria-label={`${v.label}, ${pct}% overlap`}>
+      <g filter="url(#bib-ink)" fill="none" stroke={v.ink} strokeLinejoin="round" strokeLinecap="round">
+        <rect x="5" y="5" width="230" height="82" rx="9" strokeWidth="5" />
+        <rect x="14" y="14" width="212" height="64" rx="4" strokeWidth="1.7" />
+        <text x="120" y="51" textAnchor="middle" fill={v.ink} stroke="none" className="stamp-t">
           {v.label.toUpperCase()}
         </text>
-        <text x="112" y="61.5" textAnchor="middle" fill={v.ink} stroke="none" className="stamp-s">
+        <line x1="30" y1="60" x2="210" y2="60" strokeWidth="1.2" />
+        <text x="120" y="73" textAnchor="middle" fill={v.ink} stroke="none" className="stamp-s">
           {pct}% OVERLAP
         </text>
       </g>
@@ -171,11 +173,16 @@ export function BibStack({
             <stop offset="0.5" stopColor="#b5b5bc" />
             <stop offset="1" stopColor="#65656d" />
           </linearGradient>
-          <filter id="bib-ink" x="-4%" y="-10%" width="108%" height="120%" colorInterpolationFilters="sRGB">
-            <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="3" seed="4" result="g" />
-            <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5.5 -2.0" result="m" />
-            <feDisplacementMap in="SourceGraphic" in2="g" scale="1.8" xChannelSelector="R" yChannelSelector="G" result="d" />
-            <feComposite in="d" in2="m" operator="in" />
+          {/* Rubber-stamp ink: fine grain where the rubber didn't quite touch,
+              broad unevenness from the pressure of the hand, edges nudged. */}
+          <filter id="bib-ink" x="-6%" y="-12%" width="112%" height="124%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="7" result="fine" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="3" result="coarse" />
+            <feColorMatrix in="fine" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 4 -1.0" result="fineA" />
+            <feColorMatrix in="coarse" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1.2 0.35" result="coarseA" />
+            <feComposite in="fineA" in2="coarseA" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="mask" />
+            <feDisplacementMap in="SourceGraphic" in2="fine" scale="1.4" xChannelSelector="R" yChannelSelector="G" result="d" />
+            <feComposite in="d" in2="mask" operator="in" />
           </filter>
         </defs>
       </svg>
@@ -279,9 +286,14 @@ export function BibStack({
         </div>
         <div className="bib-crease" aria-hidden="true" />
         <div className="bib-stub">
-          <button type="button" onClick={actions.onGpx} className="pbtn pbtn-orange" title="The route as a GPX file for your watch or app">
-            <Icon name={actions.canShare ? "share" : "download"} />
-            {actions.canShare ? "Send GPX" : "GPX"}
+          <button
+            type="button"
+            onClick={actions.onGpx}
+            className="pbtn pbtn-orange"
+            title={actions.canShare ? "The route as a GPX file: send it to Strava, Garmin or your watch app" : "Download the route as a GPX file"}
+          >
+            <Icon name="download" />
+            GPX
           </button>
           <button
             type="button"
@@ -289,9 +301,9 @@ export function BibStack({
             className="pbtn"
             disabled={actions.gif.busy}
             aria-busy={actions.gif.busy}
-            title="The route drawing itself in, as a GIF to post"
+            title="Download the route drawing itself in, as a GIF to post"
           >
-            <Icon name="film" />
+            <Icon name="download" />
             {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
           </button>
           <span className="bib-sponsor font-display" aria-hidden="true">

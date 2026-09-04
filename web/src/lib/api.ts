@@ -221,21 +221,20 @@ export async function estimate(text: string, bucket: Bucket, loop: boolean, styl
   return res.json();
 }
 
-/** "RUN loop from Dolores Park" -> "run-loop-from-dolores-park" */
-export function fileStem(name: string): string {
-  return name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "route";
+/** A file name stem that says which run this is: the word, the distance
+ *  and the city, e.g. RUN-3.40mi-San-Francisco. */
+export function runFileStem(word: string, distanceMi: number, units: Units, city = ""): string {
+  const clean = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  const dist = units === "mi" ? `${distanceMi.toFixed(2)}mi` : `${(distanceMi * 1.609344).toFixed(2)}km`;
+  return [clean(word).toUpperCase() || "ROUTE", dist, clean(city)].filter(Boolean).join("-");
 }
 
-export function gpxFileName(name: string): string {
-  return `${fileStem(name)}.gpx`;
-}
-
-export function downloadGpx(result: { gpx: string; name: string }) {
+export function downloadGpx(result: { gpx: string }, fileName: string) {
   const blob = new Blob([result.gpx], { type: "application/gpx+xml" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = gpxFileName(result.name);
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();

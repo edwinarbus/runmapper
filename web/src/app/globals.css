@@ -145,14 +145,14 @@ body {
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 -2px 0 var(--orange), 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* The word on a split-flap board: a tile per letter, flipping in as typed.
-   A real input lies over the board, invisible. */
+/* The word on a split-flap board: a tile per letter, two leaves on a
+   hinge, the lower leaf falling into place as the letter is typed. A real
+   input lies over the board, invisible. */
 .flap-board {
   position: relative;
   display: flex;
-  gap: 4px;
+  gap: 5px;
   container-type: inline-size;
-  perspective: 700px;
   border-radius: 8px;
   cursor: text;
 }
@@ -160,45 +160,93 @@ body {
   box-shadow: 0 0 0 2px var(--orange);
 }
 .flap {
-  --w: min(64px, calc((100cqw - (var(--n) - 1) * 4px) / var(--n)));
+  --w: min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n)));
+  --h: calc(var(--w) * 1.32);
   position: relative;
-  display: grid;
-  place-items: center;
   flex: none;
   width: var(--w);
-  height: calc(var(--w) * 1.3);
-  border-radius: 5px;
-  background: linear-gradient(180deg, #2b2b32 0%, #1f1f25 49%, #131317 51%, #212127 100%);
+  height: var(--h);
+  perspective: 500px;
   color: var(--ink);
   font-family: var(--font-display), "Arial Narrow", Impact, sans-serif;
-  font-size: calc(var(--w) * 1.08);
+  font-size: calc(var(--w) * 1.12);
   line-height: 1;
-  padding-top: calc(var(--w) * 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 #050506, 0 4px 8px rgba(0, 0, 0, 0.5);
-  transform-origin: 50% 50%;
-  animation: flap-in 0.32s cubic-bezier(0.2, 0.8, 0.3, 1.1) backwards;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.55));
 }
-.flap::after {
-  content: "";
+.flap-half {
   position: absolute;
   left: 0;
   right: 0;
-  top: 50%;
-  height: 2px;
-  margin-top: -1px;
-  background: linear-gradient(180deg, #000, rgba(255, 255, 255, 0.07));
+  height: calc(50% - 1px);
+  overflow: hidden;
 }
-.flap-ghost .flap {
+.flap-half > i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--h);
+  display: grid;
+  place-items: center;
+  padding-top: calc(var(--w) * 0.08);
+  font-style: normal;
+}
+.flap-top {
+  top: 0;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #32323b, #23232a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+.flap-top > i {
+  top: 0;
+}
+.flap-bot {
+  bottom: 0;
+  border-radius: 2px 2px 6px 6px;
+  background: linear-gradient(180deg, #1a1a20, #212127);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  transform-origin: 50% 0;
+  animation: flap-fall 0.32s cubic-bezier(0.3, 0.7, 0.4, 1.15) backwards;
+}
+.flap-bot > i {
+  bottom: 0;
+}
+/* the hinge pins at the seam */
+.flap::before,
+.flap::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 3px);
+  z-index: 2;
+  width: 3px;
+  height: 6px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #8a8a94, #4a4a52);
+}
+.flap::before {
+  left: 0;
+}
+.flap::after {
+  right: 0;
+}
+.flap-ghost .flap-half > i {
   color: #3c3c45;
+}
+.flap-ghost .flap-bot {
   animation: none;
 }
-.flap-space {
-  background: #121216;
+.flap-space .flap-half {
+  background: #141419;
 }
 .flap-cursor {
+  border-radius: 6px;
   background: #0f0f12;
-  box-shadow: inset 0 0 0 2px var(--orange), 0 2px 0 #050506;
+  box-shadow: inset 0 0 0 2px var(--orange);
   animation: pulse 1.2s ease-in-out infinite;
+  filter: none;
+}
+.flap-cursor::before,
+.flap-cursor::after {
+  display: none;
 }
 .flap-input {
   position: absolute;
@@ -215,9 +263,9 @@ body {
   outline: none;
   cursor: text;
 }
-@keyframes flap-in {
-  0% { transform: rotateX(-80deg); }
-  60% { transform: rotateX(14deg); }
+@keyframes flap-fall {
+  0% { transform: rotateX(-88deg); filter: brightness(1.7); }
+  65% { transform: rotateX(9deg); filter: brightness(1); }
   100% { transform: none; }
 }
 
@@ -442,7 +490,7 @@ body {
 
 /* The stopwatch that runs while the engine searches. */
 .watch {
-  width: 104px;
+  width: 116px;
   height: auto;
   flex: none;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
@@ -458,9 +506,9 @@ body {
   letter-spacing: 0.04em;
 }
 .watch-lap {
-  font-size: 8px;
-  fill: #6b6a64;
-  letter-spacing: 0.12em;
+  font-size: 4.6px;
+  fill: #3a3a3f;
+  letter-spacing: 0.1em;
 }
 .watch-time {
   font-size: 10.5px;
@@ -616,12 +664,12 @@ body {
   font-family: var(--font-display), "Arial Narrow", Impact, sans-serif;
 }
 .stamp-t {
-  font-size: 31px;
+  font-size: 34px;
   letter-spacing: 0.06em;
 }
 .stamp-s {
-  font-size: 15px;
-  letter-spacing: 0.16em;
+  font-size: 14px;
+  letter-spacing: 0.2em;
 }
 @media (max-width: 420px) {
   .bib-num {
@@ -975,7 +1023,7 @@ summary:focus-visible {
   .rise,
   .bib-front,
   .bib-ghost,
-  .flap,
+  .flap-bot,
   .flap-cursor,
   .call {
     animation: none;

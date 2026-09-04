@@ -48,7 +48,7 @@ export interface MapViewProps {
   route: [number, number][] | null;
   ideal: [number, number][][] | null;
   start: [number, number] | null;
-  /** Where the chequered flag goes: the last point, or the start of a loop. */
+  /** The last point of a one-way route; null for loops. */
   finish: [number, number] | null;
 }
 

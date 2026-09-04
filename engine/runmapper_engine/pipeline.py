@@ -1182,11 +1182,11 @@ def _finish(g, proj, best, choice, req, bucket):
     if not best["fits"]:
         v = "over"
     label = choice["label"]
-    name = req.name or (f"runmapper: {label}" if choice["kind"] == "text" else "runmapper route")
+    name = req.name or (f"drawmy.run: {label}" if choice["kind"] == "text" else "drawmy.run route")
     desc = f"{dist_mi:.2f} mi"
     if prof["gain"] is not None:
         desc += f", {prof['gain']:.0f} ft gain"
-    desc += ". Made with runmapper.run"
+    desc += ". Made with drawmy.run"
     ideal_ll = []
     for poly in best["ideal"]:
         la, lo = proj.to_ll(poly[:, 0], poly[:, 1])

@@ -18,13 +18,12 @@ import {
   detectUnits,
   downloadGpx,
   estimate,
-  fileStem,
   fmtDist,
-  gpxFileName,
   planRun,
+  runFileStem,
 } from "@/lib/api";
 import { DAY_STYLE } from "@/lib/basemaps";
-import { type Place, searchPlaces } from "@/lib/geocode";
+import { type Place, reverseCity, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
 import { TILE } from "@/lib/labels";
 import FlapWord from "./FlapWord";
@@ -70,6 +69,9 @@ export default function RunMapper() {
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
   const [gif, setGif] = useState({ busy: false, pct: 0 });
+  const [note, setNote] = useState<string | null>(null);   // something worth knowing about the answer
+  const [city, setCity] = useState("");                   // where the run is, for file names
+  const cityFor = useRef("");                             // the start the city was looked up for
   const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
   const [startedAt, setStartedAt] = useState(0);
   const abort = useRef<AbortController | null>(null);
@@ -228,6 +230,15 @@ export default function RunMapper() {
     setImageUrl(g ? URL.createObjectURL(g) : null);
   };
 
+  // The town the run is in, once per plan, from the first route's start.
+  const lookupCity = async (start: [number, number]) => {
+    if (cityFor.current) return;
+    const key = `${start[0].toFixed(3)},${start[1].toFixed(3)}`;
+    cityFor.current = key;
+    const c = await reverseCity(start[0], start[1]);
+    if (cityFor.current === key && c) setCity(c);
+  };
+
   const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? est.ok : true);
   const canGo = pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "image" && image !== null));
 
@@ -240,6 +251,9 @@ export default function RunMapper() {
     setRunKey((k) => k + 1);
     setError(null);
     setSuggest(null);
+    setNote(null);
+    setCity("");
+    cityFor.current = "";
     setProgress({ type: "progress", stage: "start", pct: 1, msg: "Starting" });
     setLaps(0);
     setStartedAt(Date.now());
@@ -247,41 +261,75 @@ export default function RunMapper() {
     abort.current = ctl;
     userPicked.current = false;
     const arrived: PlanOption[] = [];
+    const found = () => arrived.filter(Boolean);
+    // A phone that puts the page to sleep drops the stream. Note it, so a
+    // failure while hidden is retried instead of reported.
+    let wentHidden = false;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") wentHidden = true;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    const input = { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style };
     try {
-      const r = await planRun(
-        { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style },
-        (p) => {
-          setProgress(p);
-          if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
-        },
-        ctl.signal,
-        (o) => {
-          // Show each route the moment it is found: the card and the map
-          // follow the newest one unless the user has picked a lane. The
-          // first look near the pin arrives early and may be replaced.
-          const { type: _t, index, ...opt } = o;
-          void _t;
-          arrived[index] = opt;
-          const first = arrived.find(Boolean);
-          if (!first) return;
-          setResult({ ...first, type: "result", options: arrived.filter(Boolean) });
-          if (!userPicked.current) setOptIdx(arrived.filter(Boolean).length - 1);
-        },
-      );
-      // The final answer repeats the streamed options; keep those objects so
-      // the route on show is not redrawn.
-      setResult(arrived.length && r.options && r.options.length === arrived.filter(Boolean).length ? { ...r, options: arrived.filter(Boolean) } : r);
-      if (!arrived.length) setOptIdx(0);
-      setStatus("done");
-    } catch (e) {
-      if ((e as Error).name === "AbortError") {
-        setStatus("idle");
-      } else {
-        setError(e instanceof PlanError ? e.message : `Something went wrong: ${(e as Error).message}`);
-        setSuggest(e instanceof PlanError ? e.suggest : null);
-        setStatus("error");
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const r = await planRun(
+            input,
+            (p) => {
+              setProgress(p);
+              if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
+            },
+            ctl.signal,
+            (o) => {
+              // Show each route the moment it is found: the bibs and the map
+              // follow the newest one unless the user has picked one. The
+              // first look near the pin arrives early and may be replaced.
+              const { type: _t, index, ...opt } = o;
+              void _t;
+              arrived[index] = opt;
+              const first = arrived.find(Boolean);
+              if (!first) return;
+              setResult({ ...first, type: "result", options: found() });
+              if (!userPicked.current) setOptIdx(found().length - 1);
+              void lookupCity(opt.route.start);
+            },
+          );
+          // The final answer repeats the streamed options; keep those objects so
+          // the route on show is not redrawn.
+          setResult(arrived.length && r.options && r.options.length === found().length ? { ...r, options: found() } : r);
+          if (!arrived.length) setOptIdx(0);
+          void lookupCity(r.route.start);
+          setStatus("done");
+          return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError") {
+            setStatus("idle");
+            return;
+          }
+          const dropped = !(e instanceof PlanError) || /stopped without an answer|reach the route engine/i.test(e.message);
+          if (dropped && found().length) {
+            // The connection went, but routes had arrived: keep them.
+            setResult({ ...found()[0], type: "result", options: found() });
+            setNote("The connection dropped before the search finished, so these are the routes found by then.");
+            setStatus("done");
+            return;
+          }
+          if (dropped && wentHidden && attempt < 2) {
+            // Put to sleep in the background: go again, once.
+            wentHidden = false;
+            arrived.length = 0;
+            setProgress({ type: "progress", stage: "start", pct: 2, msg: "The page was asleep; starting the search again" });
+            setLaps(0);
+            continue;
+          }
+          setError(e instanceof PlanError ? e.message : `Something went wrong: ${(e as Error).message}`);
+          setSuggest(e instanceof PlanError ? e.suggest : null);
+          setStatus("error");
+          return;
+        }
       }
     } finally {
+      document.removeEventListener("visibilitychange", onVisibility);
       abort.current = null;
     }
   };
@@ -301,11 +349,12 @@ export default function RunMapper() {
   const shownIdx = Math.min(optIdx, Math.max(0, lanes.length - 1));
   const shown: PlanOption | null = lanes[shownIdx] ?? null;
   const routeCoords = useMemo(() => shown?.route.coords ?? null, [shown]);
-  // Where the chequered flag stands: the last point, or the start of a loop.
   const finish = useMemo<[number, number] | null>(
-    () => (shown && shown.route.coords.length > 1 ? (shown.route.loop ? shown.route.start : shown.route.coords[shown.route.coords.length - 1]) : null),
+    () => (shown && !shown.route.loop && shown.route.coords.length > 1 ? shown.route.coords[shown.route.coords.length - 1] : null),
     [shown],
   );
+  // File names say which run this is: RUN-3.40mi-San-Francisco.
+  const stem = shown ? runFileStem(shown.drawing.kind === "text" ? shown.drawing.label : "logo", shown.route.distance_mi, units, city) : "route";
   const showResult = Boolean(result && shown && !editing);
   const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image") : "";
   const summary = shown ? [drawingLabel, TILE[shown.bucket.key] ?? shown.bucket.label, shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
@@ -351,7 +400,7 @@ export default function RunMapper() {
         caption,
         onProgress: (pct) => setGif({ busy: true, pct }),
       });
-      saveBlob(blob, `${fileStem(shown.name)}.gif`);
+      saveBlob(blob, `${stem}.gif`);
     } catch (e) {
       console.error("GIF export failed", e);
     } finally {
@@ -361,12 +410,12 @@ export default function RunMapper() {
 
   const shareGpx = async () => {
     if (!shown) return;
-    const file = new File([shown.gpx], gpxFileName(shown.name), { type: "application/gpx+xml" });
+    const file = new File([shown.gpx], `${stem}.gpx`, { type: "application/gpx+xml" });
     try {
-      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: shown.name });
-      else downloadGpx(shown);
+      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: stem });
+      else downloadGpx(shown, `${stem}.gpx`);
     } catch (e) {
-      if ((e as Error).name !== "AbortError") downloadGpx(shown);
+      if ((e as Error).name !== "AbortError") downloadGpx(shown, `${stem}.gpx`);
     }
   };
 
@@ -387,11 +436,16 @@ export default function RunMapper() {
         {status === "error" && error && (
           <div className="note note-red space-y-2">
             <p>{error}</p>
-            {suggest && (
-              <button type="button" onClick={() => go(suggest)} className="btn btn-fill btn-sm">
-                Try {BUCKETS.find((b) => b.key === suggest)?.label ?? suggest} instead
+            <div className="flex flex-wrap gap-2">
+              {suggest && (
+                <button type="button" onClick={() => go(suggest)} className="btn btn-fill btn-sm">
+                  Try {BUCKETS.find((b) => b.key === suggest)?.label ?? suggest} instead
+                </button>
+              )}
+              <button type="button" onClick={() => go()} className="btn btn-sm">
+                Try again
               </button>
-            )}
+            </div>
           </div>
         )}
       </div>
@@ -436,6 +490,11 @@ export default function RunMapper() {
             </div>
             {status === "planning" && <div className="px-6 pb-5">{progressLane}</div>}
             {notices && <div className="px-6 pb-4">{notices}</div>}
+            {note && (
+              <div className="px-6 pb-4">
+                <div className="note">{note}</div>
+              </div>
+            )}
 
             <section className="space-y-5 px-6 pb-6" key={runKey}>
               {/* The answers as race bibs: the one on show in front, the others peeking out above it. */}
@@ -452,7 +511,7 @@ export default function RunMapper() {
                   canShare,
                   gif,
                   // One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere.
-                  onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown)),
+                  onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown, `${stem}.gpx`)),
                   onGif: () => void makeGif(),
                   onTry: (b) => void go(b),
                 }}

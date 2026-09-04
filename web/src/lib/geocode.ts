@@ -12,6 +12,20 @@ interface PhotonFeature {
   properties: Record<string, string | undefined>;
 }
 
+/** The town or city a point is in, for file names; "" when unknown. */
+export async function reverseCity(lat: number, lon: number, signal?: AbortSignal): Promise<string> {
+  try {
+    const params = new URLSearchParams({ lat: String(lat), lon: String(lon), lang: "en" });
+    const res = await fetch(`https://photon.komoot.io/reverse?${params}`, { signal });
+    if (!res.ok) return "";
+    const j = (await res.json()) as { features?: PhotonFeature[] };
+    const p = j.features?.[0]?.properties ?? {};
+    return p.city || p.town || p.village || p.county || p.state || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function searchPlaces(q: string, bias?: { lat: number; lon: number }, signal?: AbortSignal): Promise<Place[]> {
   const params = new URLSearchParams({ q, limit: "6", lang: "en" });
   if (bias) {

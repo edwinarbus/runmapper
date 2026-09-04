@@ -3,11 +3,25 @@
 import { type CSSProperties, useRef } from "react";
 
 // The word on a split-flap board, the kind that posts race results: one
-// tile per letter, each flipping in as it is typed. A real input sits over
-// the board, invisible, so typing, focus and the phone keyboard work as
-// they always do.
+// tile per letter, each in two leaves on a hinge, the lower leaf falling
+// into place as the letter is typed. A real input sits over the board,
+// invisible, so typing, focus and the phone keyboard work as they always do.
 
 const GHOST = "RUN";
+
+function Tile({ ch }: { ch: string }) {
+  const glyph = ch === " " ? "" : ch;
+  return (
+    <span className={`flap${ch === " " ? " flap-space" : ""}`} aria-hidden="true">
+      <span className="flap-half flap-top">
+        <i>{glyph}</i>
+      </span>
+      <span className="flap-half flap-bot">
+        <i>{glyph}</i>
+      </span>
+    </span>
+  );
+}
 
 export default function FlapWord({
   value,
@@ -29,9 +43,7 @@ export default function FlapWord({
   return (
     <div className={`flap-board${ghost ? " flap-ghost" : ""}`} style={{ "--n": n } as CSSProperties} onClick={() => input.current?.focus()}>
       {shown.map((ch, i) => (
-        <span key={`${i}-${ch}`} className={`flap${ch === " " ? " flap-space" : ""}`} aria-hidden="true">
-          {ch === " " ? "" : ch}
-        </span>
+        <Tile key={`${i}-${ch}`} ch={ch} />
       ))}
       {cursor && <span className="flap flap-cursor" aria-hidden="true" />}
       <input

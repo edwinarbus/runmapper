@@ -556,16 +556,11 @@ export default function RunMapper() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => downloadGpx(shown)} className="btn btn-orange">
-                  <Icon name="download" />
-                  Download GPX
+                {/* One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere. */}
+                <button type="button" onClick={() => (canShare ? void shareGpx() : downloadGpx(shown))} className="btn btn-orange">
+                  <Icon name={canShare ? "share" : "download"} />
+                  {canShare ? "Send GPX to app" : "Download GPX"}
                 </button>
-                {canShare && (
-                  <button type="button" onClick={() => void shareGpx()} className="btn">
-                    <Icon name="share" />
-                    Send to app
-                  </button>
-                )}
                 {shown.drawing.kind === "text" && (
                   <button type="button" onClick={() => void copyLink()} className="btn">
                     <Icon name={copied ? "check" : "link"} />

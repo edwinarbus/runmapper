@@ -313,33 +313,48 @@ body {
   outline: none;
   cursor: text;
 }
-/* The drawing pad: a slot to draw the shape in, by finger or mouse. */
+/* The drawing pad: a slot cut into the deck to draw the shape in, by finger
+   or mouse. Its floor has a fine grain and a faint dot grid, like a drafting
+   surface, and sits deeper than the other slots. */
 .pad {
   position: relative;
   width: 100%;
   border-radius: 8px;
   background: var(--well);
-  box-shadow: var(--slot);
+  box-shadow: var(--slot), inset 0 0 56px rgba(0, 0, 0, 0.55);
   overflow: hidden;
   touch-action: none;          /* the finger draws; it does not scroll here */
   cursor: crosshair;
 }
+.pad::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-dark), radial-gradient(circle, rgba(255, 255, 255, 0.075) 0.7px, transparent 1.2px);
+  background-size: 180px 180px, 14px 14px;
+  background-position: 0 0, 7px 7px;
+  pointer-events: none;
+}
 .pad canvas {
+  position: relative;
   display: block;
   width: 100%;
   height: 100%;
 }
+/* Before anything is drawn: a pencil pressed into the surface, its edges
+   catching the light from below the way a debossed mark does. */
 .pad-ghost {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  color: #3c3c45;
+  color: #1e1e25;
   pointer-events: none;
 }
 .pad-ghost svg {
-  width: 44px;
-  height: 44px;
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.14)) drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.9));
 }
 
 /* The starter's call on the stopwatch. */

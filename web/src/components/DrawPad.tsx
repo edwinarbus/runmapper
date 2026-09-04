@@ -124,7 +124,13 @@ export default function DrawPad({ strokes, onChange }: { strokes: Pt[][]; onChan
         />
         {strokes.length === 0 && !drawing && (
           <div className="pad-ghost" aria-hidden="true">
-            <Icon name="pencil" />
+            {/* A pencil pressed into the surface: point, wood, band and the eraser end. */}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M4.5 19.5 8.17 18.65 19.31 7.51 16.49 4.69 5.35 15.83Z" />
+              <path d="M8.17 18.65 5.35 15.83" />
+              <path d="M5.88 19.18 4.82 18.12" />
+              <path d="M13.69 13.13 10.87 10.31M14.75 12.07 11.93 9.25" />
+            </svg>
           </div>
         )}
       </div>

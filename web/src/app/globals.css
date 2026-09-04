@@ -67,21 +67,28 @@ body {
 }
 
 /* The wordmark: drawmy.run in enamel capitals with a lip of shadow, the
-   .run in orange, and under it a route drawn in along the streets. */
+   .run in orange. The period is set a little smaller and tucked in, so it
+   reads as the dot in the address rather than a gap. */
 .logo {
   display: inline-block;
-  font-size: 2.2rem;
+  font-size: 1.75rem;
   line-height: 1;
   letter-spacing: 0.05em;
 }
 @media (min-width: 640px) {
   .logo {
-    font-size: 2.7rem;
+    font-size: 2.1rem;
   }
 }
 .logo-word {
   display: inline-flex;
   align-items: baseline;
+}
+.logo-period {
+  display: inline-block;
+  margin: 0 -0.02em 0 -0.06em;
+  font-size: 0.82em;
+  vertical-align: baseline;
 }
 .logo-draw,
 .logo-run {
@@ -94,33 +101,6 @@ body {
 .logo-run {
   background-image: linear-gradient(180deg, #ffb787 0%, #ff7f3b 46%, #e34800 54%, #ff6a1f 100%);
 }
-.logo-trace {
-  display: block;
-  width: 100%;
-  height: 0.28em;
-  margin-top: 0.14em;
-  overflow: visible;
-}
-.logo-trace path {
-  fill: none;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  stroke-dasharray: 300;
-  stroke-dashoffset: 300;
-  animation: logo-run 1.4s cubic-bezier(0.4, 0, 0.3, 1) 0.2s forwards;
-}
-.logo-trace-case {
-  stroke: #050506;
-  stroke-width: 4.5;
-}
-.logo-trace-line {
-  stroke: var(--orange);
-  stroke-width: 2.4;
-}
-@keyframes logo-run {
-  to { stroke-dashoffset: 0; }
-}
-
 /* Step headings and small labels. */
 .step {
   display: flex;
@@ -142,30 +122,6 @@ body {
   color: var(--ink-3);
 }
 
-/* Status lamp. */
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 7px;
-  border-radius: 50%;
-  vertical-align: 1px;
-  background: #45e08e;
-  box-shadow: 0 0 8px rgba(69, 224, 142, 0.6), inset 0 -1px 1px rgba(0, 0, 0, 0.4);
-}
-.dot-busy {
-  background: var(--orange);
-  box-shadow: 0 0 8px rgba(252, 82, 0, 0.8), inset 0 -1px 1px rgba(0, 0, 0, 0.4);
-  animation: pulse 1s ease-in-out infinite;
-}
-.dot-red {
-  background: #ff6b61;
-  box-shadow: 0 0 8px rgba(255, 107, 97, 0.6), inset 0 -1px 1px rgba(0, 0, 0, 0.4);
-}
-.dot-off {
-  background: #4a4a52;
-  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.4);
-}
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
@@ -1445,7 +1401,6 @@ summary:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot-busy,
   .rise,
   .bib-front,
   .bib-back,
@@ -1457,10 +1412,6 @@ summary:focus-visible {
   }
   .flap-leaf {
     animation-duration: 1ms;   /* the letter lands at once; each turn still ends */
-  }
-  .logo-trace path {
-    animation: none;
-    stroke-dashoffset: 0;
   }
   .seg-btn,
   .seg-thumb,

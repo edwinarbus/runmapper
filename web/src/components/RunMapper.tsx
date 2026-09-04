@@ -128,21 +128,8 @@ export default function RunMapper() {
     return () => clearTimeout(t);
   }, [namePin]);
 
-  // Try the browser's location once, quietly, so the map opens near the user.
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (touched.current) return;
-        const p = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        setPin(p);
-        setPinLabel("Your location");
-        setFocus({ ...p, zoom: 13, key: ++focusKey.current });
-      },
-      () => undefined,
-      { maximumAge: 600000, timeout: 8000 },
-    );
-  }, []);
+  // The browser's location is only asked for when the My location key is
+  // pressed; the map opens on the world until a place is chosen.
 
   // Is there an engine to talk to? Say so up front instead of after a failed run.
   useEffect(() => {
@@ -462,7 +449,6 @@ export default function RunMapper() {
     }
   };
 
-  const dotCls = engine === "offline" ? "dot-red" : status === "planning" ? "dot-busy" : engine === "online" ? "" : "dot-off";
   const statusWord = engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting";
 
   const progressLane = <Stopwatch pct={progress?.pct ?? 0} msg={progress?.msg ?? "Working"} laps={laps} startedAt={startedAt} onStop={cancel} />;
@@ -500,21 +486,16 @@ export default function RunMapper() {
         <div className="checker" aria-hidden="true" />
         <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
           <div className="min-w-0">
-            {/* The wordmark: enamel letters, the dot a start marker, and a route drawn in beneath along the streets. */}
+            {/* The wordmark: drawmy.run in enamel letters, the .run in orange. */}
             <h1 className="logo font-display" aria-label="drawmy.run">
               <span className="logo-word" aria-hidden="true">
                 <span className="logo-draw">DRAWMY</span>
-                <span className="logo-run">.RUN</span>
+                <span className="logo-run">
+                  <span className="logo-period">.</span>RUN
+                </span>
               </span>
-              <svg className="logo-trace" viewBox="0 0 160 12" aria-hidden="true" preserveAspectRatio="none">
-                <path className="logo-trace-case" d="M2 10h26V2h22v8h24V2h22v8h24V2h20" />
-                <path className="logo-trace-line" d="M2 10h26V2h22v8h24V2h22v8h24V2h20" />
-              </svg>
             </h1>
-            <p className="eyebrow mt-2 truncate">
-              <span className={`dot ${dotCls}`} aria-hidden="true" />
-              {engine === "online" && status !== "planning" ? "GPS art for runners" : statusWord}
-            </p>
+            <p className="eyebrow mt-1.5 truncate">{engine === "online" && status !== "planning" ? "GPS art for runners" : statusWord}</p>
           </div>
           <Seg
             className="mt-1 shrink-0"

@@ -585,7 +585,11 @@ export default function RunMapper() {
                 </ol>
               </details>
               <p className="text-[11px] leading-relaxed text-[var(--ink-3)]">
-                Load the GPX into Strava, Garmin, or a smartwatch app like{" "}
+                Load the GPX into{" "}
+                <a href="https://support.strava.com/en-us/articles/15402061-uploading-route-files" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
+                  Strava
+                </a>
+                , Garmin, or a smartwatch app like{" "}
                 <a href="http://www.workoutdoors.net" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
                   WorkOutDoors
                 </a>{" "}

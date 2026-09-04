@@ -152,8 +152,10 @@ body {
   box-shadow: var(--slot);
   transition: box-shadow 0.15s;
 }
-.well:hover {
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 -2px 0 var(--orange), 0 1px 0 rgba(255, 255, 255, 0.05);
+@media (hover: hover) {
+  .well:hover {
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 -2px 0 var(--orange), 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
 }
 
 /* The word on a split-flap board: a tile per letter, two leaves on a
@@ -384,18 +386,21 @@ body {
 /* Distance keys: raised, and the chosen one pressed down, lit orange. */
 .tile {
   position: relative;
+  height: 52px;
   border: 0;
   border-radius: 6px;
   background: var(--key);
-  padding: 0.65rem 0.4rem;
+  padding: 0 0.4rem;
   text-align: center;
   color: var(--ink);
   cursor: pointer;
   box-shadow: var(--key-hi), 0 4px 0 #050506, 0 6px 12px rgba(0, 0, 0, 0.5);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
-.tile:hover:not(:disabled) {
-  background: var(--key-hover);
+@media (hover: hover) {
+  .tile:hover:not(:disabled) {
+    background: var(--key-hover);
+  }
 }
 /* A distance the word does not fit: the key is dark and does not press. */
 .tile:disabled {
@@ -413,16 +418,28 @@ body {
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
-.tile[aria-pressed="true"] {
+.tile[aria-pressed="true"],
+.tile[aria-pressed="true"]:hover:not(:disabled) {
   background: linear-gradient(180deg, #ff6a1f, #ef4c00);
   color: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 0 0 #050506, 0 0 18px rgba(252, 82, 0, 0.35);
 }
 .tile .big-label {
   display: block;
-  padding-top: 0.2em;
+  padding-top: 0.1em;
   font-size: 1.8rem;
   line-height: 1;
+}
+/* Where the browser can trim a line to the face's cap height (Safari 18.2,
+   Chrome 133), the label becomes exactly the height of its capitals and the
+   key centres it, with no metric arithmetic at all. */
+@supports (text-box-trim: trim-both) and (text-box-edge: cap alphabetic) {
+  .tile .big-label {
+    padding-top: 0;
+    line-height: 1.2;
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+  }
 }
 
 /* Segmented control: a selector switch, a slot with one raised white key
@@ -468,8 +485,10 @@ body {
   cursor: pointer;
   transition: color 0.15s, transform 0.16s cubic-bezier(0.2, 1.4, 0.5, 1);
 }
-.seg-btn:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .seg-btn:hover {
+    color: var(--ink);
+  }
 }
 .seg-btn[aria-pressed="true"] {
   color: var(--bg);
@@ -522,16 +541,17 @@ body {
 
 /* Keys. Every key stands on a lip and travels down onto it when pressed
    (:active, or data-pressed, which a tap holds for a moment so even a quick
-   one is seen), then springs back. The display face's capitals sit a little
-   high in their line, so keys carry a touch of top padding and their icons
-   a matching nudge up, which puts the letters on centre. */
+   one is seen), then springs back. The display face's capitals sit 0.05em
+   high in their line (its ascent and descent are 900 and 300 to a cap height
+   of 700), so keys carry 0.1em of top padding and their icons a matching
+   nudge up, which puts the letters on centre. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   height: 40px;
-  padding: 0.2em 1rem 0;
+  padding: 0.1em 1rem 0;
   border: 0;
   border-radius: 6px;
   background: var(--key);
@@ -547,8 +567,10 @@ body {
   box-shadow: var(--key-hi), 0 3px 0 #050506, 0 5px 10px rgba(0, 0, 0, 0.45);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s, color 0.12s;
 }
-.btn:hover:not(:disabled) {
-  background: var(--key-hover);
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: var(--key-hover);
+  }
 }
 .btn:active:not(:disabled),
 .btn[data-pressed]:not(:disabled) {
@@ -563,7 +585,7 @@ body {
 }
 .btn svg {
   position: relative;
-  top: -0.1em;
+  top: -0.05em;
   width: 16px;
   height: 16px;
   flex: none;
@@ -573,8 +595,10 @@ body {
   color: var(--bg);
   box-shadow: inset 0 1px 0 #fff, 0 3px 0 #8f8d86, 0 5px 10px rgba(0, 0, 0, 0.45);
 }
-.btn-fill:hover:not(:disabled) {
-  background: #fff;
+@media (hover: hover) {
+  .btn-fill:hover:not(:disabled) {
+    background: #fff;
+  }
 }
 .btn-fill:active:not(:disabled),
 .btn-fill[data-pressed]:not(:disabled) {
@@ -585,8 +609,10 @@ body {
   color: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 3px 0 var(--orange-deep), 0 5px 12px rgba(252, 82, 0, 0.35);
 }
-.btn-orange:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff7a33, #fc5200);
+@media (hover: hover) {
+  .btn-orange:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ff7a33, #fc5200);
+  }
 }
 .btn-orange:active:not(:disabled),
 .btn-orange[data-pressed]:not(:disabled) {
@@ -610,7 +636,7 @@ body {
   gap: 0.9rem;
   width: 100%;
   height: 66px;
-  padding-top: 0.2em;
+  padding-top: 0.1em;
   border: 0;
   border-radius: 10px;
   background: linear-gradient(180deg, #ff6f26 0%, #fc5200 55%, #f04a00 100%);
@@ -623,8 +649,10 @@ body {
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
 }
-.go:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff7f3d 0%, #ff5c0a 55%, #f24c00 100%);
+@media (hover: hover) {
+  .go:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ff7f3d 0%, #ff5c0a 55%, #f24c00 100%);
+  }
 }
 .go:active:not(:disabled),
 .go[data-pressed]:not(:disabled) {
@@ -641,7 +669,7 @@ body {
 }
 .go svg {
   position: relative;
-  top: -0.1em;
+  top: -0.05em;
   width: 30px;
   height: 22px;
 }
@@ -714,8 +742,10 @@ body {
   color: var(--ink);
   cursor: pointer;
 }
-.menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+  .menu-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 .menu-item small {
   display: block;
@@ -747,8 +777,10 @@ body {
 .disclose::-webkit-details-marker {
   display: none;
 }
-.disclose:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .disclose:hover {
+    color: var(--ink);
+  }
 }
 .disclose svg {
   width: 14px;
@@ -835,8 +867,10 @@ details[open] > .disclose svg {
   text-align: left;
   cursor: pointer;
 }
-.bib-band-btn:hover .bib-band {
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .bib-band-btn:hover .bib-band {
+    filter: brightness(1.08);
+  }
 }
 .bib-band-btn:focus-visible {
   outline: 2px solid var(--orange);
@@ -864,7 +898,7 @@ details[open] > .disclose svg {
   justify-content: space-between;
   gap: 0.75rem;
   height: 30px;
-  padding: 0.2em 30px 0;     /* clear of the pins in the corners; the capitals on centre */
+  padding: 0.1em 30px 0;     /* clear of the pins in the corners; the capitals on centre */
   border-radius: 6px 6px 0 0;
   background: linear-gradient(180deg, #ff6a1f, #f04c00);
   color: #fff;
@@ -883,7 +917,7 @@ details[open] > .disclose svg {
 }
 .bib-lane b {
   position: relative;
-  top: -0.1em;
+  top: -0.05em;
   display: inline-grid;
   place-items: center;
   flex: none;
@@ -894,7 +928,7 @@ details[open] > .disclose svg {
   color: var(--orange);
   font-size: 0.95rem;
   font-weight: 400;
-  padding-top: 0.2em;
+  padding-top: 0.1em;
 }
 .bib-away {
   display: inline-flex;
@@ -1033,7 +1067,7 @@ details[open] > .disclose svg {
 }
 .bib-sponsor {
   margin-left: auto;
-  padding: 0.2em 0 0 4px;
+  padding: 0.1em 0 0 4px;
   font-size: 1.05rem;
   line-height: 1;
   letter-spacing: 0.1em;
@@ -1050,7 +1084,7 @@ details[open] > .disclose svg {
   justify-content: center;
   gap: 0.4rem;
   height: 36px;
-  padding: 0.2em 0.8rem 0;
+  padding: 0.1em 0.8rem 0;
   border: 0;
   border-radius: 6px;
   background: linear-gradient(180deg, #fdfcf9, #ece9e1);
@@ -1065,8 +1099,10 @@ details[open] > .disclose svg {
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(23, 23, 26, 0.22), 0 3px 0 #b9b5aa, 0 4px 6px rgba(0, 0, 0, 0.22);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
-.pbtn:hover {
-  background: #fff;
+@media (hover: hover) {
+  .pbtn:hover {
+    background: #fff;
+  }
 }
 .pbtn:active,
 .pbtn[data-pressed] {
@@ -1086,7 +1122,7 @@ details[open] > .disclose svg {
 }
 .pbtn svg {
   position: relative;
-  top: -0.1em;
+  top: -0.05em;
   width: 16px;
   height: 16px;
   flex: none;
@@ -1096,8 +1132,10 @@ details[open] > .disclose svg {
   color: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 3px 0 #a33500, 0 4px 6px rgba(0, 0, 0, 0.22);
 }
-.pbtn-orange:hover {
-  background: linear-gradient(180deg, #ff7a33, #fc5200);
+@media (hover: hover) {
+  .pbtn-orange:hover {
+    background: linear-gradient(180deg, #ff7a33, #fc5200);
+  }
 }
 .pbtn-orange:active,
 .pbtn-orange[data-pressed] {
@@ -1109,8 +1147,10 @@ details[open] > .disclose svg {
   color: var(--paper);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 3px 0 #000, 0 4px 6px rgba(0, 0, 0, 0.3);
 }
-.pbtn-ink:hover {
-  background: #2a2a2e;
+@media (hover: hover) {
+  .pbtn-ink:hover {
+    background: #2a2a2e;
+  }
 }
 .pbtn-ink:active,
 .pbtn-ink[data-pressed] {
@@ -1202,7 +1242,7 @@ details[open] > .disclose svg {
   align-items: center;
   gap: 0.45rem;
   height: 36px;
-  padding: 0.2em 0.75rem 0;
+  padding: 0.1em 0.75rem 0;
   border: 0;
   border-radius: 6px;
   background: linear-gradient(180deg, rgba(40, 40, 46, 0.96), rgba(22, 22, 26, 0.96));
@@ -1218,8 +1258,10 @@ details[open] > .disclose svg {
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
-.map-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, rgba(52, 52, 60, 0.96), rgba(30, 30, 34, 0.96));
+@media (hover: hover) {
+  .map-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, rgba(52, 52, 60, 0.96), rgba(30, 30, 34, 0.96));
+  }
 }
 .map-btn:active:not(:disabled),
 .map-btn[data-pressed]:not(:disabled) {
@@ -1232,9 +1274,10 @@ details[open] > .disclose svg {
   opacity: 0.55;
   cursor: default;
 }
-/* A key that is on (the target shape showing) lights up white. */
+/* A key that is on (the target shape showing) lights up white, whether or
+   not a pointer is resting on it. */
 .map-btn[aria-pressed="true"],
-.map-btn[aria-pressed="true"]:hover {
+.map-btn[aria-pressed="true"]:hover:not(:disabled) {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
   box-shadow: inset 0 1px 0 #fff, 0 3px 0 #8f8d86, 0 5px 10px rgba(0, 0, 0, 0.45);
@@ -1245,7 +1288,7 @@ details[open] > .disclose svg {
 }
 .map-btn svg {
   position: relative;
-  top: -0.1em;
+  top: -0.05em;
   width: 16px;
   height: 16px;
   flex: none;
@@ -1289,7 +1332,7 @@ details[open] > .disclose svg {
   position: relative;
   z-index: 1;
   height: 30px;
-  padding: 0.2em 0.6rem 0;
+  padding: 0.1em 0.6rem 0;
   border-radius: 4px;
   background: transparent;
   box-shadow: none;
@@ -1321,8 +1364,10 @@ details[open] > .disclose svg {
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
 }
-.map-round:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ff7f3d, #ff5c0a);
+@media (hover: hover) {
+  .map-round:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ff7f3d, #ff5c0a);
+  }
 }
 .map-round:active:not(:disabled),
 .map-round[data-pressed]:not(:disabled) {

@@ -13,6 +13,7 @@ import Icon from "./Icon";
 
 const PEEK = 30;                       // how much of a bib behind shows, in px
 const TILT = [-1.4, 1.1, -0.7, 0.9];  // back bibs hang a little crooked
+const IDLE = { dx: 0, live: false, out: 0 as const, on: -1 };
 
 export interface BibActions {
   units: Units;
@@ -100,13 +101,20 @@ export function BibStack({
   // Swiping the front bib flings it off and brings the next one (or the
   // previous, swiping the other way) to the front. Vertical movement is
   // left to the panel's scroll; a tap on the stub's buttons is still a tap.
+  // The drag belongs to the bib it started on: if another route arrives
+  // and the front bib changes under the finger, the new one starts clean.
   const ptr = useRef<{ id: number; x0: number; y0: number; axis: "x" | null; lastX: number; lastT: number; vx: number } | null>(null);
   const swiped = useRef(false);
-  const [drag, setDrag] = useState<{ dx: number; live: boolean; out: -1 | 0 | 1 }>({ dx: 0, live: false, out: 0 });
+  const [drag, setDrag] = useState<{ dx: number; live: boolean; out: -1 | 0 | 1; on: number }>(IDLE);
+  const active = drag.on === index;
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
-    if (drag.out !== 0 || count < 2) return;
+    if (ptr.current || (active && drag.out !== 0) || count < 2) return;   // one finger at a time
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    // No text selection from a drag that starts on the paper: a selection
+    // would turn the next drag into a drag of the selection, which cancels
+    // the pointer. The stub's buttons keep their own behaviour.
+    if (!(e.target as HTMLElement).closest("button, a, input, textarea, select, summary")) e.preventDefault();
     ptr.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: null, lastX: e.clientX, lastT: e.timeStamp, vx: 0 };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
@@ -121,13 +129,17 @@ export function BibStack({
         return;
       }
       p.axis = "x";
-      e.currentTarget.setPointerCapture(e.pointerId);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* a pointer that has already gone */
+      }
     }
     const dt = e.timeStamp - p.lastT;
     if (dt > 0) p.vx = (e.clientX - p.lastX) / dt;
     p.lastX = e.clientX;
     p.lastT = e.timeStamp;
-    setDrag({ dx, live: true, out: 0 });
+    setDrag({ dx, live: true, out: 0, on: index });
   };
   const onPointerUp = (e: ReactPointerEvent<HTMLElement>) => {
     const p = ptr.current;
@@ -140,18 +152,25 @@ export function BibStack({
     }, 60);
     const dx = e.clientX - p.x0;
     const w = e.currentTarget.offsetWidth || 320;
-    const fling = Math.abs(dx) > Math.max(64, w * 0.22) || Math.abs(p.vx) > 0.6;
+    const fling = e.type !== "pointercancel" && (Math.abs(dx) > Math.max(64, w * 0.22) || Math.abs(p.vx) > 0.6);
     if (!fling) {
-      setDrag({ dx: 0, live: false, out: 0 });
+      setDrag(IDLE);
       return;
     }
     const dir: -1 | 1 = (Math.abs(dx) > 8 ? dx : p.vx) < 0 ? -1 : 1;
-    setDrag({ dx: dir * (w + 140), live: false, out: dir });
+    setDrag({ dx: dir * (w + 140), live: false, out: dir, on: index });
     const next = dir < 0 ? (index + 1) % count : (index - 1 + count) % count;
     window.setTimeout(() => {
       onPick(next);
-      setDrag({ dx: 0, live: false, out: 0 });
+      setDrag(IDLE);
     }, 230);
+  };
+  // The browser took the pointer away (a scroll, a second finger, a system
+  // gesture): let go of a drag in progress; a fling on its way keeps going.
+  const onLostCapture = () => {
+    if (!ptr.current) return;
+    ptr.current = null;
+    setDrag((d) => (d.live ? IDLE : d));
   };
 
   const o = options[index];
@@ -215,12 +234,12 @@ export function BibStack({
 
       <article
         key={index}
-        className={`bib bib-front${drag.live || drag.out ? " bib-drag" : ""}`}
+        className={`bib bib-front${active && (drag.live || drag.out) ? " bib-drag" : ""}`}
         style={{
           zIndex: n + 1,
-          transform: drag.dx ? `translateX(${drag.dx}px) rotate(${drag.dx / 24}deg)` : undefined,
-          transition: drag.live ? "none" : "transform 0.24s ease-out, opacity 0.24s ease-out",
-          opacity: drag.out ? 0.35 : 1,
+          transform: active && drag.dx ? `translateX(${drag.dx}px) rotate(${drag.dx / 24}deg)` : undefined,
+          transition: active && drag.live ? "none" : "transform 0.24s ease-out, opacity 0.24s ease-out",
+          opacity: active && drag.out ? 0.35 : 1,
         }}
         tabIndex={0}
         aria-roledescription="carousel"
@@ -229,6 +248,8 @@ export function BibStack({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onLostPointerCapture={onLostCapture}
+        onDragStart={(e) => e.preventDefault()}
         onClickCapture={(e) => {
           if (swiped.current) {
             e.stopPropagation();

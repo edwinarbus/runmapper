@@ -566,9 +566,9 @@ body {
   left: 12px;
   right: 12px;
   width: auto;                 /* stretched between left and right, a little narrower than the front bib */
+  bottom: 14px;                /* a whole bib behind, its crooked bottom corners tucked in */
   display: flex;               /* a button centres its content; the band has to sit at the top */
   flex-direction: column;
-  height: 48px;                /* the band, and a little paper that hides behind the next bib */
   padding: 0;
   cursor: pointer;
   box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.3);

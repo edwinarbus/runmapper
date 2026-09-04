@@ -100,7 +100,7 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
     type: "line",
     source: "ideal",
     layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
-    paint: { "line-color": night ? "#7cc4ff" : "#2563eb", "line-width": 2, "line-dasharray": [2, 2], "line-opacity": 0.85 },
+    paint: { "line-color": night ? "#7cc4ff" : "#2563eb", "line-width": 2.5, "line-opacity": 0.8 },
   });
   if (m.hasImage(ARROW)) {
     m.addLayer({

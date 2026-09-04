@@ -20,18 +20,39 @@ def transform(strokes, center_xy, width_ft, rot_deg, aspect=1.0):
 
 
 def sample_strokes(polys, step=40.0):
+    """Points along each polyline, every `step` feet or so, vertices included
+    (each segment gets max(2, L/step + 1) evenly spaced samples)."""
     out = []
     for p in polys:
         p = np.asarray(p, float)
         if len(p) == 1:
             out.append(p)
             continue
-        for a, b in zip(p[:-1], p[1:]):
-            L = float(np.hypot(*(b - a)))
-            n = max(2, int(L / step) + 1)
-            t = np.linspace(0, 1, n)[:, None]
-            out.append(a + t * (b - a))
+        a, b = p[:-1], p[1:]
+        L = np.hypot(*(b - a).T)
+        n = np.maximum(2, (L / step).astype(int) + 1)
+        seg = np.repeat(np.arange(len(n)), n)
+        j = np.arange(int(n.sum())) - np.repeat(np.cumsum(n) - n, n)
+        t = (j / (np.repeat(n, n) - 1))[:, None]
+        out.append(a[seg] + t * (b[seg] - a[seg]))
     return np.vstack(out)
+
+
+def p90(d, axis=None):
+    """The 90th percentile the way numpy's default interpolates it, without
+    a full sort: a partition on the two ranks it sits between."""
+    d = np.asarray(d, float)
+    n = d.shape[-1] if axis is not None else d.size
+    if n == 0:
+        return 0.0 if axis is None else np.zeros(d.shape[:-1])
+    pos = 0.9 * (n - 1)
+    i = int(pos)
+    f = pos - i
+    if i + 1 >= n:
+        return d.max(axis=axis)
+    part = np.partition(d, [i, i + 1], axis=-1 if axis is not None else None)
+    lo, hi = (part[..., i], part[..., i + 1]) if axis is not None else (part[i], part[i + 1])
+    return lo + f * (hi - lo)
 
 
 def fit_score(strokes, tree, center_xy, width_ft, rot_deg, aspect=1.0, step=45.0, dead=520.0):
@@ -39,9 +60,9 @@ def fit_score(strokes, tree, center_xy, width_ft, rot_deg, aspect=1.0, step=45.0
     S = sample_strokes(polys, step)
     d, _ = tree.query(S)
     dead_frac = float((d > dead).mean())
-    return dict(mean=float(d.mean()), p90=float(np.percentile(d, 90)),
-                dead=dead_frac, n=len(S),
-                score=float(d.mean() + 0.6 * np.percentile(d, 90) + 900.0 * dead_frac))
+    q = float(p90(d))
+    return dict(mean=float(d.mean()), p90=q, dead=dead_frac, n=len(S),
+                score=float(d.mean() + 0.6 * q + 900.0 * dead_frac))
 
 
 def scan(strokes, tree, center0, widths_ft, rots, radius_ft, grid_ft=200.0, aspect=1.0,
@@ -52,24 +73,26 @@ def scan(strokes, tree, center0, widths_ft, rots, radius_ft, grid_ft=200.0, aspe
     aspect, mean, dead)."""
     cx0, cy0 = float(center0[0]), float(center0[1])
     offs = np.arange(-radius_ft, radius_ft + 1e-6, grid_ft)
+    OX, OY = np.meshgrid(offs, offs, indexing="ij")
+    O = np.c_[OX.ravel() + cx0, OY.ravel() + cy0]     # every centre, dx-major like the loops it replaces
     out = []
     for wft in widths_ft:
         for r in rots:
             polys0 = transform(strokes, np.array([0.0, 0.0]), wft, r, aspect)
             S0 = sample_strokes(polys0, step)
-            for dx in offs:
-                for dy in offs:
-                    S = S0 + np.array([cx0 + dx, cy0 + dy])
-                    d, _ = tree.query(S)
-                    md = float(d.mean())
-                    if md > max_mean:
-                        continue
-                    deadf = float((d > dead).mean())
-                    if deadf > max_dead:
-                        continue
-                    sc = md + 0.6 * float(np.percentile(d, 90)) + 900.0 * deadf
-                    out.append(dict(score=sc, cx=cx0 + dx, cy=cy0 + dy, width_ft=float(wft),
-                                    rot=float(r), aspect=float(aspect), mean=md, dead=deadf))
+            n = len(S0)
+            # All the centres in one tree query instead of one per centre.
+            d, _ = tree.query((S0[None, :, :] + O[:, None, :]).reshape(-1, 2))
+            d = d.reshape(len(O), n)
+            md = d.mean(axis=1)
+            deadf = (d > dead).mean(axis=1)
+            ok = np.flatnonzero((md <= max_mean) & (deadf <= max_dead))
+            if not len(ok):
+                continue
+            sc = md[ok] + 0.6 * p90(d[ok], axis=1) + 900.0 * deadf[ok]
+            for j, s in zip(ok, sc):
+                out.append(dict(score=float(s), cx=float(O[j, 0]), cy=float(O[j, 1]), width_ft=float(wft),
+                                rot=float(r), aspect=float(aspect), mean=float(md[j]), dead=float(deadf[j])))
     out.sort(key=lambda c: c["score"])
     return out
 

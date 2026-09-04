@@ -8,6 +8,7 @@ networks can only reach some of them.
 import gzip
 import json
 import os
+import pickle
 import queue
 import threading
 import time
@@ -55,9 +56,43 @@ def query_text(bbox, timeout=60):
             f'out body;>;out skel qt;')
 
 
-def _cache_path(cache_dir, bbox):
+def _cache_paths(cache_dir, bbox):
+    """The pickle written now, and the JSON older versions wrote."""
     s, w, n, e = bbox
-    return os.path.join(cache_dir, "osm", f"{s:.3f}_{w:.3f}_{n:.3f}_{e:.3f}.json.gz")
+    stem = os.path.join(cache_dir, "osm", f"{s:.3f}_{w:.3f}_{n:.3f}_{e:.3f}")
+    return stem + ".pkl.gz", stem + ".json.gz"
+
+
+def _load_cache(cache_dir, bbox, max_age_days):
+    for p in _cache_paths(cache_dir, bbox):
+        if not os.path.exists(p) or (time.time() - os.path.getmtime(p)) >= max_age_days * 86400:
+            continue
+        try:
+            with gzip.open(p, "rb") as f:
+                if p.endswith(".pkl.gz"):
+                    return pickle.load(f)
+                return json.loads(f.read().decode("utf-8"))["elements"]
+        except Exception:  # noqa: BLE001 - a bad cache file is just a miss
+            continue
+    return None
+
+
+def _save_cache(path, els):
+    """Writes the cache in the background so the plan never waits for it
+    (serialising a city's worth of streets as JSON used to take ten seconds
+    on the plan's own clock). The rename makes the file appear whole or not
+    at all."""
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with gzip.open(tmp, "wb", compresslevel=1) as f:
+            pickle.dump(els, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+    except Exception:  # noqa: BLE001 - the cache is a convenience
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def _post(url, query, timeout):
@@ -123,10 +158,9 @@ def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
     """Return the Overpass `elements` list (nodes + ways) for a (s, w, n, e) box."""
     bbox = round_bbox(bbox)
     if cache_dir:
-        p = _cache_path(cache_dir, bbox)
-        if os.path.exists(p) and (time.time() - os.path.getmtime(p)) < max_age_days * 86400:
-            with gzip.open(p, "rt", encoding="utf-8") as f:
-                return json.load(f)["elements"]
+        els = _load_cache(cache_dir, bbox, max_age_days)
+        if els is not None:
+            return els
     q = query_text(bbox, timeout=timeout)
     errors = []
     for attempt in range(2):
@@ -135,11 +169,7 @@ def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
         if d is not None:
             els = d.get("elements", [])
             if cache_dir:
-                os.makedirs(os.path.dirname(p), exist_ok=True)
-                tmp = p + ".tmp"
-                with gzip.open(tmp, "wt", encoding="utf-8") as f:
-                    json.dump({"elements": els}, f)
-                os.replace(tmp, p)
+                threading.Thread(target=_save_cache, args=(_cache_paths(cache_dir, bbox)[0], els), daemon=True).start()
             return els
         time.sleep(2.0)
     raise OverpassError("Could not fetch street data from any Overpass mirror: "

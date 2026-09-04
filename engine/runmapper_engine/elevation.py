@@ -25,8 +25,9 @@ def enabled():
     return os.environ.get("RUNMAPPER_ELEVATION", "1") not in ("0", "false", "no")
 
 
-def query(latlon, batch=100, pause=1.05, max_calls=4, timeout=30):
-    """Elevation in feet for each (lat, lon); NaN where unavailable."""
+def query(latlon, batch=100, pause=1.05, max_calls=4, timeout=8):
+    """Elevation in feet for each (lat, lon); NaN where unavailable. Bounded:
+    a slow or failing service costs a plan a few seconds, never a minute."""
     z = np.full(len(latlon), np.nan)
     if not enabled() or len(latlon) == 0:
         return z
@@ -37,7 +38,7 @@ def query(latlon, batch=100, pause=1.05, max_calls=4, timeout=30):
         ch = latlon[i:i + batch]
         body = urllib.parse.urlencode(
             {"locations": "|".join(f"{a:.6f},{b:.6f}" for a, b in ch)}).encode()
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 req = urllib.request.Request(URL, data=body, headers={"User-Agent": USER_AGENT})
                 with urllib.request.urlopen(req, timeout=timeout) as r:

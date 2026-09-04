@@ -25,8 +25,11 @@ import {
 } from "@/lib/api";
 import { type Place, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
+import { TILE } from "@/lib/labels";
 import Icon from "./Icon";
 import type { LatLon } from "./MapView";
+import { BibStack } from "./RaceBib";
+import Stopwatch from "./Stopwatch";
 import WordPreview from "./WordPreview";
 
 const MapView = dynamic(() => import("./MapView"), {
@@ -38,25 +41,9 @@ const MAX_CHARS = 12;
 type Mode = "text" | "image";
 type Status = "idle" | "planning" | "done" | "error";
 
-// How a verdict reads: the tag on the card, the word on a lane, its colour.
-const VERDICT: Record<string, { label: string; word: string; cls: string }> = {
-  great: { label: "Great match", word: "great", cls: "v-great" },
-  good: { label: "OK match", word: "ok", cls: "v-good" },
-  rough: { label: "Rough fit", word: "rough", cls: "v-rough" },
-  bad: { label: "No fit", word: "no fit", cls: "v-bad" },
-  over: { label: "Too long", word: "too long", cls: "v-bad" },
-};
-const verdictOf = (v: string) => VERDICT[v] ?? VERDICT.rough;
-
-// Labels for the distance tiles: the Longer bucket tops out around a half marathon.
-const TILE: Record<Bucket, string> = { "5k": "5K", "10k": "10K", long: "Half" };
-
-const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
-
 /** The setup behind an answer as a link: the words, where it starts, how far,
  *  loop or not, and the style. Opening it fills the form in; nothing runs. */
-function shareUrl(o: PlanOption | PlanResult): string {
+function shareUrl(o: PlanOption): string {
   const q = new URLSearchParams();
   q.set("t", o.drawing.label);
   q.set("lat", o.route.start[0].toFixed(5));
@@ -96,6 +83,8 @@ export default function RunMapper() {
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
+  const [startedAt, setStartedAt] = useState(0);
   const abort = useRef<AbortController | null>(null);
   const searchAbort = useRef<AbortController | null>(null);
   const focusKey = useRef(0);
@@ -266,6 +255,8 @@ export default function RunMapper() {
     setSuggest(null);
     setShowIdeal(false);
     setProgress({ type: "progress", stage: "start", pct: 1, msg: "Starting" });
+    setLaps(0);
+    setStartedAt(Date.now());
     const ctl = new AbortController();
     abort.current = ctl;
     userPicked.current = false;
@@ -273,11 +264,15 @@ export default function RunMapper() {
     try {
       const r = await planRun(
         { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style },
-        setProgress,
+        (p) => {
+          setProgress(p);
+          if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
+        },
         ctl.signal,
         (o) => {
           // Show each route the moment it is found: the card and the map
-          // follow the newest one unless the user has picked a lane.
+          // follow the newest one unless the user has picked a lane. The
+          // first look near the pin arrives early and may be replaced.
           const { type: _t, index, ...opt } = o;
           void _t;
           arrived[index] = opt;
@@ -307,21 +302,23 @@ export default function RunMapper() {
 
   const cancel = () => abort.current?.abort();
 
-  // The option on show: one of the answers, or the result itself when there is only one.
-  const shown: PlanOption | PlanResult | null = result ? (result.options?.[optIdx] ?? result) : null;
+  // The answers, as bibs: the streamed options, or the result itself when it came alone.
+  const lanes = useMemo<PlanOption[]>(() => {
+    if (!result) return [];
+    if (result.options?.length) return result.options;
+    const { options: _o, type: _t, timing: _tm, ...rest } = result;
+    void _o;
+    void _t;
+    void _tm;
+    return [{ ...rest, label: "closest" }];
+  }, [result]);
+  const shownIdx = Math.min(optIdx, Math.max(0, lanes.length - 1));
+  const shown: PlanOption | null = lanes[shownIdx] ?? null;
   const routeCoords = useMemo(() => shown?.route.coords ?? null, [shown]);
   const finish = useMemo<[number, number] | null>(
     () => (shown && !shown.route.loop && shown.route.coords.length > 1 ? shown.route.coords[shown.route.coords.length - 1] : null),
     [shown],
   );
-
-  const v = shown ? verdictOf(shown.verdict) : null;
-  const distPrimary = shown ? (units === "mi" ? shown.route.distance_mi : shown.route.distance_km).toFixed(2) : "";
-  const distSecondary = shown ? (units === "mi" ? `${shown.route.distance_km.toFixed(2)} km` : `${shown.route.distance_mi.toFixed(2)} mi`) : "";
-  const climbPrimary =
-    shown && shown.route.gain_ft != null ? (units === "mi" ? `${Math.round(shown.route.gain_ft)} ft` : `${Math.round(shown.route.gain_ft * 0.3048)} m`) : null;
-  const lanes = result?.options ?? [];
-  const showLanes = lanes.length > 1 || (status === "planning" && lanes.length > 0);
   const showResult = Boolean(result && shown && !editing);
   const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image") : "";
   const summary = shown ? [drawingLabel, TILE[shown.bucket.key] ?? shown.bucket.label, shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
@@ -376,22 +373,7 @@ export default function RunMapper() {
   const dotCls = engine === "offline" ? "dot-red" : status === "planning" ? "dot-busy" : engine === "online" ? "" : "dot-off";
   const statusWord = engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting";
 
-  const progressLane = (
-    <div className="space-y-2.5">
-      <div className="bar" role="progressbar" aria-valuenow={progress?.pct ?? 0} aria-valuemin={0} aria-valuemax={100}>
-        <div className="bar-fill" style={{ width: `${Math.max(4, progress?.pct ?? 0)}%` }} />
-      </div>
-      <div className="flex items-center justify-between gap-3 text-[13px] text-[var(--ink-2)]">
-        <span className="min-w-0 truncate" aria-live="polite">
-          {progress?.msg ?? "Working"}…
-        </span>
-        <button type="button" onClick={cancel} className="btn btn-sm shrink-0">
-          <Icon name="stop" className="text-[#ff6b61]" />
-          Stop
-        </button>
-      </div>
-    </div>
-  );
+  const progressLane = <Stopwatch pct={progress?.pct ?? 0} msg={progress?.msg ?? "Working"} laps={laps} startedAt={startedAt} onStop={cancel} />;
 
   const notices =
     (engine === "offline" && status !== "error") || (status === "error" && error) ? (
@@ -443,7 +425,7 @@ export default function RunMapper() {
         </header>
         <div className="rule" />
 
-        {showResult && result && shown && v ? (
+        {showResult && result && shown ? (
           <div className="rise">
             <div className="flex items-center justify-between gap-3 px-6 py-4">
               <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>
@@ -452,124 +434,31 @@ export default function RunMapper() {
               </button>
               <span className="eyebrow min-w-0 flex-1 truncate text-right">{summary}</span>
             </div>
-            {status === "planning" && <div className="px-6 pb-4">{progressLane}</div>}
+            {status === "planning" && <div className="px-6 pb-5">{progressLane}</div>}
             {notices && <div className="px-6 pb-4">{notices}</div>}
 
-            <section className="space-y-4 px-6 pb-6" key={runKey}>
-              {showLanes && (
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${lanes.length + (status === "planning" ? 1 : 0)}, minmax(0, 1fr))` }}>
-                  {lanes.map((o, i) => {
-                    const ov = verdictOf(o.verdict);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        className="lane"
-                        aria-pressed={i === optIdx}
-                        onClick={() => {
-                          userPicked.current = true;
-                          setOptIdx(i);
-                        }}
-                      >
-                        <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                          <span className="lane-no font-display">{i + 1}</span>
-                          <span className="font-display text-[1.1rem] capitalize leading-none tracking-[0.06em]">{o.label}</span>
-                        </div>
-                        <div className="mt-2 text-[11px] leading-tight text-[var(--ink-2)]">
-                          {o.route.starts_at_pin || o.route.from_pin_mi <= 0.04 ? "at your pin" : `${fmtDist(o.route.from_pin_mi, units)} away`}
-                        </div>
-                        <div className={`mt-0.5 text-[11px] font-bold leading-tight ${ov.cls}`}>
-                          {ov.word} · {Math.round(o.score.iou * 100)}%
-                        </div>
-                      </button>
-                    );
-                  })}
-                  {status === "planning" && (
-                    <div className="lane lane-ghost" aria-hidden="true">
-                      <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                        <span className="lane-no font-display opacity-40">{lanes.length + 1}</span>
-                        <span className="font-display text-[1.1rem] leading-none tracking-[0.06em] text-[var(--ink-3)]">Searching</span>
-                      </div>
-                      <div className="mt-2 text-[11px] leading-tight text-[var(--ink-3)]">farther out…</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between gap-3">
-                <span className={`verdict font-display ${v.cls}`}>
-                  {v.label} · {Math.round(shown.score.iou * 100)}%
-                </span>
-                <span className="min-w-0 truncate text-right text-xs text-[var(--ink-2)]">
-                  {drawingLabel}
-                  {shown.drawing.lines && shown.drawing.lines > 1 ? ` · ${shown.drawing.lines} lines` : ""}
-                </span>
-              </div>
-              {shown.message && <p className="text-[13px] text-[var(--ink-2)]">{shown.message}</p>}
-              {shown.suggest_bucket && (
-                <button type="button" onClick={() => go(shown.suggest_bucket ?? undefined)} className="btn btn-fill btn-sm">
-                  Try {BUCKETS.find((b) => b.key === shown.suggest_bucket)?.label ?? shown.suggest_bucket} instead
-                </button>
-              )}
-
-              <div className="flex items-end justify-between gap-3 border-y border-[var(--line)] py-4">
-                <div>
-                  <div className="font-display big tabular-nums">
-                    {distPrimary}
-                    <span className="big-unit">{units}</span>
-                  </div>
-                  <div className="eyebrow mt-2 normal-case tracking-[0.04em] text-[var(--ink-2)]">
-                    {distSecondary} · {shown.route.loop ? "loop" : "one way"}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-display flex items-center justify-end gap-1 text-[1.9rem] leading-none tabular-nums">
-                    {climbPrimary ? (
-                      <>
-                        <Icon name="climb" className="h-5 w-5 text-[var(--ink-3)]" />
-                        {climbPrimary}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </div>
-                  <div className="eyebrow mt-2 normal-case tracking-[0.04em] text-[var(--ink-2)]">{climbPrimary ? "climb" : "climb · no data"}</div>
-                </div>
-              </div>
-
-              <div className="text-[13px] leading-snug">
-                <div className="flex items-baseline gap-2">
-                  <span className="eyebrow shrink-0 text-[var(--orange)]">Start</span>
-                  <span className="font-semibold">
-                    {shown.route.starts_at_pin ? "Your pin" : shown.route.start_desc}
-                    {shown.route.starts_at_pin && <span className="font-normal text-[var(--ink-2)]"> ({shown.route.start_desc})</span>}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  Head {compass(shown.route.start_bearing)} ({shown.route.start_bearing}°)
-                  {shown.route.approach_mi > 0.04 &&
-                    ` · includes ${fmtDist(shown.route.approach_mi, units)} getting to the drawing${shown.route.loop ? " and back" : ""}`}
-                  {!shown.route.starts_at_pin && shown.route.from_pin_mi > 0.04 && ` · ${fmtDist(shown.route.from_pin_mi, units)} from your pin, where the streets fit better`}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {/* One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere. */}
-                <button type="button" onClick={() => (canShare ? void shareGpx() : downloadGpx(shown))} className="btn btn-orange">
-                  <Icon name={canShare ? "share" : "download"} />
-                  {canShare ? "Send GPX to app" : "Download GPX"}
-                </button>
-                {shown.drawing.kind === "text" && (
-                  <button type="button" onClick={() => void copyLink()} className="btn">
-                    <Icon name={copied ? "check" : "link"} />
-                    {copied ? "Copied" : "Copy link"}
-                  </button>
-                )}
-                <button type="button" onClick={() => setShowIdeal((s) => !s)} className="btn" aria-pressed={showIdeal}>
-                  <Icon name="eye" />
-                  {showIdeal ? "Hide target" : "Target shape"}
-                </button>
-              </div>
+            <section className="space-y-5 px-6 pb-6" key={runKey}>
+              {/* The answers as race bibs: the one on show in front, the others peeking out above it. */}
+              <BibStack
+                options={lanes}
+                index={shownIdx}
+                onPick={(i) => {
+                  userPicked.current = true;
+                  setOptIdx(i);
+                }}
+                planning={status === "planning"}
+                actions={{
+                  units,
+                  canShare,
+                  copied,
+                  showIdeal,
+                  // One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere.
+                  onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown)),
+                  onCopy: () => void copyLink(),
+                  onIdeal: () => setShowIdeal((s) => !s),
+                  onTry: (b) => void go(b),
+                }}
+              />
 
               <details className="text-[13px]">
                 <summary className="cursor-pointer text-[var(--ink-2)]">Turn-by-turn ({shown.cues.length} cues)</summary>
@@ -653,7 +542,7 @@ export default function RunMapper() {
                 </div>
               ) : (
                 <div>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-[var(--line-2)] p-3 transition hover:border-[rgba(255,255,255,0.4)]">
+                  <label className="well flex cursor-pointer items-center gap-3 p-3">
                     {imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageUrl} alt="" className="h-14 w-14 rounded bg-white object-contain" />
@@ -815,7 +704,7 @@ export default function RunMapper() {
         </footer>
       </aside>
 
-      <main className="relative min-h-[36dvh] bg-[var(--bg)]">
+      <main className="map-bezel relative min-h-[36dvh] bg-[var(--bg)]">
         <MapView
           pin={pin}
           onPick={onPick}

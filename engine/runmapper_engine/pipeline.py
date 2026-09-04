@@ -570,10 +570,31 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     def quality(r):
         return (_attempt_tier(r), r["iou"])
 
+    def finish_attempt(r, label, number):
+        """The finished answer for a snapped attempt (distance, climb, cues,
+        GPX), made once and kept on the attempt."""
+        if "_finished" not in r:
+            _progress(progress, "finish", ctx["pct_hi"], f"Measuring distance and climb (option {number})")
+            o = _finish(r["graph"], proj, r, choice, req, bucket)
+            o["label"] = label
+            gb = r["gb"]
+            o["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
+                             rot=r["cand"]["rot"], aspect=round(r["cand"].get("aspect", 1.0), 3),
+                             size_kind=r["cand"]["size"]["kind"],
+                             blocks=[round(r["cand"]["size"].get("dx") or 0),
+                                     round(r["cand"]["size"].get("dy") or 0)])
+            o["_tier"] = _attempt_tier(r)
+            r["_finished"] = o
+        return r["_finished"]
+
+    def public(o, index, **extra):
+        return dict({k_: v for k_, v in o.items() if not k_.startswith("_")}, index=index, **extra)
+
     for label, group, (pct_lo, pct_hi) in (("closest", near, (28, 48)), ("farther", mid, (50, 68)),
                                             ("best fit", far, (70, 88))):
         ctx["pct_lo"], ctx["pct_hi"] = pct_lo, pct_hi
         group_attempts = []
+        first_look = None          # the pin's own fit, shown before the rest of the band is tried
         for w in group:
             if k > 0 and (ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.7 * TIME_BUDGET_S):
                 stop = True
@@ -599,28 +620,33 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
                     f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
                     f"{'' if r['fits'] else ' (over the cap)'}")
             k += 1
+            if label == "closest" and len(group_attempts) == 1:
+                # A drawing that fits well right here can't be beaten for
+                # closeness: skip the rest of the band. Otherwise show this
+                # first fit now and keep looking; a better one nearby replaces it.
+                if r["fits"] and _capped_verdict(r) == "great":
+                    if log:
+                        log("  a great fit at the first spot; the rest of the band is skipped")
+                    break
+                if len(group) > 1 and on_option:
+                    first_look = r
+                    o = finish_attempt(r, label, 1)
+                    if log:
+                        log(f"  first look: {o['verdict']} iou={o['score']['iou']} {o['route']['distance_mi']} mi")
+                    on_option(public(o, 0, provisional=True))
         # This group's answer, finished and handed out right away. A farther
         # answer is only offered when it is at least as good, by tier, as a
         # nearer one, so a worse drawing never hides behind a bigger distance.
         if group_attempts:
             best = max(group_attempts, key=quality)
             if not finished or _attempt_tier(best) >= max(o["_tier"] for o in finished):
-                _progress(progress, "finish", pct_hi, f"Measuring distance and climb (option {len(finished) + 1})")
-                o = _finish(best["graph"], proj, best, choice, req, bucket)
-                o["label"] = label
-                gb = best["gb"]
-                o["grid"] = dict(bearing=round(gb["bearing"], 1), regularity=round(gb["regularity"], 2),
-                                 rot=best["cand"]["rot"], aspect=round(best["cand"].get("aspect", 1.0), 3),
-                                 size_kind=best["cand"]["size"]["kind"],
-                                 blocks=[round(best["cand"]["size"].get("dx") or 0),
-                                         round(best["cand"]["size"].get("dy") or 0)])
-                o["_tier"] = _attempt_tier(best)
+                o = finish_attempt(best, label, len(finished) + 1)
                 finished.append(o)
                 if log:
                     log(f"  option '{label}': {o['verdict']} iou={o['score']['iou']} {o['route']['distance_mi']} mi, "
                         f"{o['route']['from_pin_mi']} mi from the pin")
-                if on_option:
-                    on_option(dict({k_: v for k_, v in o.items() if not k_.startswith("_")}, index=len(finished) - 1))
+                if on_option and best is not first_look:
+                    on_option(public(o, len(finished) - 1))
         if stop:
             break
     if not finished:
@@ -1114,10 +1140,13 @@ def _finish(g, proj, best, choice, req, bucket):
     cum = np.r_[0.0, np.cumsum(seg)]
     dist_mi = float(cum[-1] / FT_PER_MI)
 
-    spacing = max(100.0, cum[-1] / 280.0)
+    # One call's worth of samples (the public service takes 100 a second):
+    # every 110 ft on a short route, wider on a long one; the profile is
+    # smoothed over 400 ft anyway.
+    spacing = max(110.0, cum[-1] / 96.0)
     want = np.arange(0, cum[-1], spacing)
     idx = np.unique(np.searchsorted(cum, want).clip(0, len(ll) - 1))
-    z_s = elev_query(ll[idx], max_calls=3)
+    z_s = elev_query(ll[idx], max_calls=1)
     if np.isnan(z_s).all():
         ele = np.full(len(ll), np.nan)
     else:

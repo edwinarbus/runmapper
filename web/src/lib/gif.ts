@@ -20,7 +20,8 @@ export interface GifJob {
   onProgress?: (pct: number) => void;
 }
 
-const FRAME_MS = 80;
+const FRAME_MS = 50;     // 20 frames a second
+const MAX_FRAMES = 150;
 const BAND = 150;   // caption band height in px
 const SITE = "drawmy.run";
 
@@ -149,7 +150,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
     for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + metres(job.route[i - 1], job.route[i]));
     const total = cum[cum.length - 1];
     const duration = Math.min(7000, 2600 + 550 * (total / 1609.344));
-    const n = Math.max(12, Math.round(duration / FRAME_MS));
+    const n = Math.min(MAX_FRAMES, Math.max(16, Math.round(duration / FRAME_MS)));
     setDecor(m, false);
     let k = 1;
     for (let i = 0; i <= n; i++) {

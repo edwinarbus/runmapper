@@ -146,14 +146,17 @@ body {
 }
 
 /* The word on a split-flap board: a tile per letter, two leaves on a
-   hinge, the lower leaf falling into place as the letter is typed. A real
-   input lies over the board, invisible. */
+   hinge. A typed letter turns in through the letters before it: a leaf on
+   the hinge with the current top on its face and the next bottom on its
+   back falls over, and the next leaf after it, until the letter lands. The
+   board lays its own rows out (see FlapWord); a real input lies over it,
+   invisible. */
 .flap-board {
   position: relative;
   display: flex;
-  flex-wrap: wrap;             /* a phrase breaks between words onto a second row */
-  gap: 6px 16px;               /* between words; the tiles of a word sit 5px apart */
-  container-type: inline-size;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 5px;                  /* between tiles; words and rows are spaced by the board */
   padding: 4px;                /* room for the focus ring; the margin gives the width back */
   margin: -4px;
   border-radius: 10px;
@@ -162,61 +165,106 @@ body {
 .flap-board:focus-within {
   box-shadow: 0 0 0 2px var(--orange);
 }
-.flap-word {
-  display: flex;
-  gap: 5px;
+.flap-gap {
+  flex: none;
+  width: 6px;                  /* with the tile gap either side, 16px between words */
+}
+.flap-break {
+  flex-basis: 100%;
+  height: 6px;                 /* the next tile starts a new row, this far down */
 }
 .flap {
-  /* wide enough for the longest word to sit on one row, never wider than 64px */
-  --w: max(22px, min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n))));
-  --h: calc(var(--w) * 1.32);
+  --h: calc(var(--w, 64px) * 1.32);
   position: relative;
   flex: none;
-  width: var(--w);
+  width: var(--w, 64px);
   height: var(--h);
   perspective: 500px;
   color: var(--ink);
   font-family: var(--font-display), "Arial Narrow", Impact, sans-serif;
-  font-size: calc(var(--w) * 1.12);
+  font-size: calc(var(--w, 64px) * 1.12);
   line-height: 1;
   filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.55));
 }
-.flap-half {
+.flap-half,
+.flap-face {
   position: absolute;
   left: 0;
   right: 0;
   height: calc(50% - 1px);
   overflow: hidden;
 }
-.flap-half > i {
+.flap-half > i,
+.flap-face > i {
   position: absolute;
   left: 0;
   right: 0;
   height: var(--h);
   display: grid;
   place-items: center;
-  padding-top: calc(var(--w) * 0.08);
+  padding-top: calc(var(--w, 64px) * 0.08);
   font-style: normal;
 }
-.flap-top {
+.flap-top,
+.flap-face-front {
   top: 0;
   border-radius: 6px 6px 2px 2px;
   background: linear-gradient(180deg, #32323b, #23232a);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
 }
-.flap-top > i {
+.flap-top > i,
+.flap-face-front > i {
   top: 0;
 }
-.flap-bot {
+.flap-bot,
+.flap-face-back {
   bottom: 0;
   border-radius: 2px 2px 6px 6px;
   background: linear-gradient(180deg, #1a1a20, #212127);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
-  transform-origin: 50% 0;
-  animation: flap-fall 0.32s cubic-bezier(0.3, 0.7, 0.4, 1.15) backwards;
 }
-.flap-bot > i {
+.flap-bot > i,
+.flap-face-back > i {
   bottom: 0;
+}
+/* The leaf on the hinge: it turns down over the bottom half, its face the
+   current top and its back (pre-turned, so it reads right when it lands)
+   the next bottom. Each turn is quick; the last one eases in to land. */
+.flap-leaf {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 1;
+  height: calc(50% - 1px);
+  transform-origin: 50% 100%;
+  transform-style: preserve-3d;
+  animation: flap-turn 65ms cubic-bezier(0.5, 0, 0.95, 0.6) both;
+}
+.flap-leaf-last {
+  animation-duration: 100ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+}
+.flap-face {
+  inset: 0;
+  height: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flap-face-back {
+  transform: rotateX(180deg);
+}
+@keyframes flap-turn {
+  from { transform: rotateX(0deg); }
+  to { transform: rotateX(-180deg); }
+}
+/* the bottom half catching the light as the letter lands */
+.flap-landed {
+  animation: flap-land 0.22s ease-out;
+}
+@keyframes flap-land {
+  from { filter: brightness(1.7); }
+  to { filter: brightness(1); }
 }
 /* the hinge pins at the seam */
 .flap::before,
@@ -238,12 +286,6 @@ body {
 }
 .flap-ghost .flap-half > i {
   color: #3c3c45;
-}
-.flap-ghost .flap-bot {
-  animation: none;
-}
-.flap-space .flap-half {
-  background: #141419;
 }
 .flap-cursor {
   border-radius: 6px;
@@ -271,12 +313,6 @@ body {
   outline: none;
   cursor: text;
 }
-@keyframes flap-fall {
-  0% { transform: rotateX(-88deg); filter: brightness(1.7); }
-  65% { transform: rotateX(9deg); filter: brightness(1); }
-  100% { transform: none; }
-}
-
 /* The drawing pad: a slot to draw the shape in, by finger or mouse. */
 .pad {
   position: relative;
@@ -1235,10 +1271,13 @@ summary:focus-visible {
   .bib-front,
   .bib-back,
   .bib-ghost,
-  .flap-bot,
+  .flap-landed,
   .flap-cursor,
   .call {
     animation: none;
+  }
+  .flap-leaf {
+    animation-duration: 1ms;   /* the letter lands at once; each turn still ends */
   }
   .seg-btn,
   .switch,

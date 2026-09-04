@@ -221,6 +221,21 @@ export default function MapView(props: MapViewProps) {
     });
     // Zoom keys are drawn by this component, in the same style as the others.
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+    // MapLibre opens the attribution by itself whenever a source with one
+    // loads on a narrow map. Keep it folded to its button unless it was
+    // tapped open; a tap sets the flag, and a second tap folds it again.
+    const attrib = m.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-attrib");
+    let tapped = false;
+    attrib?.querySelector(".maplibregl-ctrl-attrib-button")?.addEventListener("click", () => {
+      tapped = true;
+    });
+    const folder = new MutationObserver(() => {
+      if (attrib && !tapped && attrib.classList.contains("maplibregl-compact-show")) attrib.classList.remove("maplibregl-compact-show");
+    });
+    if (attrib) {
+      attrib.classList.remove("maplibregl-compact-show");
+      folder.observe(attrib, { attributes: true, attributeFilter: ["class"] });
+    }
     // If a basemap style can't be fetched (offline, blocked tiles), fall
     // back to a blank canvas so the route still draws. Only while a style is
     // loading (ready is false), so tile errors later on are ignored.
@@ -252,6 +267,7 @@ export default function MapView(props: MapViewProps) {
     (window as unknown as { __runmapperMap?: maplibregl.Map }).__runmapperMap = m;
     return () => {
       cancelAnim();
+      folder.disconnect();
       // The marker belongs to this map; a remount must make a fresh one.
       marker.current?.remove();
       marker.current = null;

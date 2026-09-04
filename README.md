@@ -20,7 +20,7 @@ Everything is plain geometry and graph search on OpenStreetMap data. **No AI API
 | `engine/runmapper_engine/image.py`, `svgin.py`, `raster.py` | Image and SVG tracing: filled outline or single centreline, chosen by how bold the shape is (thinning and contour tracing in plain numpy) |
 | `engine/runmapper_engine/pipeline.py` | The end-to-end plan: sizes from the distance bucket, street fetch, placement scan, snapping, verdict |
 | `engine/runmapper_engine/api.py` | `POST /api/plan` streams progress then the result; `POST /api/estimate`; `GET /api/health` |
-| `web/` | Next.js 16 app: the word on a split-flap board, the MapLibre map (night, day or satellite; the route drawn in start to finish with direction chevrons and a chequered flag at the finish; replay, recenter and target buttons), a stopwatch while the engine searches, the answers as a stack of race bibs (distance as the bib number, the verdict stamped on, the GPX and GIF on the tear-off stub) |
+| `web/` | Next.js 16 app: the word on a split-flap board, the MapLibre map (night, day or satellite; the route drawn in start to finish with direction chevrons and a chequered flag at the finish; replay, recenter and target buttons), a stopwatch while the engine searches, the answers as a stack of race bibs (distance as the bib number, the verdict stamped on, the GPX and GIF on the tear-off stub; swipe, tap a band, or use the arrow keys for the others) |
 | `web/api/index.py`, `web/scripts/vercel-install.sh`, `web/vercel.json` | The engine as a Vercel Python function inside the same project |
 | `engine/Dockerfile`, `engine/modal_app.py` | Optional: host the engine somewhere else |
 

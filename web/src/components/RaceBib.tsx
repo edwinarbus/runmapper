@@ -1,5 +1,6 @@
 "use client";
 
+import { type PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
 import { TILE, compass, verdictOf } from "@/lib/labels";
@@ -92,6 +93,65 @@ export function BibStack({
   actions: BibActions;
 }) {
   const { units } = actions;
+  const count = options.length;
+
+  // Swiping the front bib flings it off and brings the next one (or the
+  // previous, swiping the other way) to the front. Vertical movement is
+  // left to the panel's scroll; a tap on the stub's buttons is still a tap.
+  const ptr = useRef<{ id: number; x0: number; y0: number; axis: "x" | null; lastX: number; lastT: number; vx: number } | null>(null);
+  const swiped = useRef(false);
+  const [drag, setDrag] = useState<{ dx: number; live: boolean; out: -1 | 0 | 1 }>({ dx: 0, live: false, out: 0 });
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    if (drag.out !== 0 || count < 2) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    ptr.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, axis: null, lastX: e.clientX, lastT: e.timeStamp, vx: 0 };
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
+    const p = ptr.current;
+    if (!p || p.id !== e.pointerId) return;
+    const dx = e.clientX - p.x0;
+    const dy = e.clientY - p.y0;
+    if (!p.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        ptr.current = null;   // a scroll, not a swipe
+        return;
+      }
+      p.axis = "x";
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    const dt = e.timeStamp - p.lastT;
+    if (dt > 0) p.vx = (e.clientX - p.lastX) / dt;
+    p.lastX = e.clientX;
+    p.lastT = e.timeStamp;
+    setDrag({ dx, live: true, out: 0 });
+  };
+  const onPointerUp = (e: ReactPointerEvent<HTMLElement>) => {
+    const p = ptr.current;
+    if (!p || p.id !== e.pointerId) return;
+    ptr.current = null;
+    if (p.axis !== "x") return;
+    swiped.current = true;   // the click that follows a drag is not a tap
+    window.setTimeout(() => {
+      swiped.current = false;
+    }, 60);
+    const dx = e.clientX - p.x0;
+    const w = e.currentTarget.offsetWidth || 320;
+    const fling = Math.abs(dx) > Math.max(64, w * 0.22) || Math.abs(p.vx) > 0.6;
+    if (!fling) {
+      setDrag({ dx: 0, live: false, out: 0 });
+      return;
+    }
+    const dir: -1 | 1 = (Math.abs(dx) > 8 ? dx : p.vx) < 0 ? -1 : 1;
+    setDrag({ dx: dir * (w + 140), live: false, out: dir });
+    const next = dir < 0 ? (index + 1) % count : (index - 1 + count) % count;
+    window.setTimeout(() => {
+      onPick(next);
+      setDrag({ dx: 0, live: false, out: 0 });
+    }, 230);
+  };
+
   const o = options[index];
   if (!o) return null;
   const behind = options.map((_, i) => i).filter((i) => i !== index);
@@ -146,7 +206,39 @@ export function BibStack({
         </div>
       )}
 
-      <article className="bib bib-front" key={index} style={{ zIndex: n + 1 }}>
+      <article
+        key={index}
+        className={`bib bib-front${drag.live || drag.out ? " bib-drag" : ""}`}
+        style={{
+          zIndex: n + 1,
+          transform: drag.dx ? `translateX(${drag.dx}px) rotate(${drag.dx / 24}deg)` : undefined,
+          transition: drag.live ? "none" : "transform 0.24s ease-out, opacity 0.24s ease-out",
+          opacity: drag.out ? 0.35 : 1,
+        }}
+        tabIndex={0}
+        aria-roledescription="carousel"
+        aria-label={`Route ${index + 1} of ${count}, ${o.label}. Swipe, or use the arrow keys, for the others.`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClickCapture={(e) => {
+          if (swiped.current) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }}
+        onKeyDown={(e) => {
+          if (count < 2) return;
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            onPick((index + 1) % count);
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            onPick((index - 1 + count) % count);
+          }
+        }}
+      >
         <SafetyPin corner="tl" />
         <SafetyPin corner="tr" />
         <SafetyPin corner="bl" />

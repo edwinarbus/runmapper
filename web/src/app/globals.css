@@ -303,11 +303,13 @@ body {
   height: calc(50% - 1px);
   transform-origin: 50% 100%;
   transform-style: preserve-3d;
-  animation: flap-turn 65ms cubic-bezier(0.5, 0, 0.95, 0.6) both;
+  animation: flap-turn 60ms cubic-bezier(0.5, 0, 0.95, 0.6) both;
 }
+/* The last turn falls like the others (no slow start, which read as a
+   hesitation), just a touch longer so the landing registers. */
 .flap-leaf-last {
-  animation-duration: 100ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  animation-duration: 72ms;
+  animation-timing-function: cubic-bezier(0.55, 0, 1, 0.7);
 }
 .flap-face {
   inset: 0;

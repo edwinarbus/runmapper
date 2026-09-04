@@ -71,14 +71,14 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
     if (img) m.addImage(ARROW, img, { pixelRatio: 2 });
   }
   for (const id of ["route", "ideal", "start", "finish", "head"]) m.addSource(id, { type: "geojson", data: EMPTY });
-  // Under the line: an orange glow at night, a soft shadow by day.
+  // Under the line: a soft shadow by day; at night the dark casing is enough.
   m.addLayer({
     id: "route-shadow",
     type: "line",
     source: "route",
     layout: { "line-cap": "round", "line-join": "round" },
     paint: night
-      ? { "line-color": STRAVA_ORANGE, "line-width": 18, "line-opacity": 0.45, "line-blur": 12 }
+      ? { "line-color": "#000000", "line-width": 12, "line-opacity": 0.35, "line-blur": 4, "line-translate": [0, 1] }
       : { "line-color": "#000000", "line-width": 14, "line-opacity": 0.16, "line-blur": 6, "line-translate": [0, 2] },
   });
   m.addLayer({

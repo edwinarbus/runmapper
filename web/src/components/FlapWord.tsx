@@ -16,7 +16,7 @@ const TILE_MAX = 64;       // px
 const TILE_MIN = 32;       // narrower than this and the word takes another row instead
 const GAP = 5;             // between the tiles of a word
 const WORD_GAP = 16;       // between words
-const STAGGER = 45;        // ms between tiles when a whole word arrives at once
+const STAGGER = 36;        // ms between tiles when a whole word arrives at once
 
 /** What a tile shows on its way to `ch`: blank, the letters before it, then `ch`. */
 function sequence(ch: string): string[] {

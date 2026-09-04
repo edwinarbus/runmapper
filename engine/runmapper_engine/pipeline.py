@@ -307,8 +307,7 @@ def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, win
                         sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy, orient=orient_pen,
                                   font_rank=rank)
                         if orient_pen < 1.0:
-                            sz["max_verdict"] = "good"
-                            sz["cap_reason"] = "the word reads sideways on this grid"
+                            sz["aside"] = SIDEWAYS
                         aligned.append(sz)
         # Level before tilted, the better font before the cruder one, then the
         # biggest letters closest to the font's own proportions.
@@ -368,15 +367,14 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=
                     if sz["est_ft"] <= cap_ft * ALIGNED_OVER_CAP:
                         sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy,
                                   orient=orient_pen)
-                        # Squat letters, or a word you read with your head
-                        # tilted, are compromises: never call them "great",
-                        # and say why.
+                        # Squat letters are a compromise: never call them
+                        # "great", and say why. A word laid along the other
+                        # axis is as good a drawing; it is only noted.
                         if sz["aspect"] < 0.45:     # letters more than about 1.5x wider than tall
                             sz["max_verdict"] = "good"
                             sz["cap_reason"] = "the letters are squashed to fit the blocks"
-                        elif orient_pen < 1.0:
-                            sz["max_verdict"] = "good"
-                            sz["cap_reason"] = "the word reads sideways on this grid"
+                        if orient_pen < 1.0:
+                            sz["aside"] = SIDEWAYS
                         aligned.append(sz)
         # Biggest letters first, but squat or spindly proportions cost a lot:
         # a letter twice as wide as tall reads worse than a smaller square one.
@@ -447,10 +445,12 @@ def _message(v):
     return "The streets here don't line up with that shape. Try another location, a shorter phrase, or a simpler image."
 
 
+SIDEWAYS = "The word reads sideways with north up."   # noted on the answer, never held against it
+
+
 def _capped_verdict(r):
     """The IoU verdict, held down by whatever the size or placement knows
-    about itself (squat letters, a tilted word, a bent lattice, wandering
-    streets)."""
+    about itself (squat letters, a bent lattice, wandering streets)."""
     return _verdict_and_reason(r)[0]
 
 
@@ -1293,6 +1293,9 @@ def _finish(g, proj, best, choice, req, bucket):
                f"because {held_by}.")
     else:
         msg = _message(v)
+    aside = best["cand"].get("size", {}).get("aside")
+    if aside and v != "over":
+        msg = f"{msg} {aside}".strip()
     return dict(
         ok=v in ("great", "good", "rough"),
         verdict=v, message=msg,

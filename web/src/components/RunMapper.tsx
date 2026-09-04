@@ -30,7 +30,6 @@ import Icon from "./Icon";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
 import Stopwatch from "./Stopwatch";
-import WordPreview from "./WordPreview";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
@@ -517,11 +516,6 @@ export default function RunMapper() {
                     aria-label="Words to draw"
                     className="field field-word font-display"
                   />
-                  {est?.strokes && est.strokes.length > 0 && (
-                    <div className="mt-3 h-[60px]">
-                      <WordPreview strokes={est.strokes} />
-                    </div>
-                  )}
                   <div className="mt-2 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
                     <span>
                       {est?.message ? (

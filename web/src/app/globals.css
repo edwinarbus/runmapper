@@ -156,23 +156,6 @@ body {
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 -2px 0 var(--orange), 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* The word, as it will be run: one still orange line. */
-.wp {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.wp-line {
-  fill: none;
-  stroke: var(--orange);
-  stroke-width: 4px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  opacity: 0.9;
-}
-
 /* Distance keys: raised, and the chosen one pressed down, lit orange. */
 .tile {
   position: relative;

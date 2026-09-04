@@ -371,18 +371,6 @@ export default function RunMapper() {
     if (showResult) aside.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [showResult]);
 
-  // Why the start button is off, in one line under it.
-  const reason = (() => {
-    if (status === "planning" || canGo) return "";
-    if (engine === "offline") return "The route engine is offline.";
-    const needDraw = mode === "text" ? !text.trim() : !image;
-    if (needDraw && !pin) return mode === "text" ? "Type a word and pick a start." : "Add an image and pick a start.";
-    if (needDraw) return mode === "text" ? "Type a word to draw." : "Add an image to draw.";
-    if (mode === "text" && est && !est.ok) return "";
-    if (!pin) return "Pick a start: search a place or tap the map.";
-    return "";
-  })();
-
   // The drawing as a GIF, rendered on a hidden map of its own (always the
   // light day map: it reads best when posted) and downloaded. The map code
   // is loaded on demand, since it can't run on the server.
@@ -731,7 +719,6 @@ export default function RunMapper() {
                     Draw my run
                     <Icon name="chevrons" />
                   </button>
-                  {reason && <p className="text-center text-xs text-[var(--ink-2)]">{reason}</p>}
                   {result && shown && (
                     <button type="button" onClick={() => setEditing(false)} className="btn btn-block">
                       Back to the route

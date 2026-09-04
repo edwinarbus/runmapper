@@ -33,6 +33,9 @@ const BASEMAPS: { key: Basemap; label: string }[] = [
   { key: "satellite", label: "Sat" },
 ];
 const styleFor = (b: Basemap) => (b === "satellite" ? SATELLITE_STYLE : b === "day" ? DAY_STYLE : NIGHT_STYLE);
+const LIGHT = "(prefers-color-scheme: light)";
+/** Day or night to match the device's setting; night when there is none. */
+const deviceBasemap = (): Basemap => (typeof window !== "undefined" && window.matchMedia?.(LIGHT).matches ? "day" : "night");
 
 export interface LatLon {
   lat: number;
@@ -75,9 +78,10 @@ export default function MapView(props: MapViewProps) {
   const anim = useRef<{ raf: number; token: number } | null>(null);
   const pendingDraw = useRef(false);   // a draw is about to start: keep the full line hidden until then
   const seen = useRef(new WeakSet<object>());   // routes already drawn in once
-  const applied = useRef<Basemap>("night");     // the style the map currently shows
+  const applied = useRef<Basemap>(deviceBasemap());   // the style the map currently shows
+  const chosen = useRef(false);                       // the user picked a basemap; the device no longer decides
   const idealOn = useRef(false);                // the target shape, shown or not
-  const [basemap, setBasemap] = useState<Basemap>("night");
+  const [basemap, setBasemap] = useState<Basemap>(deviceBasemap);
   const [drawing, setDrawing] = useState(false);
   const [showIdeal, setShowIdeal] = useState(false);
   const startDrawRef = useRef<() => void>(() => undefined);
@@ -254,6 +258,17 @@ export default function MapView(props: MapViewProps) {
     };
   }, []);
 
+  // Day and night follow the device's setting until a basemap is picked by hand.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia(LIGHT);
+    const follow = () => {
+      if (!chosen.current) setBasemap(mq.matches ? "day" : "night");
+    };
+    mq.addEventListener("change", follow);
+    return () => mq.removeEventListener("change", follow);
+  }, []);
+
   // Night, day or satellite. Switching styles drops every source and layer,
   // so `setup` runs again on style.load and puts the route back.
   useEffect(() => {
@@ -342,7 +357,11 @@ export default function MapView(props: MapViewProps) {
       <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
         <div className="map-seg" role="group" aria-label="Basemap">
           {BASEMAPS.map((b) => (
-            <button key={b.key} type="button" className="map-btn" aria-pressed={basemap === b.key} onClick={() => setBasemap(b.key)}>
+            <button key={b.key} type="button" className="map-btn" aria-pressed={basemap === b.key} onClick={() => {
+                chosen.current = true;
+                setBasemap(b.key);
+              }}
+            >
               {b.label}
             </button>
           ))}

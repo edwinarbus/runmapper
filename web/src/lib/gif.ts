@@ -52,22 +52,25 @@ function displayFont(): string {
 function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
   ctx.textAlign = "left";
-  const dot = size * 0.17;
-  const ring = size * 0.055;
-  const gapL = ring + size * 0.03;
-  const gapR = ring + size * 0.06;
+  // The face's own period is 0.106em with 0.04em either side; the ring, not
+  // the dot, stands on the baseline.
+  const dot = size * 0.11;
+  const ring = size * 0.03;
+  const gapL = ring + size * 0.03;   // the Y's own side bearing supplies the rest
+  const gapR = ring;                 // the R's does likewise
   const wl = ctx.measureText(SITE.left).width;
   const wr = ctx.measureText(SITE.right).width;
   let x = right - (wl + gapL + dot + gapR + wr);
   ctx.fillStyle = "#6f6e68";
   ctx.fillText(SITE.left, x, baseline);
   x += wl + gapL;
+  const cy = baseline - ring - dot / 2;
   ctx.beginPath();
-  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2 + ring, 0, Math.PI * 2);
+  ctx.arc(x + dot / 2, cy, dot / 2 + ring, 0, Math.PI * 2);
   ctx.fillStyle = "#fff";
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2, 0, Math.PI * 2);
+  ctx.arc(x + dot / 2, cy, dot / 2, 0, Math.PI * 2);
   ctx.fillStyle = "#12b886";
   ctx.fill();
   x += dot + gapR;

@@ -95,13 +95,13 @@ body {
 }
 .logo-period {
   display: inline-block;
-  width: 0.17em;
-  height: 0.17em;
-  margin: 0 0.06em 0 0.03em;   /* as tight as the dot in an address; the ring takes 0.055em of each */
+  width: 0.11em;                 /* the face's own period is 0.106em */
+  height: 0.11em;
+  margin: 0 0.03em 0 0.01em;     /* the period's side bearings (0.04em), counting the ring and the letter-spacing */
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%, #7cf0c4 0%, #12b886 55%, #0a8a63 100%);
-  box-shadow: 0 0 0 0.055em #fff;   /* the white ring of the start marker on the map */
-  vertical-align: baseline;
+  box-shadow: 0 0 0 0.03em #fff; /* the white ring of the start marker on the map */
+  vertical-align: 0.03em;        /* the ring, not the dot, stands on the baseline */
 }
 .logo-draw,
 .logo-run {
@@ -1098,13 +1098,13 @@ details[open] > .disclose svg {
 /* The period in the sponsor's address: the start marker, green in a white ring. */
 .bib-dot {
   display: inline-block;
-  width: 0.17em;
-  height: 0.17em;
-  margin: 0 0.06em 0 0.03em;
+  width: 0.11em;
+  height: 0.11em;
+  margin: 0 0.03em 0 0.01em;
   border-radius: 50%;
   background: #12b886;
-  box-shadow: 0 0 0 0.055em #fff, 0 0 0 0.075em rgba(23, 23, 26, 0.18);
-  vertical-align: baseline;
+  box-shadow: 0 0 0 0.03em #fff, 0 0 0 0.045em rgba(23, 23, 26, 0.2);
+  vertical-align: 0.03em;
 }
 /* Printed keys on the paper: the same 3px lip and the same fall of shadow
    whatever their colour, so they stand at one height. */

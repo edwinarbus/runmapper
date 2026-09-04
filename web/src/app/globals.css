@@ -522,9 +522,19 @@ body {
   opacity: 0.4;
 }
 
-/* The stopwatch that runs while the engine searches. */
+/* The stopwatch that runs while the engine searches, mounted in a tray cut
+   into the deck where the start key was. */
+.tray {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 12px 14px 12px 8px;
+  border-radius: 12px;
+  background: var(--well);
+  box-shadow: var(--slot);
+}
 .watch {
-  width: 116px;
+  width: 100px;
   height: auto;
   flex: none;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));

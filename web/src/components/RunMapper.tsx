@@ -673,11 +673,25 @@ export default function RunMapper() {
             </section>
             <div className="rule" />
 
-            {/* 03 Distance */}
+            {/* 03 Distance, with the loop switch in its corner */}
             <section className="px-6 py-4">
-              <div className="step font-display mb-3">
-                <span className="num">03</span>
-                <span>How far</span>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="step font-display">
+                  <span className="num">03</span>
+                  <span>How far</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="eyebrow">Loop</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={loop}
+                    aria-label="Perfect loop: finish where you start"
+                    title="Perfect loop: finish where you start"
+                    className="switch"
+                    onClick={() => setLoop((x) => !x)}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Distance">
                 {BUCKETS.map((b) => (
@@ -696,41 +710,29 @@ export default function RunMapper() {
             </section>
             <div className="rule" />
 
-            {/* Style and loop */}
-            <section className="flex items-start justify-between gap-5 px-6 py-4">
-              {mode !== "draw" && (
-              <div className="min-w-0 flex-1">
-                <span className="eyebrow mb-2.5 block">Style</span>
-                <div className="seg grid-cols-3" role="group" aria-label="Drawing style">
-                  {STYLES.map((st) => (
-                    <button
-                      key={st.key}
-                      type="button"
-                      className="seg-btn"
-                      aria-pressed={style === st.key}
-                      title={mode === "text" ? st.textHint : st.imageHint}
-                      onClick={() => setStyle(st.key)}
-                    >
-                      {st.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              )}
-              <div className="shrink-0 text-center">
-                <span className="eyebrow mb-2.5 block">Loop</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={loop}
-                  aria-label="Perfect loop: finish where you start"
-                  title="Perfect loop: finish where you start"
-                  className="switch mx-auto mt-[5px] block"
-                  onClick={() => setLoop((x) => !x)}
-                />
-              </div>
-            </section>
-            <div className="rule" />
+            {/* Style: one line or block letters; the middle or the edge of an image. A drawing is always a line. */}
+            {mode !== "draw" && (
+              <>
+                <section className="flex items-center justify-between gap-4 px-6 py-4">
+                  <span className="eyebrow">Style</span>
+                  <div className="seg grid-cols-3" role="group" aria-label="Drawing style">
+                    {STYLES.map((st) => (
+                      <button
+                        key={st.key}
+                        type="button"
+                        className="seg-btn"
+                        aria-pressed={style === st.key}
+                        title={mode === "text" ? st.textHint : st.imageHint}
+                        onClick={() => setStyle(st.key)}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <div className="rule" />
+              </>
+            )}
 
             {/* Go: pinned to the bottom of the column on wide screens */}
             <section className="space-y-3 px-6 py-4 md:sticky md:bottom-0 md:z-10 md:bg-[var(--panel)] md:shadow-[0_-16px_24px_rgba(18,18,21,0.9)]">

@@ -24,10 +24,13 @@ const NUMERALS = Array.from({ length: 12 }, (_, i) => {
   const a = (n / 60) * Math.PI * 2;
   return { key: n, label: String(n), x: CX + Math.sin(a) * 34, y: CY - Math.cos(a) * 34 + 2.8 };
 });
-const LAP_Y = 93;
+// The lap register: a small dial between the pivot and the 30, fine ticks on
+// its rim and the count printed in its lower half, clear of the ticks.
+const LAP_Y = 92;
+const LAP_R = 11;
 const LAP_TICKS = Array.from({ length: 12 }, (_, i) => {
   const a = (i / 12) * Math.PI * 2;
-  return { key: i, x1: CX + Math.sin(a) * 6.5, y1: LAP_Y - Math.cos(a) * 6.5, x2: CX + Math.sin(a) * 8.5, y2: LAP_Y - Math.cos(a) * 8.5 };
+  return { key: i, x1: CX + Math.sin(a) * 8.6, y1: LAP_Y - Math.cos(a) * 8.6, x2: CX + Math.sin(a) * 9.7, y2: LAP_Y - Math.cos(a) * 9.7 };
 });
 const KNURLS = [-5, -3, -1, 1, 3, 5];
 
@@ -62,7 +65,7 @@ export default function Stopwatch({
   const call = secs < 1.0 ? "On your marks" : secs < 1.9 ? "Set" : secs < 2.8 ? "Go!" : null;
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="tray rise">
       <svg className="watch" viewBox="0 0 120 134" role="img" aria-label={`Stopwatch: ${clock} elapsed, ${laps} spots tried`}>
         <defs>
           <linearGradient id="sw-steel" x1="0" y1="0" x2="0" y2="1">
@@ -133,22 +136,22 @@ export default function Stopwatch({
           {clock}
         </text>
         {/* lap dial below the pivot */}
-        <circle cx={CX} cy={LAP_Y} r="10" fill="#e6e2d8" stroke="#b9b5a9" strokeWidth="0.8" />
-        <g stroke="#3a3a3f" strokeWidth="0.7">
+        <circle cx={CX} cy={LAP_Y} r={LAP_R} fill="#e6e2d8" stroke="#b9b5a9" strokeWidth="0.8" />
+        <g stroke="#3a3a3f" strokeWidth="0.45">
           {LAP_TICKS.map((t) => (
             <line key={t.key} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
           ))}
         </g>
-        <g transform={`rotate(${lapAngle} ${CX} ${LAP_Y})`}>
-          <line x1={CX} y1={LAP_Y + 1.5} x2={CX} y2={LAP_Y - 6.5} stroke="#1b1b1f" strokeWidth="1.1" strokeLinecap="round" />
-        </g>
-        <circle cx={CX} cy={LAP_Y} r="1.1" fill="#1b1b1f" />
-        <text x={CX} y={LAP_Y + 7} textAnchor="middle" className="watch-lap">
+        <text x={CX} y={LAP_Y + 5.8} textAnchor="middle" className="watch-lap">
           LAP {String(laps).padStart(2, "0")}
         </text>
+        <g transform={`rotate(${lapAngle} ${CX} ${LAP_Y})`}>
+          <line x1={CX} y1={LAP_Y + 1.2} x2={CX} y2={LAP_Y - 7} stroke="#1b1b1f" strokeWidth="0.8" strokeLinecap="round" />
+        </g>
+        <circle cx={CX} cy={LAP_Y} r="1" fill="#1b1b1f" />
         {/* the sweep hand */}
         <g transform={`rotate(${angle} ${CX} ${CY})`}>
-          <line x1={CX} y1={CY + 10} x2={CX} y2={CY - 42} stroke="#fc5200" strokeWidth="1.7" strokeLinecap="round" />
+          <line x1={CX} y1={CY + 7} x2={CX} y2={CY - 42} stroke="#fc5200" strokeWidth="1.7" strokeLinecap="round" />
           <circle cx={CX} cy={CY - 42} r="1.6" fill="#fc5200" />
           <circle cx={CX} cy={CY} r="3.2" fill="#1b1b1f" />
           <circle cx={CX} cy={CY} r="1.3" fill="#fc5200" />

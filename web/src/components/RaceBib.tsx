@@ -3,6 +3,7 @@
 import { type PointerEvent as ReactPointerEvent, useRef, useState } from "react";
 import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
+import { isDrawing } from "@/lib/drawing";
 import { TILE, compass, verdictOf } from "@/lib/labels";
 import Icon from "./Icon";
 
@@ -181,7 +182,7 @@ export function BibStack({
   const distPrimary = (units === "mi" ? o.route.distance_mi : o.route.distance_km).toFixed(2);
   const distSecondary = units === "mi" ? `${o.route.distance_km.toFixed(2)} km` : `${o.route.distance_mi.toFixed(2)} mi`;
   const climb = o.route.gain_ft != null ? (units === "mi" ? `${Math.round(o.route.gain_ft)} ft climb` : `${Math.round(o.route.gain_ft * 0.3048)} m climb`) : null;
-  const word = o.drawing.kind === "text" ? o.drawing.label : "Logo run";
+  const word = o.drawing.kind === "text" ? o.drawing.label : isDrawing(o.drawing.label) ? "Your drawing" : "Logo run";
 
   return (
     <div className="bibs" style={{ paddingTop: n * PEEK }}>

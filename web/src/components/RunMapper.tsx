@@ -23,9 +23,11 @@ import {
   runFileStem,
 } from "@/lib/api";
 import { DAY_STYLE } from "@/lib/basemaps";
+import { DRAW_FILE, type Pt, drawingSvg, isDrawing } from "@/lib/drawing";
 import { type Place, reverseCity, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
 import { TILE } from "@/lib/labels";
+import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import Icon from "./Icon";
 import type { LatLon } from "./MapView";
@@ -38,13 +40,19 @@ const MapView = dynamic(() => import("./MapView"), {
 });
 
 const MAX_CHARS = 12;
-type Mode = "text" | "image";
+type Mode = "text" | "draw" | "image";
+const MODES: { key: Mode; label: string; hint: string }[] = [
+  { key: "text", label: "Words", hint: "Type a word or two" },
+  { key: "draw", label: "Draw", hint: "Draw a shape with your finger or mouse" },
+  { key: "image", label: "Image", hint: "Upload a logo or a simple drawing" },
+];
 type Status = "idle" | "planning" | "done" | "error";
 
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
   const [text, setText] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [draw, setDraw] = useState<Pt[][]>([]);   // the shape drawn on the pad
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pin, setPin] = useState<LatLon | null>(null);
   const [pinLabel, setPinLabel] = useState<string>("");
@@ -240,7 +248,8 @@ export default function RunMapper() {
   };
 
   const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? est.ok : true);
-  const canGo = pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "image" && image !== null));
+  const canGo =
+    pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "draw" && draw.length > 0) || (mode === "image" && image !== null));
 
   const go = async (useBucket: Bucket = bucket) => {
     if (!pin) return;
@@ -269,7 +278,9 @@ export default function RunMapper() {
       if (document.visibilityState === "hidden") wentHidden = true;
     };
     document.addEventListener("visibilitychange", onVisibility);
-    const input = { text: mode === "text" ? text : undefined, image: mode === "image" ? image : null, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style };
+    // A drawing travels as a stroked SVG, which the engine reads as line art.
+    const upload = mode === "image" ? image : mode === "draw" ? new File([drawingSvg(draw)], DRAW_FILE, { type: "image/svg+xml" }) : null;
+    const input = { text: mode === "text" ? text : undefined, image: upload, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style: mode === "draw" ? ("auto" as Style) : style };
     try {
       for (let attempt = 1; ; attempt++) {
         try {
@@ -354,13 +365,15 @@ export default function RunMapper() {
     [shown],
   );
   // File names say which run this is: RUN-3.40mi-San-Francisco.
-  const stem = shown ? runFileStem(shown.drawing.kind === "text" ? shown.drawing.label : "logo", shown.route.distance_mi, units, city) : "route";
+  const stem = shown
+    ? runFileStem(shown.drawing.kind === "text" ? shown.drawing.label : isDrawing(shown.drawing.label) ? "drawing" : "logo", shown.route.distance_mi, units, city)
+    : "route";
   const showResult = Boolean(result && shown && !editing);
-  const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : "your image") : "";
+  const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : isDrawing(shown.drawing.label) ? "your drawing" : "your image") : "";
   const summary = shown ? [drawingLabel, TILE[shown.bucket.key] ?? shown.bucket.label, shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
   const caption = useMemo(
     () => ({
-      word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : "Logo run") : "",
+      word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : isDrawing(shown.drawing.label) ? "Drawing" : "Logo run") : "",
       stats: shown ? fmtDist(shown.route.distance_mi, units) : "",
     }),
     [shown, units],
@@ -535,15 +548,15 @@ export default function RunMapper() {
           <div>
             {/* 01 Draw */}
             <section className="px-6 py-4">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="step font-display">
                   <span className="num">01</span>
                   <span>Draw</span>
                 </div>
-                <div className="seg grid-cols-2" role="group" aria-label="Words or image">
-                  {(["text", "image"] as Mode[]).map((m) => (
-                    <button key={m} type="button" className="seg-btn" aria-pressed={mode === m} onClick={() => setMode(m)}>
-                      {m === "text" ? "Words" : "Image"}
+                <div className="seg grid-cols-3" role="group" aria-label="Words, a drawing or an image">
+                  {MODES.map((m) => (
+                    <button key={m.key} type="button" className="seg-btn" aria-pressed={mode === m.key} title={m.hint} onClick={() => setMode(m.key)}>
+                      {m.label}
                     </button>
                   ))}
                 </div>
@@ -576,6 +589,8 @@ export default function RunMapper() {
                     </span>
                   </div>
                 </div>
+              ) : mode === "draw" ? (
+                <DrawPad strokes={draw} onChange={setDraw} />
               ) : (
                 <div>
                   <label className="well flex cursor-pointer items-center gap-3 p-3">
@@ -677,6 +692,7 @@ export default function RunMapper() {
 
             {/* Style and loop */}
             <section className="flex items-start justify-between gap-5 px-6 py-4">
+              {mode !== "draw" && (
               <div className="min-w-0 flex-1">
                 <span className="eyebrow mb-2.5 block">Style</span>
                 <div className="seg grid-cols-3" role="group" aria-label="Drawing style">
@@ -694,6 +710,7 @@ export default function RunMapper() {
                   ))}
                 </div>
               </div>
+              )}
               <div className="shrink-0 text-center">
                 <span className="eyebrow mb-2.5 block">Loop</span>
                 <button

@@ -269,6 +269,35 @@ body {
   100% { transform: none; }
 }
 
+/* The drawing pad: a slot to draw the shape in, by finger or mouse. */
+.pad {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--well);
+  box-shadow: var(--slot);
+  overflow: hidden;
+  touch-action: none;          /* the finger draws; it does not scroll here */
+  cursor: crosshair;
+}
+.pad canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pad-ghost {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #3c3c45;
+  pointer-events: none;
+}
+.pad-ghost svg {
+  width: 44px;
+  height: 44px;
+}
+
 /* The starter's call on the stopwatch. */
 .call {
   margin-top: 4px;

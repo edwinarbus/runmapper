@@ -95,12 +95,12 @@ body {
 }
 .logo-period {
   display: inline-block;
-  width: 0.19em;
-  height: 0.19em;
-  margin: 0 0.08em 0 0.06em;
+  width: 0.17em;
+  height: 0.17em;
+  margin: 0 0.06em 0 0.03em;   /* as tight as the dot in an address; the ring takes 0.055em of each */
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%, #7cf0c4 0%, #12b886 55%, #0a8a63 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 0.055em #fff;   /* the white ring of the start marker on the map */
   vertical-align: baseline;
 }
 .logo-draw,
@@ -1094,6 +1094,17 @@ details[open] > .disclose svg {
 }
 .bib-sponsor span {
   color: var(--orange);
+}
+/* The period in the sponsor's address: the start marker, green in a white ring. */
+.bib-dot {
+  display: inline-block;
+  width: 0.17em;
+  height: 0.17em;
+  margin: 0 0.06em 0 0.03em;
+  border-radius: 50%;
+  background: #12b886;
+  box-shadow: 0 0 0 0.055em #fff, 0 0 0 0.075em rgba(23, 23, 26, 0.18);
+  vertical-align: baseline;
 }
 /* Printed keys on the paper: the same 3px lip and the same fall of shadow
    whatever their colour, so they stand at one height. */

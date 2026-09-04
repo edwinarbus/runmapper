@@ -23,7 +23,7 @@ export interface GifJob {
 const FRAME_MS = 50;     // 20 frames a second
 const MAX_FRAMES = 150;
 const BAND = 150;   // caption band height in px
-const SITE = "drawmy.run";
+const SITE = { left: "DRAWMY", right: "RUN" };   // with the start dot as the period between
 
 /** Resolves when the map has drawn everything it was asked to, or after `ms`. */
 function idle(m: maplibregl.Map, ms: number): Promise<void> {
@@ -47,6 +47,34 @@ function displayFont(): string {
   return fam ? `${fam}, "Arial Narrow", Impact, sans-serif` : `"Arial Narrow", Impact, sans-serif`;
 }
 
+/** The site's address with its right edge at `right`: DRAWMY, the green
+ *  start dot in its white ring as the period, RUN in orange. */
+function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
+  ctx.font = `${size}px ${font}`;
+  ctx.textAlign = "left";
+  const dot = size * 0.17;
+  const ring = size * 0.055;
+  const gapL = ring + size * 0.03;
+  const gapR = ring + size * 0.06;
+  const wl = ctx.measureText(SITE.left).width;
+  const wr = ctx.measureText(SITE.right).width;
+  let x = right - (wl + gapL + dot + gapR + wr);
+  ctx.fillStyle = "#6f6e68";
+  ctx.fillText(SITE.left, x, baseline);
+  x += wl + gapL;
+  ctx.beginPath();
+  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2 + ring, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2, 0, Math.PI * 2);
+  ctx.fillStyle = "#12b886";
+  ctx.fill();
+  x += dot + gapR;
+  ctx.fillStyle = "#fc5200";
+  ctx.fillText(SITE.right, x, baseline);
+}
+
 /** A light band across the bottom with the word, the distance and the site. */
 function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: { word: string; stats: string }, font: string) {
   const g = ctx.createLinearGradient(0, h - BAND - 60, 0, h);
@@ -64,10 +92,7 @@ function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: 
   ctx.fillStyle = "#fc5200";
   ctx.font = `30px ${font}`;
   ctx.fillText(caption.stats, x + 2, h - 28);
-  ctx.textAlign = "right";
-  ctx.fillStyle = "#6f6e68";
-  ctx.font = `28px ${font}`;
-  ctx.fillText(SITE, w - 56, h - 28);
+  drawSite(ctx, w - 56, h - 28, 28, font);
   // a short orange rule under the word, like the field on the page
   ctx.fillStyle = "#fc5200";
   ctx.fillRect(x, h - 54, Math.min(w * 0.3, 220), 3);

@@ -51,11 +51,11 @@ VERY_IRREGULAR_STREETS = 0.50   # ...and below this at "rough"
 LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
 FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
 MAX_SNAPS = 5
-TIME_BUDGET_S = 170.0
-SEARCH_RADIUS_FT = 1.6 * FT_PER_MI   # how far the search goes for the "best fit" option
+TIME_BUDGET_S = 190.0
+SEARCH_RADIUS_FT = 2.0 * FT_PER_MI   # how far the search goes for the "best fit" option
 WINDOW_STEP_FT = 1500.0              # spacing of the spots tried around the pin
-MAX_BOX_HALF_FT = 2.0 * FT_PER_MI    # never fetch more than a 4 x 4 mile box of streets
-MAX_SNAPPED_SPOTS = 14               # spots that get the full snap treatment
+MAX_BOX_HALF_FT = 2.4 * FT_PER_MI    # never fetch more than a 4.8 x 4.8 mile box of streets
+MAX_SNAPPED_SPOTS = 16               # spots that get the full snap treatment
 BAND_FT = 2400.0                     # width of the distance bands the options are drawn from
 PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
 STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
@@ -562,7 +562,7 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     near = [pin_w] + [w for w in eligible if w["band"] == 0]
     mid = [w for w in eligible if w["band"] == 1][:5]
     far = sorted([w for w in eligible if w["band"] >= 2 and w["regularity"] >= max(need_reg, 0.8)],
-                 key=lambda w: (-w["regularity"], w["dist_ft"]))[:4]
+                 key=lambda w: (-w["regularity"], w["dist_ft"]))[:6]
     attempts, errors, finished = [], [], []
     k = 0
     stop = False

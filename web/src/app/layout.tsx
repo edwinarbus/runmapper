@@ -11,11 +11,11 @@ const display = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "runmapper",
+  title: "drawmy.run",
   description: "Type a word or upload a logo, pick a spot, and get a running route whose GPS trace draws it.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://runmapper.run"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://drawmy.run"),
   openGraph: {
-    title: "runmapper",
+    title: "drawmy.run",
     description: "Draw words and logos with your run. Pick a place, get a GPX.",
     type: "website",
   },

@@ -1,11 +1,11 @@
 // A GIF of the route drawing itself in, rendered offscreen on a map of its
-// own (16:9, 1280 x 720) with a caption band, so nothing on screen has to
-// move and the result is the same on any device.
+// own (16:9, 1280 x 720, always the light day map) with a caption band, so
+// nothing on screen has to move and the result is the same on any device.
 
 import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
-import { type DistanceMarker, metres } from "./geo";
-import { EMPTY, type LngLat, addRouteLayers, easeInOut, ensureMarkerImages, lineFeature, lineFromLngLat, pointFeature, routeBounds, setDecor } from "./maplayers";
+import { metres } from "./geo";
+import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, setDecor } from "./maplayers";
 
 export interface GifJob {
   style: string | maplibregl.StyleSpecification;
@@ -13,7 +13,6 @@ export interface GifJob {
   route: [number, number][];
   start: [number, number] | null;
   finish: [number, number] | null;
-  markers: DistanceMarker[];
   /** The word, and a stats line such as "3.28 MI · LOOP". */
   caption: { word: string; stats: string };
   width?: number;
@@ -23,7 +22,7 @@ export interface GifJob {
 
 const FRAME_MS = 80;
 const BAND = 150;   // caption band height in px
-const SITE = "runmapper.run";
+const SITE = "drawmy.run";
 
 /** Resolves when the map has drawn everything it was asked to, or after `ms`. */
 function idle(m: maplibregl.Map, ms: number): Promise<void> {
@@ -47,25 +46,25 @@ function displayFont(): string {
   return fam ? `${fam}, "Arial Narrow", Impact, sans-serif` : `"Arial Narrow", Impact, sans-serif`;
 }
 
-/** A dark band across the bottom with the word, the stats and the site. */
+/** A light band across the bottom with the word, the distance and the site. */
 function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: { word: string; stats: string }, font: string) {
   const g = ctx.createLinearGradient(0, h - BAND - 60, 0, h);
-  g.addColorStop(0, "rgba(11, 11, 13, 0)");
-  g.addColorStop(0.35, "rgba(11, 11, 13, 0.82)");
-  g.addColorStop(1, "rgba(11, 11, 13, 0.96)");
+  g.addColorStop(0, "rgba(247, 245, 240, 0)");
+  g.addColorStop(0.35, "rgba(247, 245, 240, 0.86)");
+  g.addColorStop(1, "rgba(247, 245, 240, 0.98)");
   ctx.fillStyle = g;
   ctx.fillRect(0, h - BAND - 60, w, BAND + 60);
   const x = 56;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillStyle = "#f4f2ec";
+  ctx.fillStyle = "#151517";
   ctx.font = `76px ${font}`;
   ctx.fillText(caption.word, x, h - 66);
   ctx.fillStyle = "#fc5200";
   ctx.font = `30px ${font}`;
   ctx.fillText(caption.stats, x + 2, h - 28);
   ctx.textAlign = "right";
-  ctx.fillStyle = "#aaa9a2";
+  ctx.fillStyle = "#6f6e68";
   ctx.font = `28px ${font}`;
   ctx.fillText(SITE, w - 56, h - 28);
   // a short orange rule under the word, like the field on the page
@@ -120,11 +119,9 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       }, 30000);
     });
     addRouteLayers(m, job.night);
-    ensureMarkerImages(m, job.markers.map((k) => k.n));
     const src = (id: string) => m.getSource(id) as maplibregl.GeoJSONSource;
     src("start").setData(job.start ? pointFeature([job.start[1], job.start[0]]) : EMPTY);
     src("finish").setData(job.finish ? pointFeature([job.finish[1], job.finish[0]]) : EMPTY);
-    src("miles").setData({ type: "FeatureCollection", features: job.markers.map((k) => pointFeature([k.lon, k.lat], { n: k.n })) });
     src("route").setData(lineFeature(job.route));
     setDecor(m, true);
     m.fitBounds(routeBounds(job.route), { padding: { top: 64, right: 64, bottom: 64 + BAND, left: 64 }, duration: 0, maxZoom: 16.5 });
@@ -170,7 +167,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       gif.writeFrame(index, W, H, { palette, delay: i === 0 ? 600 : FRAME_MS, repeat: 0 });
       job.onProgress?.((i + 1) / (n + 2));
     }
-    // Hold on the finished drawing with its chevrons and marks.
+    // Hold on the finished drawing with its chevrons.
     src("route").setData(lineFeature(job.route));
     src("head").setData(EMPTY);
     setDecor(m, true);

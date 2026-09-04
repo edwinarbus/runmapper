@@ -1,4 +1,4 @@
-# runmapper
+# drawmy.run
 
 Type a word or upload a logo, drop a pin anywhere in the world, pick a distance, and get a running route whose GPS trace draws it. Load the GPX into Strava, Garmin or your watch, run the line, and the orange map in your activity is the drawing.
 
@@ -47,7 +47,7 @@ npm install
 npm run dev                       # proxies /api to the engine on port 8000
 ```
 
-Open http://localhost:3000, type `RUN` (the panel traces the word the way it will be run, from `POST /api/estimate`, which now returns the strokes), search a place (or click the map), pick 5K, and hit **Map my run**. A result's **Copy link** button gives a URL that carries the setup (`?t=RUN&lat=…&lon=…&d=5k&loop=1&s=line`, the start being the route's start); opening it fills the form in, and nothing runs until **Map my run**. **Download GIF** on the map renders the route drawing itself in on a hidden 1280 × 720 map of its own (16:9 for X and the like, with the word, distance and site in a band along the bottom), encodes it in the browser with gifenc and downloads it; nothing on screen moves while it works. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
+Open http://localhost:3000, type `RUN` (the panel traces the word the way it will be run, from `POST /api/estimate`, which now returns the strokes), search a place (or click the map), pick 5K, and hit **Draw my run**. A result's **Copy link** button gives a URL that carries the setup (`?t=RUN&lat=…&lon=…&d=5k&loop=1&s=line`, the start being the route's start); opening it fills the form in, and nothing runs until **Draw my run**. **Download GIF** on the map renders the route drawing itself in on a hidden 1280 × 720 map of its own (16:9 for X and the like, with the word, distance and site in a band along the bottom), encodes it in the browser with gifenc and downloads it; nothing on screen moves while it works. The CLI takes the same options, e.g. `runmapper "RUN" --lat 37.752 --lon -122.492 --bucket 10k --style outline`. To use an engine running somewhere else, set `NEXT_PUBLIC_API_URL` in `web/.env.local` (see `.env.example`).
 
 **Command line, no web app**
 
@@ -67,13 +67,13 @@ cd engine && pytest          # offline: synthetic street grid, font, tracing
 cd web && npm run lint && npx tsc --noEmit && npm run build
 ```
 
-## Put it on the internet (runmapper.run)
+## Put it on the internet (drawmy.run)
 
 One Vercel project runs both halves: the Next.js app, and the engine as a Python function behind `/api`. (Vercel allows Python functions a 500 MB bundle, streamed responses and 300 s per request, which is what the engine needs.)
 
 1. In Vercel: **Add New → Project**, import this repo, set **Root Directory** to `web`. Nothing else to configure.
 2. Deploy. Every push to `main` redeploys.
-3. **Settings → Domains → add `runmapper.run`** and point the domain's DNS at Vercel as it instructs.
+3. **Settings → Domains → add `drawmy.run`** and point the domain's DNS at Vercel as it instructs. The repository can be renamed to match at any time: the engine install step reads the repository name Vercel passes at build time.
 
 What happens in the build: Vercel's Python step reads `web/pyproject.toml`, which runs `web/scripts/vercel-install.sh`; that script installs the engine package from this repository at the commit being built, so the function and the page always match. `web/vercel.json` sets the function's time limit. Street data is cached in the function's `/tmp` while an instance stays warm; the first request in a new area waits for Overpass.
 
@@ -127,6 +127,6 @@ Neither is needed for words or for logos that are already clean shapes.
 - Public Overpass mirrors are rate-limited and occasionally slow or down; the engine asks the next mirror when one is slow to answer, falls back on failure, and caches each area for 30 days. Every plan writes one-line timings to the server log (Vercel: the project's Logs tab), including which mirror answered. For serious traffic, self-host Overpass or point `RUNMAPPER_OVERPASS_MIRRORS` at a paid instance.
 - The public opentopodata instance allows one call per second; the engine uses at most three per route.
 - On Vercel a request may take at most 300 s and carry at most 4.5 MB, so uploads are downscaled in the browser before they are sent, and a route that needs several slow Overpass mirrors in a row can time out; try again a minute later.
-- Diagonal letters (K N Q R V X Y Z 0 7) need bigger letters than rectilinear ones to read on a grid. A word full of them may need the next distance up.
+- Letters with diagonals (D N V X Z, the slashed 0, and / \) are staircased onto the grid and need bigger letters than rectilinear ones to read. A word full of them may need the next distance up.
 - Cities without a grid (old European centres) rarely produce crisp text; the app will tell you.
 - Map tiles are OpenFreeMap (the `dark` style at night, `positron` by day; override with `NEXT_PUBLIC_MAP_STYLE_NIGHT` and `NEXT_PUBLIC_MAP_STYLE`); the satellite view is Esri World Imagery with Esri's road and place-name reference tiles (attribution shown on the map); street data © OpenStreetMap contributors (ODbL).

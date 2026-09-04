@@ -24,7 +24,6 @@ import {
   planRun,
 } from "@/lib/api";
 import { type Place, searchPlaces } from "@/lib/geocode";
-import { distanceMarkers } from "@/lib/geo";
 import { prepareUpload } from "@/lib/image";
 import Icon from "./Icon";
 import type { LatLon } from "./MapView";
@@ -42,15 +41,15 @@ type Status = "idle" | "planning" | "done" | "error";
 // How a verdict reads: the tag on the card, the word on a lane, its colour.
 const VERDICT: Record<string, { label: string; word: string; cls: string }> = {
   great: { label: "Great match", word: "great", cls: "v-great" },
-  good: { label: "Good match", word: "good", cls: "v-good" },
+  good: { label: "OK match", word: "ok", cls: "v-good" },
   rough: { label: "Rough fit", word: "rough", cls: "v-rough" },
   bad: { label: "No fit", word: "no fit", cls: "v-bad" },
   over: { label: "Too long", word: "too long", cls: "v-bad" },
 };
 const verdictOf = (v: string) => VERDICT[v] ?? VERDICT.rough;
 
-// Big labels for the distance tiles.
-const TILE: Record<Bucket, string> = { "5k": "5K", "10k": "10K", long: "Longer" };
+// Labels for the distance tiles: the Longer bucket tops out around a half marathon.
+const TILE: Record<Bucket, string> = { "5k": "5K", "10k": "10K", long: "Half" };
 
 const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
@@ -315,7 +314,6 @@ export default function RunMapper() {
     () => (shown && !shown.route.loop && shown.route.coords.length > 1 ? shown.route.coords[shown.route.coords.length - 1] : null),
     [shown],
   );
-  const markers = useMemo(() => (shown ? distanceMarkers(shown.route.coords, units === "mi" ? 1609.344 : 1000) : []), [shown, units]);
 
   const v = shown ? verdictOf(shown.verdict) : null;
   const distPrimary = shown ? (units === "mi" ? shown.route.distance_mi : shown.route.distance_km).toFixed(2) : "";
@@ -330,11 +328,10 @@ export default function RunMapper() {
   const caption = useMemo(
     () => ({
       word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : "Logo run") : "",
-      stats: shown ? `${fmtDist(shown.route.distance_mi, units)} · ${shown.route.loop ? "loop" : "one way"}` : "",
+      stats: shown ? fmtDist(shown.route.distance_mi, units) : "",
     }),
     [shown, units],
   );
-  const styleHint = STYLES.find((s) => s.key === style);
 
   // When the answer takes over the screen, show it from the top.
   useEffect(() => {
@@ -427,11 +424,12 @@ export default function RunMapper() {
         <div className="checker" aria-hidden="true" />
         <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
           <div className="min-w-0">
-            <h1 className="font-display text-[2.2rem] leading-none text-[var(--orange)] sm:text-[2.7rem]">RUNMAPPER</h1>
+            <h1 className="font-display text-[2.2rem] leading-none sm:text-[2.7rem]">
+              DRAWMY<span className="text-[var(--orange)]">.RUN</span>
+            </h1>
             <p className="eyebrow mt-2 truncate">
               <span className={`dot ${dotCls}`} aria-hidden="true" />
-              {statusWord}
-              <span className="hidden sm:inline"> · GPS art for runners</span>
+              {engine === "online" && status !== "planning" ? "GPS art for runners" : statusWord}
             </p>
           </div>
           <div className="seg mt-1 shrink-0 grid-cols-2" role="group" aria-label="Units">
@@ -587,7 +585,11 @@ export default function RunMapper() {
                 </ol>
               </details>
               <p className="text-[11px] leading-relaxed text-[var(--ink-3)]">
-                Load the GPX into Strava, Garmin or your watch app and follow the line. Retraced streets are normal: they draw on top of each other.
+                Load the GPX into Strava, Garmin, or a smartwatch app like{" "}
+                <a href="http://www.workoutdoors.net" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
+                  WorkOutDoors
+                </a>{" "}
+                and follow the line.
               </p>
             </section>
           </div>
@@ -622,16 +624,12 @@ export default function RunMapper() {
                     aria-label="Words to draw"
                     className="field field-word font-display"
                   />
-                  <div className="mt-3 h-[96px]">
-                    {est?.strokes && est.strokes.length > 0 ? (
+                  {est?.strokes && est.strokes.length > 0 && (
+                    <div className="mt-3 h-[60px]">
                       <WordPreview strokes={est.strokes} />
-                    ) : (
-                      <div className="wp-empty">
-                        <span className="eyebrow">{text.trim() ? "Tracing…" : "Your word, run as a route"}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-3 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
                     <span>
                       {est?.message ? (
                         <span className={est.ok ? "" : "text-[#ffb545]"}>{est.message}</span>
@@ -642,9 +640,7 @@ export default function RunMapper() {
                             .map((b) => TILE[b.key])
                             .join(" · ") || "nothing yet"}
                         </span>
-                      ) : (
-                        "Up to 12 letters, digits, space and ! ? - . ' +"
-                      )}
+                      ) : null}
                     </span>
                     <span className="shrink-0 tabular-nums text-[var(--ink-3)]">
                       {text.length}/{MAX_CHARS}
@@ -705,8 +701,9 @@ export default function RunMapper() {
                     const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
                     if (list[0]) pickPlace(list[0]);
                   }}
-                  placeholder="Address or place, then Enter"
+                  placeholder={pin ? pinLabel : "Address or place"}
                   aria-label="Start address or place"
+                  title={pin ? `Pinned at ${pinLabel}. Drag the pin or tap the map to move it.` : undefined}
                   className="field"
                 />
                 {(places.length > 0 || searching) && query.trim().length >= 3 && (
@@ -723,16 +720,6 @@ export default function RunMapper() {
                   </ul>
                 )}
               </div>
-              <p className="mt-2 text-xs text-[var(--ink-2)]">
-                {pin ? (
-                  <>
-                    <span className="font-semibold text-[var(--ink)]">Pinned:</span> {pinLabel}. Drag the pin or tap the map to move it. The run starts here,
-                    or as near as a good drawing allows.
-                  </>
-                ) : (
-                  "Type your address, or tap the map to drop a pin."
-                )}
-              </p>
             </section>
             <div className="rule" />
 
@@ -744,9 +731,15 @@ export default function RunMapper() {
               </div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Distance">
                 {BUCKETS.map((b) => (
-                  <button key={b.key} type="button" className="tile" aria-pressed={bucket === b.key} onClick={() => setBucket(b.key)}>
+                  <button
+                    key={b.key}
+                    type="button"
+                    className="tile"
+                    aria-pressed={bucket === b.key}
+                    title={`Up to ${fmtDist(b.cap_mi, units)}`}
+                    onClick={() => setBucket(b.key)}
+                  >
                     <span className="big-label font-display">{TILE[b.key]}</span>
-                    <span className="sub">up to {fmtDist(b.cap_mi, units)}</span>
                   </button>
                 ))}
               </div>
@@ -771,7 +764,6 @@ export default function RunMapper() {
                     </button>
                   ))}
                 </div>
-                {styleHint && <div className="mt-2 text-[11px] text-[var(--ink-3)]">{mode === "text" ? styleHint.textHint : styleHint.imageHint}</div>}
               </div>
               <div className="shrink-0 text-center">
                 <span className="eyebrow mb-2.5 block">Loop</span>
@@ -784,7 +776,6 @@ export default function RunMapper() {
                   className="switch mx-auto mt-[5px] block"
                   onClick={() => setLoop((x) => !x)}
                 />
-                <div className="mt-2.5 text-[11px] text-[var(--ink-3)]">{loop ? "back to start" : "one way"}</div>
               </div>
             </section>
             <div className="rule" />
@@ -796,7 +787,7 @@ export default function RunMapper() {
               ) : (
                 <div className="space-y-3">
                   <button type="button" disabled={!canGo} onClick={() => go()} className="go font-display">
-                    Map my run
+                    Draw my run
                     <Icon name="chevrons" />
                   </button>
                   {reason && <p className="text-center text-xs text-[var(--ink-2)]">{reason}</p>}
@@ -816,7 +807,7 @@ export default function RunMapper() {
         <div className="rule" />
         <footer className="flex items-center justify-between px-6 py-3 text-[11px] text-[var(--ink-3)]">
           <span>© OpenStreetMap contributors</span>
-          <span>runmapper.run</span>
+          <span>drawmy.run</span>
         </footer>
       </aside>
 
@@ -830,7 +821,6 @@ export default function RunMapper() {
           showIdeal={showIdeal}
           start={shown?.route.start ?? null}
           finish={finish}
-          markers={markers}
           caption={caption}
           fileStem={shown ? fileStem(shown.name) : "route"}
         />

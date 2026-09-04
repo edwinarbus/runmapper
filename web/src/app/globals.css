@@ -133,50 +133,21 @@ body {
   color: #34343b;
 }
 
-/* The word, run: a preview traced like a GPS line. */
+/* The word, as it will be run: one still orange line. */
 .wp {
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
 }
-.wp-ghost {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.12);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .wp-line {
   fill: none;
   stroke: var(--orange);
+  stroke-width: 4px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: wp-draw 4.2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-}
-.wp-dot {
-  fill: #fff;
-  stroke: var(--orange);
-  offset-rotate: 0deg;
-  animation: wp-run 4.2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-}
-@keyframes wp-draw {
-  0% { stroke-dashoffset: 1; }
-  72% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: 0; }
-}
-@keyframes wp-run {
-  0% { offset-distance: 0%; }
-  72% { offset-distance: 100%; }
-  100% { offset-distance: 100%; }
-}
-.wp-empty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  border: 1px dashed var(--line);
-  border-radius: 6px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.9;
 }
 
 /* Distance tiles. */
@@ -649,15 +620,8 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .dot-busy,
   .rise,
-  .lane,
-  .wp-line {
+  .lane {
     animation: none;
-  }
-  .wp-line {
-    stroke-dashoffset: 0;
-  }
-  .wp-dot {
-    display: none;
   }
   .bar-fill,
   .seg-btn,

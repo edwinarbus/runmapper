@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { type DistanceMarker, metres } from "@/lib/geo";
+import { metres } from "@/lib/geo";
 import { renderGif, saveBlob } from "@/lib/gif";
 import {
   EMPTY,
@@ -11,7 +11,6 @@ import {
   STRAVA_ORANGE,
   addRouteLayers,
   easeInOut,
-  ensureMarkerImages,
   lineFeature,
   lineFromLngLat,
   pointFeature,
@@ -76,8 +75,6 @@ export interface MapViewProps {
   start: [number, number] | null;
   /** The last point of a one-way route; null for loops. */
   finish: [number, number] | null;
-  /** Mile or kilometre marks along the route. */
-  markers: DistanceMarker[];
   /** For the GIF's caption band: the word and a stats line. */
   caption: { word: string; stats: string };
   /** File name stem for the exported GIF. */
@@ -135,8 +132,6 @@ export default function MapView(props: MapViewProps) {
     );
     src("start")?.setData(p.start ? pointFeature([p.start[1], p.start[0]]) : EMPTY);
     src("finish")?.setData(p.finish ? pointFeature([p.finish[1], p.finish[0]]) : EMPTY);
-    ensureMarkerImages(m, p.markers.map((k) => k.n));
-    src("miles")?.setData({ type: "FeatureCollection", features: p.markers.map((k) => pointFeature([k.lon, k.lat], { n: k.n })) });
     m.setLayoutProperty("ideal", "visibility", p.showIdeal ? "visible" : "none");
   };
 
@@ -240,12 +235,12 @@ export default function MapView(props: MapViewProps) {
     setGif({ phase: "working", pct: 0 });
     try {
       const blob = await renderGif({
-        style: styleFor(applied.current),
-        night: applied.current === "night",
+        // Always the light day map: it reads best when posted.
+        style: DAY_STYLE,
+        night: false,
         route: p.route,
         start: p.start,
         finish: p.finish,
-        markers: p.markers,
         caption: p.caption,
         onProgress: (pct) => setGif({ phase: "working", pct }),
       });
@@ -383,7 +378,7 @@ export default function MapView(props: MapViewProps) {
 
   useEffect(() => {
     apply();
-  }, [props.ideal, props.start, props.finish, props.showIdeal, props.markers]);
+  }, [props.ideal, props.start, props.finish, props.showIdeal]);
 
   const hasRoute = Boolean(props.route && props.route.length > 1);
   const busy = gif.phase !== "idle";

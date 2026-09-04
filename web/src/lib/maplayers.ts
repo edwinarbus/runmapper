@@ -57,55 +57,20 @@ export function arrowImage(): ImageData | null {
   return g.getImageData(0, 0, s, s);
 }
 
-/** A mile (or km) marker: a white disc with an orange ring and the number. */
-export function markerImage(n: number): ImageData | null {
-  if (typeof document === "undefined") return null;
-  const s = 52;
-  const c = document.createElement("canvas");
-  c.width = s;
-  c.height = s;
-  const g = c.getContext("2d");
-  if (!g) return null;
-  g.beginPath();
-  g.arc(s / 2, s / 2, s / 2 - 4, 0, Math.PI * 2);
-  g.fillStyle = "#ffffff";
-  g.fill();
-  g.lineWidth = 5;
-  g.strokeStyle = STRAVA_ORANGE;
-  g.stroke();
-  g.fillStyle = "#151517";
-  g.font = `700 ${n >= 10 ? 21 : 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif`;
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText(String(n), s / 2, s / 2 + 1);
-  return g.getImageData(0, 0, s, s);
-}
-
-export function ensureMarkerImages(m: maplibregl.Map, ns: number[]) {
-  for (const n of ns) {
-    const id = `mk-${n}`;
-    if (m.hasImage(id)) continue;
-    const img = markerImage(n);
-    if (img) m.addImage(id, img, { pixelRatio: 2 });
-  }
-}
-
-/** Chevrons and distance marks: hidden while the line is still growing. */
+/** Chevrons: hidden while the line is still growing. */
 export function setDecor(m: maplibregl.Map, visible: boolean) {
-  for (const id of ["route-arrows", "miles"]) {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
-  }
+  if (m.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
 }
 
 /** Sources and layers for one route: glow or shadow, casing, line, the
- *  target shape, chevrons, start, finish, distance marks and the draw head. */
+ *  target shape, chevrons, start, finish and the draw head. */
 export function addRouteLayers(m: maplibregl.Map, night: boolean) {
   if (m.getSource("route")) return;
   if (!m.hasImage(ARROW)) {
     const img = arrowImage();
     if (img) m.addImage(ARROW, img, { pixelRatio: 2 });
   }
-  for (const id of ["route", "ideal", "start", "finish", "miles", "head"]) m.addSource(id, { type: "geojson", data: EMPTY });
+  for (const id of ["route", "ideal", "start", "finish", "head"]) m.addSource(id, { type: "geojson", data: EMPTY });
   // Under the line: an orange glow at night, a soft shadow by day.
   m.addLayer({
     id: "route-shadow",
@@ -166,18 +131,6 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
     type: "circle",
     source: "finish",
     paint: { "circle-radius": 6, "circle-color": "#17171b", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
-  });
-  m.addLayer({
-    id: "miles",
-    type: "symbol",
-    source: "miles",
-    layout: {
-      "icon-image": ["concat", "mk-", ["to-string", ["get", "n"]]],
-      "icon-size": 1,
-      "icon-allow-overlap": true,
-      "icon-ignore-placement": true,
-      visibility: "none",
-    },
   });
   m.addLayer({
     id: "head",

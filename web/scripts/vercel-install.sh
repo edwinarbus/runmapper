@@ -6,8 +6,11 @@
 # carries the engine from the same commit as the page.
 set -eu
 REF="${VERCEL_GIT_COMMIT_SHA:-main}"
-SPEC="runmapper-engine @ git+https://github.com/edwinarbus/runmapper@${REF}#subdirectory=engine"
-echo "Installing the route engine from commit ${REF}"
+# The repository being built (Vercel sets these), so a rename needs no edit here.
+OWNER="${VERCEL_GIT_REPO_OWNER:-edwinarbus}"
+SLUG="${VERCEL_GIT_REPO_SLUG:-runmapper}"
+SPEC="runmapper-engine @ git+https://github.com/${OWNER}/${SLUG}@${REF}#subdirectory=engine"
+echo "Installing the route engine from ${OWNER}/${SLUG} at commit ${REF}"
 if command -v uv >/dev/null 2>&1; then
   uv pip install --python "$(command -v python)" "$SPEC"
 else

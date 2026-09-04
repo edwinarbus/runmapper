@@ -303,6 +303,7 @@ def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, win
                                   font_rank=rank)
                         if orient_pen < 1.0:
                             sz["max_verdict"] = "good"
+                            sz["cap_reason"] = "the word reads sideways on this grid"
                         aligned.append(sz)
         # Level before tilted, the better font before the cruder one, then the
         # biggest letters closest to the font's own proportions.
@@ -317,7 +318,8 @@ def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, win
     unit = wmax / rep["units_per_width"]
     if wmax >= rep["min_width_ft"]:
         out.append(dict(strokes=rep["strokes"], width_ft=wmax, aspect=1.0, rots=rots, kind="free",
-                        unit_ft=unit, est_ft=None, units_per_width=rep["units_per_width"], max_verdict="rough"))
+                        unit_ft=unit, est_ft=None, units_per_width=rep["units_per_width"], max_verdict="rough",
+                        cap_reason="there is no street grid here for block letters to sit on"))
     return out, need_ft
 
 
@@ -361,10 +363,15 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=
                     if sz["est_ft"] <= cap_ft * ALIGNED_OVER_CAP:
                         sz.update(rots=[round(rot, 1)], kind="aligned", dx=ddx, dy=ddy,
                                   orient=orient_pen)
-                        if sz["aspect"] < 0.6 or orient_pen < 1.0:
-                            # squat letters, or a word you read with your head
-                            # tilted, are compromises: never call them "great"
+                        # Squat letters, or a word you read with your head
+                        # tilted, are compromises: never call them "great",
+                        # and say why.
+                        if sz["aspect"] < 0.45:     # letters more than about 1.5x wider than tall
                             sz["max_verdict"] = "good"
+                            sz["cap_reason"] = "the letters are squashed to fit the blocks"
+                        elif orient_pen < 1.0:
+                            sz["max_verdict"] = "good"
+                            sz["cap_reason"] = "the word reads sideways on this grid"
                         aligned.append(sz)
         # Biggest letters first, but squat or spindly proportions cost a lot:
         # a letter twice as wide as tall reads worse than a smaller square one.
@@ -387,7 +394,7 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=
         if has_grid and unit < FREE_TEXT_MIN_BLOCKS * min(dx, dy):
             # Letters smaller than the blocks only get used if no lattice
             # fits at all, and then never called better than rough.
-            free.update(fallback_only=True, max_verdict="rough")
+            free.update(fallback_only=True, max_verdict="rough", cap_reason="the letters are smaller than the blocks here")
         out.append(free)
         if not out[:-1]:
             out.append(dict(free, width_ft=wmax * 0.82, unit_ft=unit * 0.82))
@@ -439,12 +446,22 @@ def _capped_verdict(r):
     """The IoU verdict, held down by whatever the size or placement knows
     about itself (squat letters, a tilted word, a bent lattice, wandering
     streets)."""
+    return _verdict_and_reason(r)[0]
+
+
+def _verdict_and_reason(r):
+    """The capped verdict and, when it is lower than the overlap alone would
+    give, the reason (the compromise the size or placement made)."""
     order = ["bad", "rough", "good", "great"]
     v = verdict_for(r["iou"])
-    for cap_v in (r["cand"].get("size", {}).get("max_verdict"), r["cand"].get("max_verdict")):
+    reason = None
+    sz = r["cand"].get("size", {})
+    for cap_v, why in ((sz.get("max_verdict"), sz.get("cap_reason")),
+                       (r["cand"].get("max_verdict"), r["cand"].get("cap_reason"))):
         if cap_v and order.index(v) > order.index(cap_v):
             v = cap_v
-    return v
+            reason = why
+    return v, reason
 
 
 def match_tolerance(width_ft):
@@ -785,6 +802,7 @@ def _attempt(ctx, w, progress, log, k):
         for sz in sizes:
             if sz.get("max_verdict") != "rough":
                 sz["max_verdict"] = cap_v
+                sz["cap_reason"] = "the streets here wander rather than run in a grid"
 
     # Placement scan around the spot.
     picks = []
@@ -1038,10 +1056,12 @@ def _warp_to_streets(c, lines, xtree):
     # whole drawing "rough"; the corner check above catches real misses.
     c["warp"] = float(max(np.median(su) / sz["dx"] if len(su) else 0.0,
                           np.median(sv) / sz["dy"] if len(sv) else 0.0))
-    if c["warp"] > 0.5:
+    if c["warp"] > 0.6:
         c["max_verdict"] = "rough"
-    elif c["warp"] > 0.3:
+        c["cap_reason"] = "the street grid bends a lot here"
+    elif c["warp"] > 0.38:
         c["max_verdict"] = "good"
+        c["cap_reason"] = "the street grid bends here"
 
 
 def _snap_params(choice, cand):
@@ -1158,7 +1178,7 @@ def _finish(g, proj, best, choice, req, bucket):
     cues = cue_sheet(g, nodes)
     start = describe_point(g, nodes[0])
     iou = best["iou"]
-    v = _capped_verdict(best)
+    v, held_by = _verdict_and_reason(best)
     if not best["fits"]:
         v = "over"
     label = choice["label"]
@@ -1175,9 +1195,16 @@ def _finish(g, proj, best, choice, req, bucket):
     # Where the run starts relative to the pin is in the route fields
     # (from_pin_mi, starts_at_pin); the message carries only what needs doing.
     sug = suggest_bucket(dist_mi * FT_PER_MI, req.bucket) if v == "over" else None
-    msg = _message(v) if v != "over" else (
-        f"{dist_mi:.1f} mi is over the {bucket['label']} limit. "
-        + ("Pick a longer distance." if sug else "Try a shorter phrase, a simpler image, or a spot with smaller blocks."))
+    if v == "over":
+        msg = (f"{dist_mi:.1f} mi is over the {bucket['label']} limit. "
+               + ("Pick a longer distance." if sug else "Try a shorter phrase, a simpler image, or a spot with smaller blocks."))
+    elif held_by:
+        # The overlap alone would say more; say what held it back.
+        words = dict(great="great", good="OK", rough="rough", bad="no fit")
+        msg = (f"By overlap alone this would be {words[verdict_for(iou)]}; it is held at {words[v]} "
+               f"because {held_by}.")
+    else:
+        msg = _message(v)
     return dict(
         ok=v in ("great", "good", "rough"),
         verdict=v, message=msg,

@@ -12,18 +12,32 @@ interface PhotonFeature {
   properties: Record<string, string | undefined>;
 }
 
-/** The town or city a point is in, for file names; "" when unknown. */
-export async function reverseCity(lat: number, lon: number, signal?: AbortSignal): Promise<string> {
+/** What Photon knows about the nearest thing to a point; {} when nothing. */
+async function reverse(lat: number, lon: number, signal?: AbortSignal): Promise<Record<string, string | undefined>> {
   try {
     const params = new URLSearchParams({ lat: String(lat), lon: String(lon), lang: "en" });
     const res = await fetch(`https://photon.komoot.io/reverse?${params}`, { signal });
-    if (!res.ok) return "";
+    if (!res.ok) return {};
     const j = (await res.json()) as { features?: PhotonFeature[] };
-    const p = j.features?.[0]?.properties ?? {};
-    return p.city || p.town || p.village || p.county || p.state || "";
+    return j.features?.[0]?.properties ?? {};
   } catch {
-    return "";
+    return {};
   }
+}
+
+/** The town or city a point is in, for file names; "" when unknown. */
+export async function reverseCity(lat: number, lon: number, signal?: AbortSignal): Promise<string> {
+  const p = await reverse(lat, lon, signal);
+  return p.city || p.town || p.village || p.county || p.state || "";
+}
+
+/** A short name for a point: the place there, or its street, with the
+ *  district or town; "" when unknown. */
+export async function reversePlace(lat: number, lon: number, signal?: AbortSignal): Promise<string> {
+  const p = await reverse(lat, lon, signal);
+  const head = p.name || [p.housenumber, p.street].filter(Boolean).join(" ") || p.street || "";
+  const tail = [p.district, p.city, p.town].find((x) => x && x !== head) || "";
+  return [head, tail].filter(Boolean).join(", ");
 }
 
 export async function searchPlaces(q: string, bias?: { lat: number; lon: number }, signal?: AbortSignal): Promise<Place[]> {

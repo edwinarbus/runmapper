@@ -24,11 +24,12 @@ import {
 } from "@/lib/api";
 import { DAY_STYLE } from "@/lib/basemaps";
 import { DRAW_FILE, type Pt, drawingSvg, isDrawing } from "@/lib/drawing";
-import { type Place, reverseCity, searchPlaces } from "@/lib/geocode";
+import { type Place, reverseCity, reversePlace, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
 import { TILE } from "@/lib/labels";
 import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
+import PaceBand from "./PaceBand";
 import Icon from "./Icon";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
@@ -87,6 +88,15 @@ export default function RunMapper() {
   const focusKey = useRef(0);
   const touched = useRef(false);           // the pin was chosen on purpose; don't let geolocation move it
   const aside = useRef<HTMLElement>(null);
+  const pinName = useRef("");              // the pin a place name was looked up for
+
+  // A pin set by a tap or a link starts out as coordinates; give it a name.
+  const namePin = useCallback(async (p: LatLon) => {
+    const key = `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
+    pinName.current = key;
+    const name = await reversePlace(p.lat, p.lon);
+    if (name && pinName.current === key) setPinLabel(`Near ${name}`);
+  }, []);
 
   // A shared link fills the form in: words, start, distance, loop, style.
   useEffect(() => {
@@ -112,10 +122,11 @@ export default function RunMapper() {
         setPin({ lat, lon });
         setPinLabel(`${lat.toFixed(5)}, ${lon.toFixed(5)}`);
         setFocus({ lat, lon, zoom: 13.5, key: ++focusKey.current });
+        void namePin({ lat, lon });
       }
     }, 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [namePin]);
 
   // Try the browser's location once, quietly, so the map opens near the user.
   useEffect(() => {
@@ -211,11 +222,15 @@ export default function RunMapper() {
     setPlaces([]);
   };
 
-  const onPick = useCallback((p: LatLon) => {
-    touched.current = true;
-    setPin(p);
-    setPinLabel(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
-  }, []);
+  const onPick = useCallback(
+    (p: LatLon) => {
+      touched.current = true;
+      setPin(p);
+      setPinLabel(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
+      void namePin(p);
+    },
+    [namePin],
+  );
 
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
@@ -520,16 +535,7 @@ export default function RunMapper() {
 
               <details className="text-[13px]">
                 <summary className="cursor-pointer text-[var(--ink-2)]">Turn-by-turn ({shown.cues.length} cues)</summary>
-                <ol className="cues mt-2 max-h-64 overflow-auto pr-1 text-xs">
-                  {shown.cues.map((c) => (
-                    <li key={c.n} className="flex gap-2 py-1.5">
-                      <span className="w-16 shrink-0 tabular-nums text-[var(--ink-3)]">{fmtDist(c.cum_mi, units)}</span>
-                      <span>
-                        {c.word} <span className="font-medium text-[var(--ink)]">{c.street}</span> for {fmtDist(c.mi, units)}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
+                <PaceBand cues={shown.cues} units={units} total={shown.route.distance_mi} />
               </details>
               <p className="text-[11px] leading-relaxed text-[var(--ink-3)]">
                 Load the GPX into{" "}

@@ -24,7 +24,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#17171b",
+  viewportFit: "cover",        // out to the edges of a phone; the map's controls mind the safe area
+  themeColor: "#0b0b0d",
 };
 
 export default function RootLayout({

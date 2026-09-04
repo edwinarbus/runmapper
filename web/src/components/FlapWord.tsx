@@ -39,13 +39,23 @@ export default function FlapWord({
   const ghost = chars.length === 0;
   const shown = ghost ? GHOST.split("") : chars;
   const cursor = !ghost && chars.length < maxLength;
-  const n = shown.length + (cursor ? 1 : 0);
+  // Words stay together: a phrase too long for one row breaks between words.
+  const words: { start: number; chars: string[] }[] = [];
+  shown.forEach((ch, i) => {
+    if (ch === " " || !words.length || shown[i - 1] === " ") words.push({ start: i, chars: [] });
+    if (ch !== " ") words[words.length - 1].chars.push(ch);
+  });
+  const n = shown.filter((ch) => ch !== " ").length + (cursor ? 1 : 0);
   return (
     <div className={`flap-board${ghost ? " flap-ghost" : ""}`} style={{ "--n": n } as CSSProperties} onClick={() => input.current?.focus()}>
-      {shown.map((ch, i) => (
-        <Tile key={`${i}-${ch}`} ch={ch} />
+      {words.map((w, wi) => (
+        <span key={w.start} className="flap-word">
+          {w.chars.map((ch, i) => (
+            <Tile key={`${w.start + i}-${ch}`} ch={ch} />
+          ))}
+          {cursor && wi === words.length - 1 && <span className="flap flap-cursor" aria-hidden="true" />}
+        </span>
       ))}
-      {cursor && <span className="flap flap-cursor" aria-hidden="true" />}
       <input
         ref={input}
         value={value}

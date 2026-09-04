@@ -151,7 +151,8 @@ body {
 .flap-board {
   position: relative;
   display: flex;
-  gap: 5px;
+  flex-wrap: wrap;             /* a long phrase takes a second row rather than tiny tiles */
+  gap: 6px 16px;               /* between words; the tiles of a word sit 5px apart */
   container-type: inline-size;
   border-radius: 8px;
   cursor: text;
@@ -159,8 +160,12 @@ body {
 .flap-board:focus-within {
   box-shadow: 0 0 0 2px var(--orange);
 }
+.flap-word {
+  display: flex;
+  gap: 5px;
+}
 .flap {
-  --w: min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n)));
+  --w: max(44px, min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n))));
   --h: calc(var(--w) * 1.32);
   position: relative;
   flex: none;
@@ -878,9 +883,54 @@ body {
   100% { transform: none; }
 }
 
-/* Cue sheet. */
-.cues > li + li {
-  border-top: 1px solid var(--line);
+/* The cue sheet as a pace band: a strip of paper, distances down the edge,
+   a rule wherever a new mile or kilometre begins. */
+.band {
+  margin-top: 10px;
+  max-height: 340px;
+  overflow: auto;
+  border-radius: 6px;
+  background-color: var(--paper);
+  background-image: var(--grain-paper), linear-gradient(180deg, #faf8f3, var(--paper) 30%, #eeebe3);
+  color: var(--paper-ink);
+  font-size: 12.5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 12px 24px -12px rgba(0, 0, 0, 0.8), 0 3px 6px rgba(0, 0, 0, 0.35);
+}
+.band-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px 7px 10px;
+  border-top: 1px solid rgba(23, 23, 26, 0.12);
+}
+.band-row:first-child {
+  border-top: 0;
+}
+.band-mark {
+  border-top: 2px solid var(--orange);
+}
+.band-d {
+  flex: none;
+  width: 58px;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.band-t {
+  min-width: 0;
+  line-height: 1.35;
+  color: #3a3a3f;
+}
+.band-w {
+  font-weight: 700;
+  color: var(--paper-ink);
+}
+.band-len {
+  color: var(--paper-ink-2);
+}
+.band-end {
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(180deg, #efece4, #e5e1d7);
 }
 
 /* The map sits in a bezel: an inner shadow around the edge of the window. */
@@ -930,6 +980,15 @@ body {
   width: 15px;
   height: 15px;
   flex: none;
+}
+/* On a phone the map's buttons keep their icons and drop their words. */
+@media (max-width: 520px) {
+  .map-btn .map-label {
+    display: none;
+  }
+  .map-btn:not(.map-seg .map-btn) {
+    padding: 0 0.6rem;
+  }
 }
 .map-seg {
   display: inline-flex;

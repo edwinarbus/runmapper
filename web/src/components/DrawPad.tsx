@@ -100,8 +100,14 @@ export default function DrawPad({ strokes, onChange }: { strokes: Pt[][]; onChan
     const s = live.current;
     live.current = null;
     setDrawing(false);
-    if (s && strokeLength(s) >= MIN_LEN) onChange([...strokes, simplify(s, TOL)]);
-    else repaint();
+    if (s && strokeLength(s) >= MIN_LEN) {
+      let pts = simplify(s, TOL);
+      // A line drawn back to where it began is a closed shape: shut it exactly.
+      const [x0, y0] = pts[0];
+      const [x1, y1] = pts[pts.length - 1];
+      if (pts.length > 3 && Math.hypot(x1 - x0, y1 - y0) < 0.03) pts = [...pts.slice(0, -1), [x0, y0]];
+      onChange([...strokes, pts]);
+    } else repaint();
   };
 
   return (

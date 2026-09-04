@@ -348,9 +348,9 @@ export default function MapView(props: MapViewProps) {
           ))}
         </div>
         {hasRoute && (
-          <button type="button" className="map-btn" onClick={() => fit()} title="Bring the whole route back on screen">
+          <button type="button" className="map-btn" onClick={() => fit()} title="Bring the whole route back on screen" aria-label="Recenter">
             <Icon name="frame" />
-            Recenter
+            <span className="map-label">Recenter</span>
           </button>
         )}
         {hasRoute && hasIdeal && (
@@ -360,21 +360,26 @@ export default function MapView(props: MapViewProps) {
             onClick={toggleIdeal}
             aria-pressed={showIdeal}
             title="The shape the route is trying to draw, as a blue line"
+            aria-label={showIdeal ? "Hide the target shape" : "Show the target shape"}
           >
             <Icon name="eye" />
-            {showIdeal ? "Hide target" : "Target"}
+            <span className="map-label">{showIdeal ? "Hide target" : "Target"}</span>
           </button>
         )}
       </div>
       {hasRoute && (
-        <div className="absolute right-3 bottom-3 z-10">
+        <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-round" onClick={() => startDraw()} disabled={drawing} aria-label="Replay the route drawing" title="Replay">
             <Icon name="play" />
           </button>
         </div>
       )}
       {props.picking && !props.pin && (
-        <div className="hint pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2" role="status">
+        <div
+          className="hint pointer-events-none absolute left-1/2 z-10 -translate-x-1/2"
+          style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          role="status"
+        >
           Search a place, or tap the map to set your start
         </div>
       )}

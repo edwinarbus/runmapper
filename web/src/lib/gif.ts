@@ -11,7 +11,7 @@
 import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { metres } from "./geo";
-import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, setDecor } from "./maplayers";
+import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, setDecor, setRouteOpacity } from "./maplayers";
 
 export interface GifJob {
   style: string | maplibregl.StyleSpecification;
@@ -28,6 +28,7 @@ export interface GifJob {
 
 const FRAME_MS = 50;     // 20 frames a second
 const MAX_FRAMES = 150;
+const FADE_FRAMES = 8;   // the line melting away after the hold, so the loop comes round smoothly
 const BAND = 150;        // caption band height at 1280 x 720
 const SIZE_LIMIT = 4.8 * 1024 * 1024;   // under the 5 MB X allows from a phone
 const TRANSPARENT = 255;                // the palette slot that means "as before"
@@ -201,13 +202,26 @@ export async function renderGif(job: GifJob): Promise<Blob> {
         drawBand(ctx, w, h, job.caption, font);
         return ctx.getImageData(0, 0, w, h).data;
       };
-      // The finished frame first: its colours make the palette for every
-      // frame, with one slot kept for "unchanged".
+      // The finished frame's colours make the palette for every frame, with
+      // one slot kept for "unchanged"; two part-faded renders are sampled in
+      // as well so the line has colours to fade through.
       src("route").setData(lineFeature(job.route));
       src("head").setData(EMPTY);
       setDecor(m, true);
+      const sample: number[] = [];
+      for (const a of [0.55, 0.25]) {
+        setRouteOpacity(m, a, job.night);
+        await idle(m, 1500);
+        const px = snap();
+        for (let p = 0; p < px.length; p += 4 * 3) sample.push(px[p], px[p + 1], px[p + 2], px[p + 3]);
+      }
+      setRouteOpacity(m, 1, job.night);
       await idle(m, 1500);
-      const palette = quantize(snap(), 255, { format: "rgb565" });
+      const full = snap();
+      const both = new Uint8ClampedArray(full.length + sample.length);
+      both.set(full);
+      both.set(sample, full.length);
+      const palette = quantize(both, 255, { format: "rgb565" });
       const table = [...palette, [0, 0, 0]];
       const gif = GIFEncoder();
       let prev: Uint8Array | null = null;
@@ -225,6 +239,23 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       };
       const n = Math.min(frames, Math.max(16, Math.round(duration / FRAME_MS)));
       const step = (duration / n) | 0;
+      const count = 1 + FADE_FRAMES + (n + 1) + 1;
+      let made = 0;
+      const tick = () => job.onProgress?.(done + (share * ++made) / count);
+      // The finished drawing is the first frame (what shows before it plays),
+      // and the hold at the end runs straight into it as the GIF loops.
+      frame(snap(), 400);
+      tick();
+      // Then the line melts away, leaving the start dot, and the map rests a
+      // beat before the drawing begins.
+      for (let i = 1; i <= FADE_FRAMES; i++) {
+        const t = i / FADE_FRAMES;
+        setRouteOpacity(m, 1 - t * t * (3 - 2 * t), job.night);
+        await idle(m, 1500);
+        frame(snap(), i === FADE_FRAMES ? 300 : 60);
+        tick();
+      }
+      setRouteOpacity(m, 1, job.night);
       setDecor(m, false);
       let k = 1;
       for (let i = 0; i <= n; i++) {
@@ -238,8 +269,8 @@ export async function renderGif(job: GifJob): Promise<Blob> {
         src("route").setData(lineFromLngLat([...pts.slice(0, k), tip]));
         src("head").setData(pointFeature(tip));
         await idle(m, 1500);
-        frame(snap(), i === 0 ? 600 : step);
-        job.onProgress?.(done + (share * (i + 1)) / (n + 2));
+        frame(snap(), step);
+        tick();
       }
       // Hold on the finished drawing with its chevrons.
       src("route").setData(lineFeature(job.route));
@@ -247,6 +278,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       setDecor(m, true);
       await idle(m, 1500);
       frame(snap(), 2200);
+      tick();
       gif.finish();
       return gif.bytes();
     };

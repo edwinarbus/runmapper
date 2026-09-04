@@ -62,6 +62,20 @@ export function setDecor(m: maplibregl.Map, visible: boolean) {
   if (m.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
 }
 
+/** The route's opacity, 0 to 1: the line with its casing, shadow and
+ *  chevrons, and the finish marker. The start marker stays as it is. */
+export function setRouteOpacity(m: maplibregl.Map, a: number, night: boolean) {
+  const set = (id: string, prop: string, v: number) => {
+    if (m.getLayer(id)) m.setPaintProperty(id, prop, v);
+  };
+  set("route-shadow", "line-opacity", (night ? 0.35 : 0.16) * a);
+  set("route-casing", "line-opacity", 0.9 * a);
+  set("route", "line-opacity", a);
+  set("route-arrows", "icon-opacity", a);
+  set("finish", "circle-opacity", a);
+  set("finish", "circle-stroke-opacity", a);
+}
+
 /** Sources and layers for one route: glow or shadow, casing, line, the
  *  target shape, chevrons, start, finish and the draw head. */
 export function addRouteLayers(m: maplibregl.Map, night: boolean) {

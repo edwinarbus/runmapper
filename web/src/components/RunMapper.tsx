@@ -504,8 +504,7 @@ export default function RunMapper() {
             <h1 className="logo font-display" aria-label="drawmy.run">
               <span className="logo-word" aria-hidden="true">
                 <span className="logo-draw">DRAWMY</span>
-                <span className="logo-dot" />
-                <span className="logo-run">RUN</span>
+                <span className="logo-run">.RUN</span>
               </span>
               <svg className="logo-trace" viewBox="0 0 160 12" aria-hidden="true" preserveAspectRatio="none">
                 <path className="logo-trace-case" d="M2 10h26V2h22v8h24V2h22v8h24V2h20" />

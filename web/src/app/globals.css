@@ -672,6 +672,9 @@ details[open] > .disclose svg {
   touch-action: pan-y;         /* sideways is a swipe; up and down still scrolls the panel */
   outline: none;
 }
+.bib-front[data-swipe] {
+  cursor: grab;                /* a mouse is told the bib can be dragged aside */
+}
 .bib-front:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 2px var(--orange), 0 18px 30px -12px rgba(0, 0, 0, 0.8);
 }

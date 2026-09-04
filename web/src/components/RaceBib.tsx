@@ -375,6 +375,7 @@ export function BibStack({
           opacity: active && drag.out ? 0.35 : 1,
         }}
         tabIndex={0}
+        data-swipe={count > 1 ? "" : undefined}
         aria-roledescription="carousel"
         aria-label={`Route ${index + 1} of ${count}, ${o.label}. Swipe for the next route, or use the arrow keys.`}
         onPointerDown={onPointerDown}

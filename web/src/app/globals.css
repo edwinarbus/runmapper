@@ -366,10 +366,15 @@ body {
   box-shadow: var(--key-hi), 0 3px 0 #050506, 0 5px 10px rgba(0, 0, 0, 0.5);
   transition: transform 0.06s, box-shadow 0.06s, background 0.12s;
 }
-.tile:hover {
+.tile:hover:not(:disabled) {
   background: var(--key-hover);
 }
-.tile:active,
+/* A distance the word does not fit: the key is dark and does not press. */
+.tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.tile:active:not(:disabled),
 .tile[aria-pressed="true"] {
   transform: translateY(3px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 #050506, 0 1px 3px rgba(0, 0, 0, 0.5);

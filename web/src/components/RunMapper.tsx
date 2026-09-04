@@ -261,11 +261,17 @@ export default function RunMapper() {
     if (cityFor.current === key && c) setCity(c);
   };
 
-  const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? est.ok : true);
+  // Which distances the word fits. A key it does not fit is disabled, and if
+  // the chosen key is one of those the shortest that fits stands in for it;
+  // the choice itself is kept, and comes back when the word gets shorter.
+  const fits = mode === "text" && est?.fits ? est.fits : null;
+  const fitting = fits ? BUCKETS.filter((b) => fits[b.key]).map((b) => b.key) : BUCKETS.map((b) => b.key);
+  const effective: Bucket = fits && !fits[bucket] ? (fitting[0] ?? bucket) : bucket;
+  const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? (fits ? fitting.length > 0 : est.ok) : true);
   const canGo =
     pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "draw" && draw.length > 0) || (mode === "image" && image !== null));
 
-  const go = async (useBucket: Bucket = bucket) => {
+  const go = async (useBucket: Bucket = effective) => {
     if (!pin) return;
     if (useBucket !== bucket) setBucket(useBucket);
     setStatus("planning");
@@ -577,17 +583,9 @@ export default function RunMapper() {
                     maxLength={MAX_CHARS}
                   />
                   <div className="mt-3 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
+                    {/* The distance keys say what fits; a word is only spoken of here when nothing does. */}
                     <span>
-                      {est?.message ? (
-                        <span className={est.ok ? "" : "text-[#ffb545]"}>{est.message}</span>
-                      ) : est?.fits ? (
-                        <span>
-                          Fits{" "}
-                          {BUCKETS.filter((b) => est.fits?.[b.key])
-                            .map((b) => TILE[b.key])
-                            .join(" · ") || "nothing yet"}
-                        </span>
-                      ) : null}
+                      {est?.message && (fits ? fitting.length === 0 : !est.ok) ? <span className="text-[#ffb545]">{est.message}</span> : null}
                     </span>
                     <span className="shrink-0 tabular-nums text-[var(--ink-3)]">
                       {text.length}/{MAX_CHARS}
@@ -696,18 +694,26 @@ export default function RunMapper() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Distance">
-                {BUCKETS.map((b) => (
-                  <button
-                    key={b.key}
-                    type="button"
-                    className="tile"
-                    aria-pressed={bucket === b.key}
-                    title={`Up to ${fmtDist(b.cap_mi, units)}`}
-                    onClick={() => setBucket(b.key)}
-                  >
-                    <span className="big-label font-display">{TILE[b.key]}</span>
-                  </button>
-                ))}
+                {BUCKETS.map((b) => {
+                  const short = Boolean(fits && !fits[b.key]);
+                  return (
+                    <button
+                      key={b.key}
+                      type="button"
+                      className="tile"
+                      aria-pressed={effective === b.key && !short}
+                      disabled={short}
+                      title={
+                        short
+                          ? `Too short for this word${est?.need_mi ? `: it needs about ${fmtDist(est.need_mi, units)}` : ""}`
+                          : `Up to ${fmtDist(b.cap_mi, units)}`
+                      }
+                      onClick={() => setBucket(b.key)}
+                    >
+                      <span className="big-label font-display">{TILE[b.key]}</span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
             <div className="rule" />

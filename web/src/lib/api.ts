@@ -159,10 +159,10 @@ export async function planRun(
     res = await fetch(`${API_URL}/api/plan`, { method: "POST", body: fd, signal });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new PlanError(`Couldn't reach the route engine at ${API_URL || "/api"}. Is it running?`);
+    throw new PlanError("Couldn't reach the route engine. Check your connection and try again.");
   }
   if (!res.ok || !res.body) {
-    let msg = `The route engine answered ${res.status}.`;
+    let msg = `The route engine answered ${res.status}. Try again in a moment.`;
     try {
       const j = await res.json();
       if (j?.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);

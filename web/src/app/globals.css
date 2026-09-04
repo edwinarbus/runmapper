@@ -151,10 +151,12 @@ body {
 .flap-board {
   position: relative;
   display: flex;
-  flex-wrap: wrap;             /* a long phrase takes a second row rather than tiny tiles */
+  flex-wrap: wrap;             /* a phrase breaks between words onto a second row */
   gap: 6px 16px;               /* between words; the tiles of a word sit 5px apart */
   container-type: inline-size;
-  border-radius: 8px;
+  padding: 4px;                /* room for the focus ring; the margin gives the width back */
+  margin: -4px;
+  border-radius: 10px;
   cursor: text;
 }
 .flap-board:focus-within {
@@ -165,7 +167,8 @@ body {
   gap: 5px;
 }
 .flap {
-  --w: max(44px, min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n))));
+  /* wide enough for the longest word to sit on one row, never wider than 64px */
+  --w: max(22px, min(64px, calc((100cqw - (var(--n) - 1) * 5px) / var(--n))));
   --h: calc(var(--w) * 1.32);
   position: relative;
   flex: none;
@@ -318,7 +321,7 @@ body {
 .tile {
   position: relative;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--key);
   padding: 0.7rem 0.4rem 0.6rem;
   text-align: center;
@@ -351,13 +354,17 @@ body {
   display: grid;
   gap: 2px;
   padding: 3px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--well);
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 .seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;                /* 36px with the slot, the height of every small key */
   border-radius: 4px;
-  padding: 0.42rem 0.55rem;
+  padding: 0 0.55rem;
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -468,13 +475,9 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 var(--orange-deep), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .btn-sm {
-  height: 32px;
-  padding: 0 0.7rem;
-  font-size: 0.95rem;
-}
-.btn-sm svg {
-  width: 14px;
-  height: 14px;
+  height: 36px;
+  padding: 0 0.75rem;
+  font-size: 1rem;
 }
 .btn-block {
   width: 100%;
@@ -529,7 +532,7 @@ body {
   align-items: center;
   gap: 1rem;
   padding: 12px 14px 12px 8px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--well);
   box-shadow: var(--slot);
 }
@@ -558,6 +561,78 @@ body {
   font-size: 10.5px;
   fill: #ff7a33;
   letter-spacing: 0.08em;
+}
+
+/* The place search's results: a raised list hanging under the field. */
+.menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  max-height: 16rem;
+  overflow: auto;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #26262d, #1a1a1f);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 #050506, 0 14px 30px rgba(0, 0, 0, 0.6);
+}
+.menu li + li {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  cursor: pointer;
+}
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.menu-item small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.menu-note {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* A disclosure line in the deck's small type, its chevron turning when open. */
+.disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  list-style: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  user-select: none;
+}
+.disclose::-webkit-details-marker {
+  display: none;
+}
+.disclose:hover {
+  color: var(--ink);
+}
+.disclose svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s;
+}
+details[open] > .disclose svg {
+  transform: rotate(180deg);
 }
 
 /* Notes. */
@@ -685,7 +760,7 @@ body {
 }
 .bib-body {
   position: relative;
-  padding: 18px 22px 14px;
+  padding: 18px 24px 14px;
 }
 .bib-stamp {
   position: absolute;
@@ -799,7 +874,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px 14px;
+  padding: 10px 24px 14px;     /* in from the pins in the bottom corners */
   border-radius: 0 0 6px 6px;
   background: linear-gradient(180deg, #efece4, #e5e1d7);
 }
@@ -822,11 +897,11 @@ body {
   height: 36px;
   padding: 0 0.8rem;
   border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   background: linear-gradient(180deg, #fdfcf9, #ece9e1);
   color: var(--paper-ink);
   font-family: var(--font-display), "Arial Narrow", Impact, sans-serif;
-  font-size: 1.05rem;
+  font-size: 1rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   line-height: 1;
@@ -849,8 +924,8 @@ body {
   box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.5);
 }
 .pbtn svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 .pbtn-orange {
@@ -953,12 +1028,12 @@ body {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 10px 24px rgba(0, 0, 0, 0.55), inset 0 0 80px rgba(0, 0, 0, 0.35);
 }
 
-/* Map overlays: keys on the glass. */
+/* Map overlays: keys on the glass, every one of them 36px tall. */
 .map-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  height: 34px;
+  height: 36px;
   padding: 0 0.75rem;
   border: 0;
   border-radius: 6px;
@@ -986,33 +1061,48 @@ body {
   opacity: 0.55;
   cursor: default;
 }
+/* A key that is on (the target shape showing) lights up white. */
+.map-btn[aria-pressed="true"],
+.map-btn[aria-pressed="true"]:hover {
+  background: linear-gradient(180deg, #ffffff, #e4e1d9);
+  color: var(--bg);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 0 #8f8d86, 0 4px 10px rgba(0, 0, 0, 0.45);
+}
 .map-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex: none;
 }
-/* On a phone the map's buttons keep their icons and drop their words. */
+/* Square keys: zoom always; the route keys on a phone, where they keep
+   their icons and drop their words. */
+.map-btn.map-sq {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+}
 @media (max-width: 520px) {
-  .map-btn .map-label {
+  .map-btn.map-icon .map-label {
     display: none;
   }
-  .map-btn:not(.map-seg .map-btn) {
-    padding: 0 0.6rem;
+  .map-btn.map-icon {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
   }
 }
 .map-seg {
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(9, 9, 11, 0.92);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.8), 0 2px 0 #050506, 0 4px 10px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(6px);
 }
 .map-seg .map-btn {
-  height: 28px;
+  height: 30px;
   padding: 0 0.6rem;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
@@ -1066,31 +1156,27 @@ body {
   backdrop-filter: blur(6px);
 }
 
-/* MapLibre's own controls, in the dark. */
-.maplibregl-ctrl-group {
-  border: 0;
-  border-radius: 6px !important;
-  background: rgba(18, 18, 21, 0.92) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 0 #050506, 0 4px 10px rgba(0, 0, 0, 0.45) !important;
+/* MapLibre's attribution, in the dark: a small pill in the bottom left
+   corner that stays clear of the replay key. */
+.maplibregl-ctrl-bottom-left {
+  max-width: calc(100% - 96px);
 }
-.maplibregl-ctrl-group button {
-  background-color: transparent !important;
-}
-.maplibregl-ctrl-group button + button {
-  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-}
-.maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon,
-.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon,
-.maplibregl-ctrl-attrib-button .maplibregl-ctrl-icon {
-  filter: invert(1);
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 0 calc(12px + env(safe-area-inset-bottom)) 12px !important;
 }
 .maplibregl-ctrl-attrib {
   font-size: 10px;
-  background: rgba(18, 18, 21, 0.8) !important;
+  line-height: 1.4;
+  border-radius: 12px !important;
+  background: rgba(18, 18, 21, 0.85) !important;
   color: #bdbdb7 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 .maplibregl-ctrl-attrib a {
   color: #e6e6e0 !important;
+}
+.maplibregl-ctrl-attrib-button .maplibregl-ctrl-icon {
+  filter: invert(1);
 }
 
 /* Motion. */

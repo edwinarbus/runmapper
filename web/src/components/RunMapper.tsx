@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  API_URL,
   BUCKETS,
   type Bucket,
   type EstimateResult,
@@ -444,10 +443,7 @@ export default function RunMapper() {
     (engine === "offline" && status !== "error") || (status === "error" && error) ? (
       <div className="space-y-2">
         {engine === "offline" && status !== "error" && (
-          <div className="note">
-            The route engine at <span className="font-mono text-xs">{API_URL || "/api"}</span> isn&apos;t answering, so runs can&apos;t be mapped right
-            now. Reload in a minute.
-          </div>
+          <div className="note">The route engine isn&apos;t answering, so runs can&apos;t be mapped right now. Reload in a minute.</div>
         )}
         {status === "error" && error && (
           <div className="note note-red space-y-2">
@@ -533,8 +529,11 @@ export default function RunMapper() {
                 }}
               />
 
-              <details className="text-[13px]">
-                <summary className="cursor-pointer text-[var(--ink-2)]">Turn-by-turn ({shown.cues.length} cues)</summary>
+              <details>
+                <summary className="disclose">
+                  <Icon name="chevron" />
+                  Turn-by-turn · {shown.cues.length} cues
+                </summary>
                 <PaceBand cues={shown.cues} units={units} total={shown.route.distance_mi} />
               </details>
               <p className="text-[11px] leading-relaxed text-[var(--ink-3)]">
@@ -608,8 +607,8 @@ export default function RunMapper() {
                         <Icon name="image" className="h-6 w-6" />
                       </div>
                     )}
-                    <div className="text-sm">
-                      <div className="font-semibold">{image ? image.name : "Drop a logo or simple drawing here"}</div>
+                    <div className="min-w-0 text-sm">
+                      <div className="truncate font-semibold">{image ? image.name : "Choose a logo or a simple drawing"}</div>
                       <div className="text-xs text-[var(--ink-2)]">PNG, JPG or SVG. Bold, simple shapes work best.</div>
                     </div>
                     <input
@@ -620,9 +619,12 @@ export default function RunMapper() {
                     />
                   </label>
                   {image && (
-                    <button type="button" onClick={() => void onImage(null)} className="mt-2 text-xs text-[var(--ink-2)] underline underline-offset-2">
-                      Remove image
-                    </button>
+                    <div className="mt-2 flex justify-end">
+                      <button type="button" onClick={() => void onImage(null)} className="btn btn-sm">
+                        <Icon name="eraser" />
+                        Remove
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -657,13 +659,13 @@ export default function RunMapper() {
                   className="field"
                 />
                 {(places.length > 0 || searching) && query.trim().length >= 3 && (
-                  <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-[var(--line-2)] bg-[var(--panel-2)] text-sm shadow-2xl">
-                    {searching && places.length === 0 && <li className="px-3 py-2 text-[var(--ink-2)]">Searching…</li>}
+                  <ul className="menu" aria-label="Places">
+                    {searching && places.length === 0 && <li className="menu-note">Searching…</li>}
                     {places.map((p, i) => (
                       <li key={i}>
-                        <button type="button" onClick={() => pickPlace(p)} className="block w-full px-3 py-2 text-left hover:bg-[var(--panel-3)]">
-                          <div className="font-medium">{p.label}</div>
-                          {p.detail && <div className="text-xs text-[var(--ink-2)]">{p.detail}</div>}
+                        <button type="button" onClick={() => pickPlace(p)} className="menu-item">
+                          {p.label}
+                          {p.detail && <small>{p.detail}</small>}
                         </button>
                       </li>
                     ))}

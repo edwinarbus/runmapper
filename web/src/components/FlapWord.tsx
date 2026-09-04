@@ -45,7 +45,9 @@ export default function FlapWord({
     if (ch === " " || !words.length || shown[i - 1] === " ") words.push({ start: i, chars: [] });
     if (ch !== " ") words[words.length - 1].chars.push(ch);
   });
-  const n = shown.filter((ch) => ch !== " ").length + (cursor ? 1 : 0);
+  // Tiles are sized so the longest word (with the cursor, on the last word)
+  // fits on one row; shorter words share rows or take their own.
+  const n = Math.max(...words.map((w, i) => w.chars.length + (cursor && i === words.length - 1 ? 1 : 0)), 1);
   return (
     <div className={`flap-board${ghost ? " flap-ghost" : ""}`} style={{ "--n": n } as CSSProperties} onClick={() => input.current?.focus()}>
       {words.map((w, wi) => (

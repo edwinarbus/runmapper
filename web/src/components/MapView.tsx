@@ -216,7 +216,7 @@ export default function MapView(props: MapViewProps) {
       zoom: 1.4,
       attributionControl: false,
     });
-    m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // Zoom keys are drawn by this component, in the same style as the others.
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     // If a basemap style can't be fetched (offline, blocked tiles), fall
     // back to a blank canvas so the route still draws. Only while a style is
@@ -351,10 +351,12 @@ export default function MapView(props: MapViewProps) {
 
   const hasRoute = Boolean(props.route && props.route.length > 1);
   const hasIdeal = Boolean(props.ideal && props.ideal.length > 0);
+  const zoom = (by: number) => map.current?.zoomTo(map.current.getZoom() + by, { duration: 300 });
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
+      {/* Keys on the glass, all one height: the basemap in a slot, then the route keys; zoom at the right. */}
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2" style={{ right: "calc(0.75rem + 36px + 0.5rem)" }}>
         <div className="map-seg" role="group" aria-label="Basemap">
           {BASEMAPS.map((b) => (
             <button key={b.key} type="button" className="map-btn" aria-pressed={basemap === b.key} onClick={() => {
@@ -367,7 +369,7 @@ export default function MapView(props: MapViewProps) {
           ))}
         </div>
         {hasRoute && (
-          <button type="button" className="map-btn" onClick={() => fit()} title="Bring the whole route back on screen" aria-label="Recenter">
+          <button type="button" className="map-btn map-icon" onClick={() => fit()} title="Bring the whole route back on screen" aria-label="Recenter">
             <Icon name="frame" />
             <span className="map-label">Recenter</span>
           </button>
@@ -375,16 +377,24 @@ export default function MapView(props: MapViewProps) {
         {hasRoute && hasIdeal && (
           <button
             type="button"
-            className="map-btn"
+            className="map-btn map-icon"
             onClick={toggleIdeal}
             aria-pressed={showIdeal}
-            title="The shape the route is trying to draw, as a blue line"
-            aria-label={showIdeal ? "Hide the target shape" : "Show the target shape"}
+            title="Show or hide the shape the route is trying to draw"
+            aria-label="Target shape"
           >
             <Icon name="eye" />
-            <span className="map-label">{showIdeal ? "Hide target" : "Target"}</span>
+            <span className="map-label">Target</span>
           </button>
         )}
+      </div>
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">
+        <button type="button" className="map-btn map-sq" onClick={() => zoom(1)} aria-label="Zoom in" title="Zoom in">
+          <Icon name="plus" />
+        </button>
+        <button type="button" className="map-btn map-sq" onClick={() => zoom(-1)} aria-label="Zoom out" title="Zoom out">
+          <Icon name="minus" />
+        </button>
       </div>
       {hasRoute && (
         <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
@@ -396,7 +406,7 @@ export default function MapView(props: MapViewProps) {
       {props.picking && !props.pin && (
         <div
           className="hint pointer-events-none absolute left-1/2 z-10 -translate-x-1/2"
-          style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+          style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
           role="status"
         >
           Search a place, or tap the map to set your start

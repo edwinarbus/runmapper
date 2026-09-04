@@ -403,9 +403,10 @@ export default function RunMapper() {
   const caption = useMemo(
     () => ({
       word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : isDrawing(shown.drawing.label) ? "Drawing" : "Logo run") : "",
-      stats: shown ? fmtDist(shown.route.distance_mi, units) : "",
+      distance: shown ? fmtDist(shown.route.distance_mi, units) : "",
+      city,
     }),
-    [shown, units],
+    [shown, units, city],
   );
 
   // When the answer takes over the screen, show it from the top.

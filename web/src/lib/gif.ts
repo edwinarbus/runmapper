@@ -1,6 +1,12 @@
 // A GIF of the route drawing itself in, rendered offscreen on a map of its
 // own (16:9, 1280 x 720, always the light day map) with a caption band, so
 // nothing on screen has to move and the result is the same on any device.
+//
+// X takes GIFs up to 15 MB from a browser but only 5 MB from its apps, at
+// most 1280 x 1080 and 350 frames. Every frame after the first carries only
+// the pixels that changed (the map underneath never moves), which keeps a
+// file to a fraction of that; and if one ever runs over the app limit it is
+// rendered again smaller and shorter until it fits.
 
 import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
@@ -13,8 +19,8 @@ export interface GifJob {
   route: [number, number][];
   start: [number, number] | null;
   finish: [number, number] | null;
-  /** The word, and a stats line such as "3.28 MI · LOOP". */
-  caption: { word: string; stats: string };
+  /** The word, the distance ("6.15 mi") and the town the run is in ("" when unknown). */
+  caption: { word: string; distance: string; city: string };
   width?: number;
   height?: number;
   onProgress?: (pct: number) => void;
@@ -22,8 +28,16 @@ export interface GifJob {
 
 const FRAME_MS = 50;     // 20 frames a second
 const MAX_FRAMES = 150;
-const BAND = 150;   // caption band height in px
+const BAND = 150;        // caption band height at 1280 x 720
+const SIZE_LIMIT = 4.8 * 1024 * 1024;   // under the 5 MB X allows from a phone
+const TRANSPARENT = 255;                // the palette slot that means "as before"
 const SITE = { left: "DRAWMY", right: "RUN" };   // with the start dot as the period between
+/** Renders to try, in order: full size, then smaller and shorter if the file runs over the limit. */
+const PASSES: { scale: number; frames: number }[] = [
+  { scale: 1, frames: MAX_FRAMES },
+  { scale: 0.75, frames: 100 },
+  { scale: 0.5, frames: 60 },
+];
 
 /** Resolves when the map has drawn everything it was asked to, or after `ms`. */
 function idle(m: maplibregl.Map, ms: number): Promise<void> {
@@ -78,27 +92,36 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
   ctx.fillText(SITE.right, x, baseline);
 }
 
-/** A light band across the bottom with the word, the distance and the site. */
-function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: { word: string; stats: string }, font: string) {
-  const g = ctx.createLinearGradient(0, h - BAND - 60, 0, h);
+/** A light band across the bottom: the word, a rule, the distance large
+ *  with the town beside it, and the site on the right. Sized for 1280 wide
+ *  and scaled with the frame. */
+function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: GifJob["caption"], font: string) {
+  const s = w / 1280;
+  const g = ctx.createLinearGradient(0, h - (BAND + 60) * s, 0, h);
   g.addColorStop(0, "rgba(247, 245, 240, 0)");
   g.addColorStop(0.35, "rgba(247, 245, 240, 0.86)");
   g.addColorStop(1, "rgba(247, 245, 240, 0.98)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, h - BAND - 60, w, BAND + 60);
-  const x = 56;
+  ctx.fillRect(0, h - (BAND + 60) * s, w, (BAND + 60) * s);
+  const x = 56 * s;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillStyle = "#151517";
-  ctx.font = `76px ${font}`;
-  ctx.fillText(caption.word, x, h - 66);
-  ctx.fillStyle = "#fc5200";
-  ctx.font = `30px ${font}`;
-  ctx.fillText(caption.stats, x + 2, h - 28);
-  drawSite(ctx, w - 56, h - 28, 28, font);
+  ctx.font = `${74 * s}px ${font}`;
+  ctx.fillText(caption.word.toUpperCase(), x, h - 80 * s);
   // a short orange rule under the word, like the field on the page
   ctx.fillStyle = "#fc5200";
-  ctx.fillRect(x, h - 54, Math.min(w * 0.3, 220), 3);
+  ctx.fillRect(x, h - 66 * s, Math.min(w * 0.3, 220 * s), 3 * s);
+  // the distance, large, and the town to its right
+  ctx.font = `${46 * s}px ${font}`;
+  const distance = caption.distance.toUpperCase();
+  ctx.fillText(distance, x + 2 * s, h - 22 * s);
+  if (caption.city) {
+    ctx.fillStyle = "#6f6e68";
+    ctx.font = `${28 * s}px ${font}`;
+    ctx.fillText(caption.city.toUpperCase(), x + 2 * s + ctx.measureText(distance).width * (46 / 28) + 18 * s, h - 22 * s);
+  }
+  drawSite(ctx, w - 56 * s, h - 22 * s, 28 * s, font);
 }
 
 export async function renderGif(job: GifJob): Promise<Blob> {
@@ -157,54 +180,85 @@ export async function renderGif(job: GifJob): Promise<Blob> {
     await idle(m, 20000);   // tiles for the whole frame
     if (typeof document.fonts?.ready?.then === "function") await document.fonts.ready;
     const font = displayFont();
-    const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("no 2d canvas");
-    const caption = { word: job.caption.word.toUpperCase(), stats: job.caption.stats.toUpperCase() };
-    const snap = () => {
-      ctx.drawImage(m.getCanvas(), 0, 0, W, H);
-      drawBand(ctx, W, H, caption, font);
-      return ctx.getImageData(0, 0, W, H).data;
-    };
-    // The finished frame first: its colours make the palette for every frame.
-    const last = snap();
-    const palette = quantize(last, 256, { format: "rgb565" });
-    const gif = GIFEncoder();
 
     const pts: LngLat[] = job.route.map(([lat, lon]) => [lon, lat]);
     const cum = [0];
     for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + metres(job.route[i - 1], job.route[i]));
     const total = cum[cum.length - 1];
     const duration = Math.min(7000, 2600 + 550 * (total / 1609.344));
-    const n = Math.min(MAX_FRAMES, Math.max(16, Math.round(duration / FRAME_MS)));
-    setDecor(m, false);
-    let k = 1;
-    for (let i = 0; i <= n; i++) {
-      const target = easeInOut(i / n) * total;
-      while (k < cum.length - 1 && cum[k] < target) k++;
-      const a = pts[k - 1];
-      const b = pts[k];
-      const seg = cum[k] - cum[k - 1];
-      const f = seg > 0 ? Math.min(1, Math.max(0, (target - cum[k - 1]) / seg)) : 1;
-      const tip: LngLat = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-      src("route").setData(lineFromLngLat([...pts.slice(0, k), tip]));
-      src("head").setData(pointFeature(tip));
+
+    /** One full render and encode at `scale` of the frame, with up to `frames` frames. */
+    const encode = async (scale: number, frames: number, share: number, done: number): Promise<Uint8Array> => {
+      const w = Math.round(W * scale);
+      const h = Math.round(H * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("no 2d canvas");
+      const snap = () => {
+        ctx.drawImage(m.getCanvas(), 0, 0, w, h);
+        drawBand(ctx, w, h, job.caption, font);
+        return ctx.getImageData(0, 0, w, h).data;
+      };
+      // The finished frame first: its colours make the palette for every
+      // frame, with one slot kept for "unchanged".
+      src("route").setData(lineFeature(job.route));
+      src("head").setData(EMPTY);
+      setDecor(m, true);
       await idle(m, 1500);
-      const index = applyPalette(snap(), palette, "rgb565");
-      gif.writeFrame(index, W, H, { palette, delay: i === 0 ? 600 : FRAME_MS, repeat: 0 });
-      job.onProgress?.((i + 1) / (n + 2));
+      const palette = quantize(snap(), 255, { format: "rgb565" });
+      const table = [...palette, [0, 0, 0]];
+      const gif = GIFEncoder();
+      let prev: Uint8Array | null = null;
+      const frame = (rgba: Uint8ClampedArray, delay: number) => {
+        const index = applyPalette(rgba, palette, "rgb565");
+        if (prev) {
+          // Only what changed since the last frame; the rest shows through.
+          const diff = new Uint8Array(index.length);
+          for (let p = 0; p < index.length; p++) diff[p] = index[p] === prev[p] ? TRANSPARENT : index[p];
+          gif.writeFrame(diff, w, h, { delay, transparent: true, transparentIndex: TRANSPARENT, dispose: 1 });
+        } else {
+          gif.writeFrame(index, w, h, { palette: table, delay, repeat: 0, dispose: 1 });
+        }
+        prev = index;
+      };
+      const n = Math.min(frames, Math.max(16, Math.round(duration / FRAME_MS)));
+      const step = (duration / n) | 0;
+      setDecor(m, false);
+      let k = 1;
+      for (let i = 0; i <= n; i++) {
+        const target = easeInOut(i / n) * total;
+        while (k < cum.length - 1 && cum[k] < target) k++;
+        const a = pts[k - 1];
+        const b = pts[k];
+        const seg = cum[k] - cum[k - 1];
+        const f = seg > 0 ? Math.min(1, Math.max(0, (target - cum[k - 1]) / seg)) : 1;
+        const tip: LngLat = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+        src("route").setData(lineFromLngLat([...pts.slice(0, k), tip]));
+        src("head").setData(pointFeature(tip));
+        await idle(m, 1500);
+        frame(snap(), i === 0 ? 600 : step);
+        job.onProgress?.(done + (share * (i + 1)) / (n + 2));
+      }
+      // Hold on the finished drawing with its chevrons.
+      src("route").setData(lineFeature(job.route));
+      src("head").setData(EMPTY);
+      setDecor(m, true);
+      await idle(m, 1500);
+      frame(snap(), 2200);
+      gif.finish();
+      return gif.bytes();
+    };
+
+    let bytes: Uint8Array | null = null;
+    for (let p = 0; p < PASSES.length; p++) {
+      const { scale, frames } = PASSES[p];
+      bytes = await encode(scale, frames, p === 0 ? 0.9 : 0.1, p === 0 ? 0 : 0.9);
+      if (bytes.length <= SIZE_LIMIT) break;
     }
-    // Hold on the finished drawing with its chevrons.
-    src("route").setData(lineFeature(job.route));
-    src("head").setData(EMPTY);
-    setDecor(m, true);
-    await idle(m, 1500);
-    gif.writeFrame(applyPalette(snap(), palette, "rgb565"), W, H, { palette, delay: 2200 });
     job.onProgress?.(1);
-    gif.finish();
-    return new Blob([gif.bytes() as BlobPart], { type: "image/gif" });
+    return new Blob([bytes as BlobPart], { type: "image/gif" });
   } finally {
     m.remove();
     host.remove();

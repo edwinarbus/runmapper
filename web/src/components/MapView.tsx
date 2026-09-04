@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { DAY_STYLE, NIGHT_STYLE, SATELLITE_STYLE } from "@/lib/basemaps";
 import { metres } from "@/lib/geo";
-import { renderGif, saveBlob } from "@/lib/gif";
 import {
   EMPTY,
   type LngLat,
@@ -18,32 +18,6 @@ import {
   setDecor,
 } from "@/lib/maplayers";
 import Icon from "./Icon";
-
-export const DAY_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/positron";
-export const NIGHT_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE_NIGHT || "https://tiles.openfreemap.org/styles/dark";
-
-// Satellite view: Esri's World Imagery with its road and place-name
-// reference tiles on top. No key needed; attribution is required and shown.
-const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
-export const SATELLITE_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    imagery: {
-      type: "raster",
-      tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community",
-    },
-    roads: { type: "raster", tiles: [`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
-    places: { type: "raster", tiles: [`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
-  },
-  layers: [
-    { id: "imagery", type: "raster", source: "imagery" },
-    { id: "roads", type: "raster", source: "roads", paint: { "raster-opacity": 0.85 } },
-    { id: "places", type: "raster", source: "places" },
-  ],
-};
 
 // Used when the basemap style can't be fetched, so the route still shows.
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
@@ -67,22 +41,16 @@ export interface LatLon {
 
 export interface MapViewProps {
   pin: LatLon | null;
+  /** Setting up a run: the pin shows and can be dragged, and a tap on the map moves it. */
+  picking: boolean;
   onPick: (p: LatLon) => void;
   focus: (LatLon & { zoom?: number; key: number }) | null;
   route: [number, number][] | null;
   ideal: [number, number][][] | null;
-  showIdeal: boolean;
   start: [number, number] | null;
-  /** The last point of a one-way route; null for loops. */
+  /** Where the chequered flag goes: the last point, or the start of a loop. */
   finish: [number, number] | null;
-  /** For the GIF's caption band: the word and a stats line. */
-  caption: { word: string; stats: string };
-  /** File name stem for the exported GIF. */
-  fileStem: string;
 }
-
-type GifState = { phase: "idle" } | { phase: "working"; pct: number };
-const GIF_IDLE: GifState = { phase: "idle" };
 
 const reducedMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 
@@ -108,9 +76,10 @@ export default function MapView(props: MapViewProps) {
   const pendingDraw = useRef(false);   // a draw is about to start: keep the full line hidden until then
   const seen = useRef(new WeakSet<object>());   // routes already drawn in once
   const applied = useRef<Basemap>("night");     // the style the map currently shows
+  const idealOn = useRef(false);                // the target shape, shown or not
   const [basemap, setBasemap] = useState<Basemap>("night");
   const [drawing, setDrawing] = useState(false);
-  const [gif, setGif] = useState<GifState>(GIF_IDLE);
+  const [showIdeal, setShowIdeal] = useState(false);
   const startDrawRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     latest.current = props;
@@ -132,7 +101,13 @@ export default function MapView(props: MapViewProps) {
     );
     src("start")?.setData(p.start ? pointFeature([p.start[1], p.start[0]]) : EMPTY);
     src("finish")?.setData(p.finish ? pointFeature([p.finish[1], p.finish[0]]) : EMPTY);
-    m.setLayoutProperty("ideal", "visibility", p.showIdeal ? "visible" : "none");
+    m.setLayoutProperty("ideal", "visibility", idealOn.current ? "visible" : "none");
+  };
+
+  const toggleIdeal = () => {
+    idealOn.current = !idealOn.current;
+    setShowIdeal(idealOn.current);
+    apply();
   };
 
   // Cancel a running draw (no React state touched, so effects may call it).
@@ -227,31 +202,6 @@ export default function MapView(props: MapViewProps) {
     startDrawRef.current = startDraw;
   });
 
-  // Render the drawing as a GIF on a hidden map and download it. Nothing
-  // on screen moves; the button shows progress.
-  const makeGif = async () => {
-    const p = latest.current;
-    if (!p.route || p.route.length < 2 || gif.phase !== "idle") return;
-    setGif({ phase: "working", pct: 0 });
-    try {
-      const blob = await renderGif({
-        // Always the light day map: it reads best when posted.
-        style: DAY_STYLE,
-        night: false,
-        route: p.route,
-        start: p.start,
-        finish: p.finish,
-        caption: p.caption,
-        onProgress: (pct) => setGif({ phase: "working", pct }),
-      });
-      saveBlob(blob, `${p.fileStem || "route"}.gif`);
-    } catch (e) {
-      console.error("GIF export failed", e);
-    } finally {
-      setGif(GIF_IDLE);
-    }
-  };
-
   useEffect(() => {
     if (!el.current || map.current) return;
     const m = new maplibregl.Map({
@@ -287,7 +237,10 @@ export default function MapView(props: MapViewProps) {
     };
     m.on("load", setup);
     m.on("style.load", setup);
-    m.on("click", (e) => latest.current.onPick({ lat: e.lngLat.lat, lon: e.lngLat.lng }));
+    // A tap sets the start, but only while a run is being set up.
+    m.on("click", (e) => {
+      if (latest.current.picking) latest.current.onPick({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+    });
     map.current = m;
     (window as unknown as { __runmapperMap?: maplibregl.Map }).__runmapperMap = m;
     return () => {
@@ -314,11 +267,12 @@ export default function MapView(props: MapViewProps) {
     return () => clearTimeout(t);
   }, [basemap]);
 
-  // Pin marker.
+  // The pin: only while a run is being set up. Once the routes are on the
+  // map the flag and the start dot say where to go.
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    if (!props.pin) {
+    if (!props.pin || !props.picking) {
       marker.current?.remove();
       marker.current = null;
       return;
@@ -334,7 +288,7 @@ export default function MapView(props: MapViewProps) {
     } else {
       marker.current.setLngLat([props.pin.lon, props.pin.lat]);
     }
-  }, [props.pin]);
+  }, [props.pin, props.picking]);
 
   // Fly to a searched place.
   useEffect(() => {
@@ -378,11 +332,10 @@ export default function MapView(props: MapViewProps) {
 
   useEffect(() => {
     apply();
-  }, [props.ideal, props.start, props.finish, props.showIdeal]);
+  }, [props.ideal, props.start, props.finish]);
 
   const hasRoute = Boolean(props.route && props.route.length > 1);
-  const busy = gif.phase !== "idle";
-  const gifLabel = gif.phase === "working" ? `Generating ${Math.round(gif.pct * 100)}%` : "Download GIF";
+  const hasIdeal = Boolean(props.ideal && props.ideal.length > 0);
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />
@@ -395,24 +348,32 @@ export default function MapView(props: MapViewProps) {
           ))}
         </div>
         {hasRoute && (
-          <button type="button" className="map-btn" onClick={() => fit()} aria-label="Fit the whole route on screen">
+          <button type="button" className="map-btn" onClick={() => fit()} title="Bring the whole route back on screen">
             <Icon name="frame" />
-            Fit
+            Recenter
+          </button>
+        )}
+        {hasRoute && hasIdeal && (
+          <button
+            type="button"
+            className="map-btn"
+            onClick={toggleIdeal}
+            aria-pressed={showIdeal}
+            title="The shape the route is trying to draw, as a blue line"
+          >
+            <Icon name="eye" />
+            {showIdeal ? "Hide target" : "Target"}
           </button>
         )}
       </div>
       {hasRoute && (
-        <div className="absolute right-3 bottom-3 z-10 flex flex-col items-end gap-2">
-          <button type="button" className="map-btn" onClick={() => void makeGif()} disabled={busy} aria-label="Download the route drawing as a GIF" aria-busy={busy}>
-            <Icon name="film" />
-            {gifLabel}
-          </button>
+        <div className="absolute right-3 bottom-3 z-10">
           <button type="button" className="map-round" onClick={() => startDraw()} disabled={drawing} aria-label="Replay the route drawing" title="Replay">
             <Icon name="play" />
           </button>
         </div>
       )}
-      {!props.pin && (
+      {props.picking && !props.pin && (
         <div className="hint pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2" role="status">
           Search a place, or tap the map to set your start
         </div>

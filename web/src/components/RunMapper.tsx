@@ -23,9 +23,11 @@ import {
   gpxFileName,
   planRun,
 } from "@/lib/api";
+import { DAY_STYLE } from "@/lib/basemaps";
 import { type Place, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
 import { TILE } from "@/lib/labels";
+import FlapWord from "./FlapWord";
 import Icon from "./Icon";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
@@ -39,19 +41,6 @@ const MapView = dynamic(() => import("./MapView"), {
 const MAX_CHARS = 12;
 type Mode = "text" | "image";
 type Status = "idle" | "planning" | "done" | "error";
-
-/** The setup behind an answer as a link: the words, where it starts, how far,
- *  loop or not, and the style. Opening it fills the form in; nothing runs. */
-function shareUrl(o: PlanOption): string {
-  const q = new URLSearchParams();
-  q.set("t", o.drawing.label);
-  q.set("lat", o.route.start[0].toFixed(5));
-  q.set("lon", o.route.start[1].toFixed(5));
-  q.set("d", o.bucket.key);
-  q.set("loop", o.route.loop ? "1" : "0");
-  if (o.drawing.style && o.drawing.style !== "auto") q.set("s", o.drawing.style);
-  return `${window.location.origin}${window.location.pathname}?${q}`;
-}
 
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
@@ -73,7 +62,6 @@ export default function RunMapper() {
   const [runKey, setRunKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [suggest, setSuggest] = useState<Bucket | null>(null);
-  const [showIdeal, setShowIdeal] = useState(false);
   const [est, setEst] = useState<EstimateResult | null>(null);
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
@@ -81,7 +69,7 @@ export default function RunMapper() {
   const [units, setUnits] = useState<Units>("km");
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [gif, setGif] = useState({ busy: false, pct: 0 });
   const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
   const [startedAt, setStartedAt] = useState(0);
   const abort = useRef<AbortController | null>(null);
@@ -252,7 +240,6 @@ export default function RunMapper() {
     setRunKey((k) => k + 1);
     setError(null);
     setSuggest(null);
-    setShowIdeal(false);
     setProgress({ type: "progress", stage: "start", pct: 1, msg: "Starting" });
     setLaps(0);
     setStartedAt(Date.now());
@@ -314,8 +301,9 @@ export default function RunMapper() {
   const shownIdx = Math.min(optIdx, Math.max(0, lanes.length - 1));
   const shown: PlanOption | null = lanes[shownIdx] ?? null;
   const routeCoords = useMemo(() => shown?.route.coords ?? null, [shown]);
+  // Where the chequered flag stands: the last point, or the start of a loop.
   const finish = useMemo<[number, number] | null>(
-    () => (shown && !shown.route.loop && shown.route.coords.length > 1 ? shown.route.coords[shown.route.coords.length - 1] : null),
+    () => (shown && shown.route.coords.length > 1 ? (shown.route.loop ? shown.route.start : shown.route.coords[shown.route.coords.length - 1]) : null),
     [shown],
   );
   const showResult = Boolean(result && shown && !editing);
@@ -346,15 +334,28 @@ export default function RunMapper() {
     return "";
   })();
 
-  const copyLink = async () => {
-    if (!shown) return;
-    const url = shareUrl(shown);
+  // The drawing as a GIF, rendered on a hidden map of its own (always the
+  // light day map: it reads best when posted) and downloaded. The map code
+  // is loaded on demand, since it can't run on the server.
+  const makeGif = async () => {
+    if (!shown || gif.busy) return;
+    setGif({ busy: true, pct: 0 });
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      window.prompt("Copy this link", url);
+      const { renderGif, saveBlob } = await import("@/lib/gif");
+      const blob = await renderGif({
+        style: DAY_STYLE,
+        night: false,
+        route: shown.route.coords,
+        start: shown.route.start,
+        finish,
+        caption,
+        onProgress: (pct) => setGif({ busy: true, pct }),
+      });
+      saveBlob(blob, `${fileStem(shown.name)}.gif`);
+    } catch (e) {
+      console.error("GIF export failed", e);
+    } finally {
+      setGif({ busy: false, pct: 0 });
     }
   };
 
@@ -449,12 +450,10 @@ export default function RunMapper() {
                 actions={{
                   units,
                   canShare,
-                  copied,
-                  showIdeal,
+                  gif,
                   // One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere.
                   onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown)),
-                  onCopy: () => void copyLink(),
-                  onIdeal: () => setShowIdeal((s) => !s),
+                  onGif: () => void makeGif(),
                   onTry: (b) => void go(b),
                 }}
               />
@@ -478,7 +477,7 @@ export default function RunMapper() {
                   Strava
                 </a>
                 , Garmin, or a smartwatch app like{" "}
-                <a href="http://www.workoutdoors.net" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
+                <a href="http://www.workoutdoors.net/Routes.html" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
                   WorkOutDoors
                 </a>{" "}
                 and follow the line.
@@ -504,19 +503,15 @@ export default function RunMapper() {
               </div>
               {mode === "text" ? (
                 <div>
-                  <input
+                  <FlapWord
                     value={text}
-                    onChange={(e) => setText(e.target.value.slice(0, MAX_CHARS))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && canGo) void go();
+                    onChange={setText}
+                    onEnter={() => {
+                      if (canGo) void go();
                     }}
-                    placeholder="RUN"
                     maxLength={MAX_CHARS}
-                    autoCapitalize="characters"
-                    aria-label="Words to draw"
-                    className="field field-word font-display"
                   />
-                  <div className="mt-2 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
+                  <div className="mt-3 flex justify-between gap-3 text-xs text-[var(--ink-2)]">
                     <span>
                       {est?.message ? (
                         <span className={est.ok ? "" : "text-[#ffb545]"}>{est.message}</span>
@@ -691,25 +686,18 @@ export default function RunMapper() {
           </div>
         )}
 
-        <div className="rule" />
-        <footer className="flex items-center justify-between px-6 py-3 text-[11px] text-[var(--ink-3)]">
-          <span>© OpenStreetMap contributors</span>
-          <span>drawmy.run</span>
-        </footer>
       </aside>
 
       <main className="map-bezel relative min-h-[36dvh] bg-[var(--bg)]">
         <MapView
           pin={pin}
+          picking={!showResult}
           onPick={onPick}
           focus={focus}
           route={routeCoords}
           ideal={shown?.drawing.ideal ?? null}
-          showIdeal={showIdeal}
           start={shown?.route.start ?? null}
           finish={finish}
-          caption={caption}
-          fileStem={shown ? fileStem(shown.name) : "route"}
         />
       </main>
     </div>

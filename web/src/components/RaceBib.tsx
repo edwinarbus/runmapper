@@ -16,11 +16,10 @@ const TILT = [-1.4, 1.1, -0.7, 0.9];  // back bibs hang a little crooked
 export interface BibActions {
   units: Units;
   canShare: boolean;
-  copied: boolean;
-  showIdeal: boolean;
+  /** The GIF being rendered, with its progress (0 to 1). */
+  gif: { busy: boolean; pct: number };
   onGpx: () => void;
-  onCopy: () => void;
-  onIdeal: () => void;
+  onGif: () => void;
   onTry: (b: Bucket) => void;
 }
 
@@ -188,19 +187,20 @@ export function BibStack({
         </div>
         <div className="bib-crease" aria-hidden="true" />
         <div className="bib-stub">
-          <button type="button" onClick={actions.onGpx} className="pbtn pbtn-orange">
+          <button type="button" onClick={actions.onGpx} className="pbtn pbtn-orange" title="The route as a GPX file for your watch or app">
             <Icon name={actions.canShare ? "share" : "download"} />
             {actions.canShare ? "Send GPX" : "GPX"}
           </button>
-          {o.drawing.kind === "text" && (
-            <button type="button" onClick={actions.onCopy} className="pbtn">
-              <Icon name={actions.copied ? "check" : "link"} />
-              {actions.copied ? "Copied" : "Link"}
-            </button>
-          )}
-          <button type="button" onClick={actions.onIdeal} className="pbtn" aria-pressed={actions.showIdeal}>
-            <Icon name="eye" />
-            {actions.showIdeal ? "Hide target" : "Target"}
+          <button
+            type="button"
+            onClick={actions.onGif}
+            className="pbtn"
+            disabled={actions.gif.busy}
+            aria-busy={actions.gif.busy}
+            title="The route drawing itself in, as a GIF to post"
+          >
+            <Icon name="film" />
+            {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
           </button>
           <span className="bib-sponsor font-display" aria-hidden="true">
             drawmy<span>.run</span>

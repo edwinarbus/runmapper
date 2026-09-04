@@ -57,6 +57,37 @@ export function arrowImage(): ImageData | null {
   return g.getImageData(0, 0, s, s);
 }
 
+export const FLAG = "finish-flag";
+
+/** A chequered flag on a pole, drawn at 2x; the foot of the pole is the
+ *  image's bottom-left corner, which sits on the finish point. */
+export function flagImage(): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const s = 48;
+  const c = document.createElement("canvas");
+  c.width = s;
+  c.height = s;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  g.strokeStyle = "#17171b";
+  g.lineWidth = 4;
+  g.lineCap = "round";
+  g.beginPath();
+  g.moveTo(3, 46);
+  g.lineTo(3, 5);
+  g.stroke();
+  const cell = 8;
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 3; j++) {
+      g.fillStyle = (i + j) % 2 === 0 ? "#17171b" : "#ffffff";
+      g.fillRect(5 + i * cell, 4 + j * cell, cell, cell);
+    }
+  }
+  g.lineWidth = 2;
+  g.strokeRect(5, 4, 4 * cell, 3 * cell);
+  return g.getImageData(0, 0, s, s);
+}
+
 /** Chevrons: hidden while the line is still growing. */
 export function setDecor(m: maplibregl.Map, visible: boolean) {
   if (m.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
@@ -69,6 +100,10 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
   if (!m.hasImage(ARROW)) {
     const img = arrowImage();
     if (img) m.addImage(ARROW, img, { pixelRatio: 2 });
+  }
+  if (!m.hasImage(FLAG)) {
+    const img = flagImage();
+    if (img) m.addImage(FLAG, img, { pixelRatio: 2 });
   }
   for (const id of ["route", "ideal", "start", "finish", "head"]) m.addSource(id, { type: "geojson", data: EMPTY });
   // Under the line: an orange glow at night, a soft shadow by day.
@@ -126,12 +161,22 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
     source: "start",
     paint: { "circle-radius": 7, "circle-color": "#12b886", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
   });
-  m.addLayer({
-    id: "finish",
-    type: "circle",
-    source: "finish",
-    paint: { "circle-radius": 6, "circle-color": "#17171b", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
-  });
+  // The finish: a chequered flag (on the start dot when the route is a loop).
+  if (m.hasImage(FLAG)) {
+    m.addLayer({
+      id: "finish",
+      type: "symbol",
+      source: "finish",
+      layout: { "icon-image": FLAG, "icon-size": 1, "icon-anchor": "bottom-left", "icon-allow-overlap": true, "icon-ignore-placement": true },
+    });
+  } else {
+    m.addLayer({
+      id: "finish",
+      type: "circle",
+      source: "finish",
+      paint: { "circle-radius": 6, "circle-color": "#17171b", "circle-stroke-color": "#fff", "circle-stroke-width": 2.5 },
+    });
+  }
   m.addLayer({
     id: "head",
     type: "circle",

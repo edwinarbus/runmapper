@@ -51,6 +51,8 @@ export default function Stopwatch({
   const clock = `${mm}:${String(ss).padStart(2, "0")}.${tenths}`;
   const arc = 2 * Math.PI * 47;
   const p = Math.min(1, Math.max(0, pct / 100));
+  // The starter's call over the first seconds, while the streets load.
+  const call = secs < 1.0 ? "On your marks" : secs < 1.9 ? "Set" : secs < 2.8 ? "Go!" : null;
 
   return (
     <div className="flex items-center gap-4">
@@ -121,10 +123,16 @@ export default function Stopwatch({
         </g>
       </svg>
       <div className="min-w-0 flex-1">
-        <div className="eyebrow">Searching</div>
-        <div className="mt-1 text-[13px] leading-snug text-[var(--ink-2)]" aria-live="polite">
-          {msg}…
-        </div>
+        <div className="eyebrow">{call ? "Start" : "Searching"}</div>
+        {call ? (
+          <div key={call} className="call font-display">
+            {call}
+          </div>
+        ) : (
+          <div className="mt-1 text-[13px] leading-snug text-[var(--ink-2)]" aria-live="polite">
+            {msg}…
+          </div>
+        )}
         <button type="button" onClick={onStop} className="btn btn-sm mt-3">
           <Icon name="stop" className="text-[#ff6b61]" />
           Stop

@@ -33,6 +33,7 @@ import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
 import Icon from "./Icon";
+import Toggle from "./Toggle";
 import Seg from "./Seg";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
@@ -759,13 +760,15 @@ export default function RunMapper() {
                       aria-label={units === "mi" ? "Switch to kilometres" : "Switch to miles"}
                       title="Miles or kilometres"
                       onClick={() => setUnits(units === "mi" ? "km" : "mi")}
-                    />
+                    >
+                      <Toggle />
+                    </button>
                     <button type="button" className="uswitch-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
                     </button>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <span className="eyebrow">Loop</span>
+                    <span className={`eyebrow${loop ? " eyebrow-on" : ""}`}>Loop</span>
                     <button
                       type="button"
                       role="switch"
@@ -774,7 +777,9 @@ export default function RunMapper() {
                       title="Perfect loop: finish where you start"
                       className="switch"
                       onClick={() => setLoop((x) => !x)}
-                    />
+                    >
+                      <Toggle />
+                    </button>
                   </div>
                 </div>
               </div>

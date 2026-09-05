@@ -32,6 +32,7 @@ import { TILE } from "@/lib/labels";
 import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
+import { play, setSound, soundOn } from "@/lib/sound";
 import Icon from "./Icon";
 import Seg from "./Seg";
 import type { LatLon } from "./MapView";
@@ -81,6 +82,7 @@ export default function RunMapper() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
   const [units, setUnits] = useState<Units>("km");
+  const [sound, setSoundState] = useState(true);
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
   const [gif, setGif] = useState({ busy: false, pct: 0 });
@@ -152,8 +154,12 @@ export default function RunMapper() {
 
   // Miles only where people actually use them; everyone else gets kilometres.
   useEffect(() => {
+    const t0 = setTimeout(() => setSoundState(soundOn()), 0);
     const t = setTimeout(() => setUnits(detectUnits()), 0);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t);
+    };
   }, []);
 
   // Every key goes down when pressed and springs back when let go, and a
@@ -164,10 +170,15 @@ export default function RunMapper() {
       const key = (e.target as HTMLElement | null)?.closest?.("button:not(:disabled)") as HTMLElement | null;
       if (!key) return;
       key.dataset.pressed = "";
+      // The deck's noises: the start key knocks and clacks back up, a switch
+      // makes its own snap when it goes over, everything else ticks.
+      const big = key.classList.contains("go");
+      if (!key.classList.contains("switch")) play(big ? "go" : "key");
       const t0 = performance.now();
       const up = () => {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
+        if (big) play("goUp");
         window.setTimeout(() => delete key.dataset.pressed, Math.max(0, 110 - (performance.now() - t0)));
       };
       window.addEventListener("pointerup", up);
@@ -562,6 +573,21 @@ export default function RunMapper() {
             </span>
           </h1>
           <span className="sr-only" role="status">{statusWord}</span>
+          <button
+            type="button"
+            className="mute"
+            aria-pressed={sound}
+            aria-label={sound ? "Turn the deck's sounds off" : "Turn the deck's sounds on"}
+            title={sound ? "Sound on" : "Sound off"}
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              setSoundState(next);
+              if (next) play("key");
+            }}
+          >
+            <Icon name={sound ? "sound" : "mute"} />
+          </button>
         </header>
         <div className="rule" />
 
@@ -759,7 +785,10 @@ export default function RunMapper() {
                       data-pos={units === "km" ? "r" : "l"}
                       aria-label={units === "mi" ? "Switch to kilometres" : "Switch to miles"}
                       title="Miles or kilometres"
-                      onClick={() => setUnits(units === "mi" ? "km" : "mi")}
+                      onClick={() => {
+                        play("snap");
+                        setUnits(units === "mi" ? "km" : "mi");
+                      }}
                     >
                       <span className="knob" aria-hidden="true" />
                     </button>
@@ -777,7 +806,10 @@ export default function RunMapper() {
                       aria-label="Perfect loop: finish where you start"
                       title="Perfect loop: finish where you start"
                       className="switch"
-                      onClick={() => setLoop((x) => !x)}
+                      onClick={() => {
+                        play("snap");
+                        setLoop((x) => !x);
+                      }}
                     >
                       <span className="knob" aria-hidden="true">
                         <i className="knob-led" />

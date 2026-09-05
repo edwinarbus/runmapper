@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { play } from "@/lib/sound";
 
 // The word on a split-flap board, the kind that posts race results: one
 // tile per letter, each in two leaves on a hinge. A typed letter arrives the
@@ -65,7 +66,10 @@ function Tile({ ch, still }: { ch: string; still?: boolean }) {
           key={step}
           className={`flap-leaf${step === last - 1 ? " flap-leaf-last" : ""}`}
           style={step === 0 && delay ? { animationDelay: `${delay}ms` } : undefined}
-          onAnimationEnd={() => setStep((s) => s + 1)}
+          onAnimationEnd={() => {
+            play("flap");
+            setStep((s) => s + 1);
+          }}
         >
           <span className="flap-face flap-face-front">
             <i>{cur}</i>

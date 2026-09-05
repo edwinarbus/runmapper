@@ -24,6 +24,19 @@ const PATHS = {
     </>
   ),
   play: <path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none" />,
+  sound: (
+    <>
+      <path d="M4 9.5h3.2L11.5 6v12L7.2 14.5H4z" />
+      <path d="M15 9.6a3.6 3.6 0 0 1 0 4.8" />
+      <path d="M17.8 7.2a7.2 7.2 0 0 1 0 9.6" />
+    </>
+  ),
+  mute: (
+    <>
+      <path d="M4 9.5h3.2L11.5 6v12L7.2 14.5H4z" />
+      <path d="m15.5 9.8 4.6 4.4M20.1 9.8l-4.6 4.4" />
+    </>
+  ),
   stop: <rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none" />,
   film: (
     <>

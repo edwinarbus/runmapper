@@ -5,6 +5,7 @@ import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
 import { isDrawing } from "@/lib/drawing";
 import { TILE, compass, verdictOf } from "@/lib/labels";
+import { play } from "@/lib/sound";
 import Icon from "./Icon";
 
 // The answers as race bibs pinned in a pile: the one on show in front, the
@@ -256,6 +257,7 @@ export function BibStack({
   const [tucked, setTucked] = useState<number | null>(null);   // the front bib the last shuffle put back
   const pick = (i: number) => {
     if (shuffle !== null) return;
+    play("paper");
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       setArrived("pick");
       onPick(i);
@@ -275,11 +277,13 @@ export function BibStack({
   // forward (a throw, or the right arrow); the left arrow brings the one at
   // the very back round to the front.
   const advance = () => {
+    play("paper");
     const next = order[1];
     setPile([next, ...order.slice(2), index]);
     onPick(next);
   };
   const retreat = () => {
+    play("paper");
     const last = order[order.length - 1];
     setPile([last, ...order.slice(0, -1)]);
     onPick(last);

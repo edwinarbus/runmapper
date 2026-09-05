@@ -141,6 +141,35 @@ body {
 .logo-run {
   color: var(--orange);
 }
+/* The key that quiets the deck, in the header beside the wordmark. */
+.mute {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 0;
+  border-radius: 7px;
+  background: var(--key);
+  color: var(--ink-3);
+  box-shadow: var(--key-hi), 0 1px 0 #0d0d10, 0 2px 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: color 0.15s, transform 0.12s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.12s;
+}
+.mute[aria-pressed="true"] {
+  color: var(--ink-2);
+}
+.mute:active,
+.mute[data-pressed] {
+  transform: translateY(2px);
+  box-shadow: var(--sunk);
+  transition-duration: 0.06s;
+}
+.mute svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Step headings and small labels. */
 .step {
   display: flex;
@@ -225,6 +254,7 @@ body {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
+  margin-right: -0.1em;          /* the space the face leaves after the last letter */
   text-transform: uppercase;
   color: #5c5c66;
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -696,12 +726,12 @@ span.plate-lab {
 }
 
 /* Switch: a rocker mounted through the plate. The slot is a recess cut into
-   it; the knob is one element that slides to the side in use and tilts that
-   way with it, its leading edge dropping into the recess and its trailing
-   edge standing proud. It moves by a transform, so it travels rather than
-   cutting from one picture to another, and it goes over with a little
-   overshoot, the way a sprung switch does. Loop's knob carries a lamp that
-   lights orange when it is on. */
+   it; the knob is one element that slides to the side in use. It stays square
+   to the slot, so it reads as a part that has travelled rather than one
+   knocked askew; which end is down is told by the light instead, the leading
+   edge in the slot's shade and the trailing edge catching the light. It moves
+   by a transform, and goes over with a little overshoot, the way a sprung
+   switch does. Loop's knob carries a lamp that lights orange when it is on. */
 .switch {
   position: relative;
   width: 46px;
@@ -725,25 +755,25 @@ span.plate-lab {
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
     var(--grain-key),
     linear-gradient(180deg, #6f6f78 0%, #5c5c65 55%, #4a4a52 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 5px 0 7px -4px rgba(0, 0, 0, 0.75), inset -5px 0 7px -4px rgba(255, 255, 255, 0.2), 0 3px 6px rgba(0, 0, 0, 0.7);
-  transform: translateX(0) rotate(-3deg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 6px 0 8px -5px rgba(0, 0, 0, 0.8), inset -6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 3px 6px rgba(0, 0, 0, 0.7);
+  transform: translateX(0);
   transition: transform 0.12s cubic-bezier(0.3, 1.4, 0.6, 1), box-shadow 0.12s ease-out;
 }
 /* Over to the other side: the knob slides across and tilts the other way, the
    shade moving to the edge that is now down. */
 .switch[aria-checked="true"] .knob,
 .switch[data-pos="r"] .knob {
-  transform: translateX(16px) rotate(3deg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -5px 0 7px -4px rgba(0, 0, 0, 0.75), inset 5px 0 7px -4px rgba(255, 255, 255, 0.2), 0 3px 6px rgba(0, 0, 0, 0.7);
+  transform: translateX(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -6px 0 8px -5px rgba(0, 0, 0, 0.8), inset 6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 3px 6px rgba(0, 0, 0, 0.7);
 }
 /* a finger on it pushes the knob towards the other side before it goes over */
 .switch:active .knob {
-  transform: translateX(5px) rotate(-1.2deg);
+  transform: translateX(5px);
   transition-duration: 0.06s;
 }
 .switch[aria-checked="true"]:active .knob,
 .switch[data-pos="r"]:active .knob {
-  transform: translateX(11px) rotate(1.2deg);
+  transform: translateX(11px);
 }
 /* the lamp in Loop's knob: dark until it is on, then lit orange */
 .knob-led {
@@ -754,8 +784,8 @@ span.plate-lab {
   height: 8px;
   margin-top: -4px;
   border-radius: 1.5px;
-  background: linear-gradient(180deg, #3a1608, #241009);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.85), 0 0 0 0.5px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, #4a1d0b 0%, #2c1209 60%, #35160a 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(0, 0, 0, 0.55);
   transition: background 0.12s ease-out, box-shadow 0.12s ease-out;
 }
 .switch[aria-checked="true"] .knob-led {

@@ -760,7 +760,9 @@ export default function RunMapper() {
                       aria-label={units === "mi" ? "Switch to kilometres" : "Switch to miles"}
                       title="Miles or kilometres"
                       onClick={() => setUnits(units === "mi" ? "km" : "mi")}
-                    />
+                    >
+                      <span className="knob" aria-hidden="true" />
+                    </button>
                     <button type="button" className="plate-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
                     </button>
@@ -774,9 +776,13 @@ export default function RunMapper() {
                       aria-checked={loop}
                       aria-label="Perfect loop: finish where you start"
                       title="Perfect loop: finish where you start"
-                      className="switch switch-lamp"
+                      className="switch"
                       onClick={() => setLoop((x) => !x)}
-                    />
+                    >
+                      <span className="knob" aria-hidden="true">
+                        <i className="knob-led" />
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>

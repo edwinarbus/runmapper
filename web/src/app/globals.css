@@ -195,7 +195,7 @@ body {
   height: 10px;
   margin-top: -5px;
   border-radius: 50%;
-  background: linear-gradient(48deg, rgba(0, 0, 0, 0) 40%, #26262b 40%, #26262b 60%, rgba(0, 0, 0, 0) 60%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
+  background: linear-gradient(71deg, rgba(0, 0, 0, 0) 40%, #26262b 40%, #26262b 60%, rgba(0, 0, 0, 0) 60%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 1px 1px rgba(0, 0, 0, 0.6);
 }
 .plate::before {
@@ -203,7 +203,7 @@ body {
 }
 .plate::after {
   right: 4px;
-  background: linear-gradient(-28deg, rgba(0, 0, 0, 0) 40%, #26262b 40%, #26262b 60%, rgba(0, 0, 0, 0) 60%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
+  background: linear-gradient(-19deg, rgba(0, 0, 0, 0) 40%, #26262b 40%, #26262b 60%, rgba(0, 0, 0, 0) 60%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
 }
 .plate-rule {
   width: 1px;
@@ -695,58 +695,72 @@ span.plate-lab {
   transition: transform 0.05s ease-out;
 }
 
-/* Switch: a rocker mounted through the plate. It is a real render (three.js;
-   web/tools/toggle3d/rocker3d.html): a bezel standing proud of the plate and a
-   paddle in it that tilts, one end pressed down into the housing and the other
-   standing clear of the rim, lit in the same studio as the start key and seen
-   from the same eye. Five frames of its lean are baked into a strip; left is off
-   (or the left legend), right is on (or the right legend), and the frames between
-   carry the snap. Loop's rocker is the strip with a lamp in the paddle's right
-   end, which lights orange as the contact passes centre. */
+/* Switch: a rocker mounted through the plate. The slot is a recess cut into
+   it; the knob is one element that slides to the side in use and tilts that
+   way with it, its leading edge dropping into the recess and its trailing
+   edge standing proud. It moves by a transform, so it travels rather than
+   cutting from one picture to another, and it goes over with a little
+   overshoot, the way a sprung switch does. Loop's knob carries a lamp that
+   lights orange when it is on. */
 .switch {
   position: relative;
   width: 46px;
   height: 24px;
   padding: 0;
   border: 0;
-  background: none;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #101012 0%, #141416 60%, #17171a 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 1px 0 #000, inset 1px 0 2px rgba(0, 0, 0, 0.6), inset -1px 0 2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.09), 0 1px 0 rgba(255, 255, 255, 0.06);
   cursor: pointer;
 }
-.switch::before {
-  content: "";
+.knob {
   position: absolute;
-  inset: -12px -10px -14px;    /* the render's margins for the shadow, painted clear of the box */
-  background-image: url("/rocker.png");
-  background-image: image-set(url("/rocker.webp") type("image/webp"), url("/rocker.png") type("image/png"));
-  background-repeat: no-repeat;
-  background-size: 500% 100%;
-  background-position: 0 0;
-  transition: background-position 0.13s steps(4, end);
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 18px;
+  border-radius: 4px;
+  /* ridged for the thumb, grained like the rest of the deck, lit from above */
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
+    var(--grain-key),
+    linear-gradient(180deg, #6f6f78 0%, #5c5c65 55%, #4a4a52 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 5px 0 7px -4px rgba(0, 0, 0, 0.75), inset -5px 0 7px -4px rgba(255, 255, 255, 0.2), 0 3px 6px rgba(0, 0, 0, 0.7);
+  transform: translateX(0) rotate(-3deg);
+  transition: transform 0.12s cubic-bezier(0.3, 1.4, 0.6, 1), box-shadow 0.12s ease-out;
 }
-.switch-lamp::before {
-  background-image: url("/rocker-lamp.png");
-  background-image: image-set(url("/rocker-lamp.webp") type("image/webp"), url("/rocker-lamp.png") type("image/png"));
+/* Over to the other side: the knob slides across and tilts the other way, the
+   shade moving to the edge that is now down. */
+.switch[aria-checked="true"] .knob,
+.switch[data-pos="r"] .knob {
+  transform: translateX(16px) rotate(3deg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -5px 0 7px -4px rgba(0, 0, 0, 0.75), inset 5px 0 7px -4px rgba(255, 255, 255, 0.2), 0 3px 6px rgba(0, 0, 0, 0.7);
 }
-.switch[aria-checked="true"]::before,
-.switch[data-pos="r"]::before {
-  background-position: 100% 0;
+/* a finger on it pushes the knob towards the other side before it goes over */
+.switch:active .knob {
+  transform: translateX(5px) rotate(-1.2deg);
+  transition-duration: 0.06s;
 }
-/* a finger on the free end dips it towards the other side before it snaps */
-.switch:active::before {
-  background-position: 25% 0;
-  transition-duration: 0.055s;
+.switch[aria-checked="true"]:active .knob,
+.switch[data-pos="r"]:active .knob {
+  transform: translateX(11px) rotate(1.2deg);
 }
-.switch[aria-checked="true"]:active::before,
-.switch[data-pos="r"]:active::before {
-  background-position: 75% 0;
+/* the lamp in Loop's knob: dark until it is on, then lit orange */
+.knob-led {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 4px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 1.5px;
+  background: linear-gradient(180deg, #3a1608, #241009);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.85), 0 0 0 0.5px rgba(0, 0, 0, 0.55);
+  transition: background 0.12s ease-out, box-shadow 0.12s ease-out;
 }
-.switch:focus-visible {
-  outline: none;
-}
-.switch:focus-visible::before {
-  outline: 2px solid var(--orange);
-  outline-offset: 11px;
-  border-radius: 8px;
+.switch[aria-checked="true"] .knob-led {
+  background: linear-gradient(180deg, #ffc590, #ff6d1e 45%, #f04e00);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 5px rgba(252, 82, 0, 0.95), 0 0 12px rgba(252, 82, 0, 0.55), 0 0 22px rgba(252, 82, 0, 0.3);
 }
 
 /* Keys. Every key stands on a lip and travels down onto it when pressed
@@ -1829,7 +1843,8 @@ summary:focus-visible {
   .btn,
   .pbtn,
   .go-cap,
-  .switch::before,
+  .knob,
+  .knob-led,
   .tile,
   .map-btn,
   .map-round,

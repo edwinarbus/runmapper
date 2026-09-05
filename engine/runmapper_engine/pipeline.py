@@ -315,10 +315,7 @@ def _outline_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, win
         out.extend(aligned[:3])
         return out, need_ft
     wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
-    rots = {round(r0, 1), 0.0}
-    if abs(r0) > 6.0:
-        rots.add(round(r0 / 2.0, 1))
-    rots = sorted(rots, key=abs)
+    rots = rotation_fan(r0)
     unit = wmax / rep["units_per_width"]
     if wmax >= rep["min_width_ft"]:
         out.append(dict(strokes=rep["strokes"], width_ft=wmax, aspect=1.0, rots=rots, kind="free",
@@ -386,10 +383,7 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=
     # Free-floating fallback: only when there is no grid to align to, or when
     # the letters would still be comfortably bigger than a block.
     wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
-    rots = {round(r0, 1), 0.0}
-    if abs(r0) > 6.0:
-        rots.add(round(r0 / 2.0, 1))
-    rots = sorted(rots, key=abs)
+    rots = rotation_fan(r0)
     unit = wmax / rep["units_per_width"]
     if wmax >= rep["min_width_ft"]:
         free = dict(strokes=rep["strokes"], width_ft=wmax, aspect=1.0, rots=rots, kind="free",
@@ -404,12 +398,25 @@ def text_size_candidates(rep, cap_ft, g, r0, regularity, loop, log=None, window=
     return out, need_ft
 
 
+def rotation_fan(r0, spread=36.0, step=12.0):
+    """Rotations to try for a free-floating shape (a drawing, an image, a word
+    off the lattice): north up, the grid angle, and a fan either side of the
+    grid angle, so the shape may turn a little when the streets fit it better
+    that way. Never more than 45 degrees from north, which would read as
+    sideways."""
+    rots = {0.0, round(r0, 1)}
+    k = 1
+    while k * step <= spread + 1e-6:
+        for r in (r0 + k * step, r0 - k * step):
+            if abs(r) <= 45.0:
+                rots.add(round(r, 1))
+        k += 1
+    return sorted(rots, key=abs)
+
+
 def image_size_candidates(rep, cap_ft, r0):
     wmax = min(rep["width_max_ft"], 2.4 * FT_PER_MI)
-    rots = {round(r0, 1), 0.0}
-    if abs(r0) > 6.0:
-        rots.add(round(r0 / 2.0, 1))
-    rots = sorted(rots, key=abs)
+    rots = rotation_fan(r0)
     out = []
     for f in (1.0, 0.86, 0.74):
         if wmax * f >= rep["min_width_ft"] or not out:

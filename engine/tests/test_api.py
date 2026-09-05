@@ -140,6 +140,45 @@ def test_a_client_that_goes_away_does_not_stop_the_search(serve):
     assert types == ["option", "progress", "option", "result"]
 
 
+class FakeShelf:
+    """A shelf like the Runtime Cache: whole values in, copies out."""
+
+    def __init__(self):
+        self.items = {}
+        self.sets = 0
+
+    def get(self, key):
+        v = self.items.get(key)
+        return json.loads(v) if v is not None else None
+
+    def set(self, key, value, options=None):
+        self.items[key] = json.dumps(value)
+        self.sets += 1
+
+
+def test_another_worker_serves_the_record_from_the_shelf(serve, monkeypatch):
+    shelf = FakeShelf()
+    monkeypatch.setattr(api, "make_shelf", lambda: shelf)
+    runner = serve(scripted(gap=0.3))
+    other = serve(scripted(gap=0.3))   # never sees the search itself
+    with post(runner, dict(FORM, job="job-five-1234")) as r:
+        first = next(line for line in r if line.strip())
+        assert json.loads(first)["type"] == "progress"
+        # while the search runs, the other worker hands out its lines from the shelf, waiting for new ones
+        t0 = time.time()
+        rec = record(other, "job-five-1234", after=1, wait=5)
+        assert rec["events"] and time.time() - t0 < 4
+        assert rec["events"][0]["type"] == "option"
+    types = ["progress"] + [e["type"] for e in rec["events"]]
+    while not rec["done"]:
+        rec = record(other, "job-five-1234", after=len(types), wait=5)
+        types += [e["type"] for e in rec["events"]]
+    assert types == ["progress", "option", "progress", "option", "result"]
+    # the shelf was written a handful of times, not once per line
+    assert 2 <= shelf.sets <= 6, shelf.sets
+    assert status(f"{other}/api/plan/never-started-1") == 404
+
+
 def test_draining_stream_reads_to_the_end_when_send_fails():
     seen = []
 

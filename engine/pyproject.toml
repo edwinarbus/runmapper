@@ -20,6 +20,8 @@ dependencies = [
 
 [project.optional-dependencies]
 serve = ["uvicorn[standard]>=0.29"]
+# On Vercel, the record of a search is shared between workers through the Runtime Cache.
+vercel = ["vercel-cache>=0.7.2"]
 preview = ["matplotlib>=3.8"]
 dev = ["pytest>=8", "matplotlib>=3.8", "uvicorn[standard]>=0.29"]
 

@@ -9,7 +9,9 @@ REF="${VERCEL_GIT_COMMIT_SHA:-main}"
 # The repository being built (Vercel sets these), so a rename needs no edit here.
 OWNER="${VERCEL_GIT_REPO_OWNER:-edwinarbus}"
 SLUG="${VERCEL_GIT_REPO_SLUG:-runmapper}"
-SPEC="runmapper-engine @ git+https://github.com/${OWNER}/${SLUG}@${REF}#subdirectory=engine"
+# The vercel extra brings the Runtime Cache client, through which every worker
+# can hand out the record of a search another worker ran.
+SPEC="runmapper-engine[vercel] @ git+https://github.com/${OWNER}/${SLUG}@${REF}#subdirectory=engine"
 echo "Installing the route engine from ${OWNER}/${SLUG} at commit ${REF}"
 if command -v uv >/dev/null 2>&1; then
   uv pip install --python "$(command -v python)" "$SPEC"
@@ -17,4 +19,4 @@ else
   python -m ensurepip --upgrade >/dev/null 2>&1 || true
   python -m pip install --disable-pip-version-check --no-cache-dir "$SPEC"
 fi
-python -c "import runmapper_engine, numpy, scipy; print('runmapper engine', runmapper_engine.__version__, 'installed')"
+python -c "import runmapper_engine, numpy, scipy, vercel.cache; print('runmapper engine', runmapper_engine.__version__, 'installed')"

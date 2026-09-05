@@ -11,7 +11,9 @@ its end whether or not the page is still listening, so a phone that sleeps
 the page (and the connection with it) does not stop the work. When the page
 comes back it asks GET /api/plan/{job}?after=N for the lines it missed and
 waits there for the rest. A record is kept for a quarter of an hour after
-the search ends.
+the search ends. On Vercel, where the page's next request may land on a
+different worker, each record is also put on a shelf every worker can reach,
+the Runtime Cache, so any of them can hand out its lines.
 """
 import asyncio
 import json
@@ -38,18 +40,44 @@ RECORD_STALE_S = 30 * 60    # an unfinished one is given up after this
 RECORD_LIMIT = 40           # searches on record at once, per worker
 POLL_WAIT_MAX_S = 25.0      # the longest one GET waits for a new line
 POLL_SETTLE_S = 0.8         # once a line has come, how long to let the next ones join it
+SHELF_TTL_S = RECORD_KEEP_S + 5 * 60   # a record on the shelf outlives the worker's own a little
+SHELF_EVERY_S = 1.0         # how often, at most, a running search is put on the shelf
+
+
+def make_shelf():
+    """Where records are shared between workers: the Vercel Runtime Cache
+    when this runs on Vercel (RUNTIME_CACHE_ENDPOINT is set and vercel-cache
+    is installed), else nothing, and a worker's records stay its own."""
+    if not os.environ.get("RUNTIME_CACHE_ENDPOINT"):
+        return None
+    try:
+        from vercel.cache import RuntimeCache
+    except ImportError:
+        print("vercel-cache is not installed: search records stay on the worker that made them", flush=True)
+        return None
+    return RuntimeCache(namespace="runmapper")
+
+
+def shelf_key(job):
+    return f"plan:{job}"
 
 
 class Record:
     """What one search has said so far. The page that started it reads the
     stream live; a page that comes back after a sleep reads the same lines
-    from here and waits for the rest."""
+    from here and waits for the rest. Given a shelf, a copy is kept there
+    too, for the other workers."""
 
-    def __init__(self):
+    def __init__(self, job=None, shelf=None):
         self.events: list[dict] = []
         self.done = False
         self.touched = time.time()
         self.cond = threading.Condition()
+        self.job = job
+        self.shelf = shelf
+        self.dirty = shelf is not None   # the shelf wants the empty record at once
+        if shelf is not None:
+            threading.Thread(target=self._keep_shelved, daemon=True).start()
 
     def put(self, ev):
         """Append an event; None marks the end of the search."""
@@ -59,7 +87,27 @@ class Record:
             else:
                 self.events.append(ev)
             self.touched = time.time()
+            self.dirty = True
             self.cond.notify_all()
+
+    def _keep_shelved(self):
+        """Puts the record on the shelf whenever it has changed, at most
+        about once a second while the search runs and once more when it
+        ends, so a worker that did not run the search can still hand out
+        its lines. The search itself never waits on this."""
+        while True:
+            with self.cond:
+                while not self.dirty:
+                    self.cond.wait()
+                self.dirty = False
+                snap = dict(events=list(self.events), done=self.done)
+            try:
+                self.shelf.set(shelf_key(self.job), snap, {"ttl": SHELF_TTL_S})
+            except Exception as ex:  # noqa: BLE001 - the shelf is a convenience, never the search
+                print(f"[plan] the shelf did not take the record: {type(ex).__name__}: {ex}", flush=True)
+            if snap["done"]:
+                return
+            time.sleep(SHELF_EVERY_S)
 
     def after(self, n, wait, settle=POLL_SETTLE_S):
         """The events from the n-th on, waiting up to `wait` seconds for one
@@ -113,6 +161,7 @@ def create_app(cache_dir=None):
     gate = threading.Semaphore(max_jobs)
     records: dict[str, Record] = {}
     records_lock = threading.Lock()
+    shelf = make_shelf()
 
     def open_record(job):
         """A fresh record for this job id, making room by dropping the
@@ -127,8 +176,27 @@ def create_app(cache_dir=None):
             while len(records) >= RECORD_LIMIT:
                 oldest = min(records, key=lambda k: (not records[k].done, records[k].touched))
                 del records[oldest]
-            rec = records[job] = Record()
+            rec = records[job] = Record(job, shelf)
         return rec
+
+    def from_shelf(job, after, wait):
+        """The record another worker put on the shelf: its lines from the
+        `after`-th on and whether the search has ended, looking again about
+        once a second for up to `wait` seconds while there is nothing new.
+        None when the shelf has no such record."""
+        end = time.time() + wait
+        misses = 0
+        while True:
+            snap = shelf.get(shelf_key(job))
+            if isinstance(snap, dict) and isinstance(snap.get("events"), list):
+                events, done = snap["events"], bool(snap.get("done"))
+                if len(events) > after or done or time.time() >= end:
+                    return events[after:], done
+            else:
+                misses += 1
+                if misses >= 3 or time.time() >= end:   # not there, or the shelf is unwell
+                    return None, False
+            time.sleep(min(1.0, max(0.05, end - time.time())))
 
     app = FastAPI(title="runmapper", version=__version__)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"],
@@ -246,13 +314,21 @@ def create_app(cache_dir=None):
     async def plan_record(job: str, after: int = 0, wait: float = 20.0):
         """The lines of a search from the `after`-th on, for a page that lost
         the stream. Rather than answer empty, it waits up to `wait` seconds
-        for a new line, so a page need not ask over and over."""
+        for a new line, so a page need not ask over and over. A search this
+        worker did not run is looked up on the shelf."""
+        after = max(after, 0)
+        wait = max(0.0, min(wait, POLL_WAIT_MAX_S))
         with records_lock:
             rec = records.get(job)
-        if rec is None:
+        loop_ = asyncio.get_running_loop()
+        if rec is not None:
+            events, done = await loop_.run_in_executor(None, rec.after, after, wait)
+        elif shelf is not None and JOB_ID.match(job):
+            events, done = await loop_.run_in_executor(None, from_shelf, job, after, wait)
+            if events is None:
+                raise HTTPException(404, "no search on record with that id")
+        else:
             raise HTTPException(404, "no search on record with that id")
-        events, done = await asyncio.get_running_loop().run_in_executor(
-            None, rec.after, max(after, 0), max(0.0, min(wait, POLL_WAIT_MAX_S)))
         return JSONResponse(dict(events=events, done=done), headers={"Cache-Control": "no-store"})
 
     return app

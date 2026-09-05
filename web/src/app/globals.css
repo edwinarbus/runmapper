@@ -739,12 +739,15 @@ body {
 }
 
 /* The start key: big, orange, and it goes down when you hit it. Built the
-   way a key is: a face under the light (a soft flare at the top left, the
-   edges falling away all round, a thread of light along the top lip and
-   the left edge, shade along the bottom and the right, a fine grain), on a
-   side wall in its own shade, darker as it nears the deck, seated by a
-   tight contact shadow with a broad soft one under that, and a little of
-   its orange thrown back onto the deck. */
+   way a moulded key is: a cap whose face pillows up a little (brightest
+   above centre, rolling off into shade towards every edge), a rolled edge
+   all round (a wide band of light along the top and the left, of shade
+   along the bottom and the right), a flare where the light lands top left,
+   a fine grain; under it a side wall in its own shade, a crease where the
+   wall meets the cap's edge, darkest at the deck; seated by a tight contact
+   shadow with a broad soft one under that, a little orange thrown back on
+   the deck. The legend is engraved: paint in a recess, a line of shade
+   along the top of each letter and a thread of light along the bottom. */
 .go {
   position: relative;
   z-index: 0;
@@ -753,17 +756,17 @@ body {
   justify-content: center;
   gap: 0.9rem;
   width: 100%;
-  height: 66px;
+  height: 68px;
   padding-top: 0.1em;
   border: 0;
-  border-radius: 10px;
+  border-radius: 11px;
   background: none;
-  color: #fff6f0;
+  color: #f6e8dc;
   font-size: 2.1rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 -1px 0 rgba(70, 20, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.42), 0 2px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
@@ -771,77 +774,101 @@ body {
 .go::after {
   content: "";
   position: absolute;
-  border-radius: 10px;
+  border-radius: 11px;
   pointer-events: none;
   transition: bottom 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
 }
-/* the side wall, and the key's seat on the deck */
+/* the side wall (its visible band is the bottom 9px), and the key's seat */
 .go::before {
   z-index: -2;
   top: 0;
   right: 0;
-  bottom: -7px;
+  bottom: -9px;
   left: 0;
-  background: linear-gradient(180deg, #d94b00 0%, #bd3f00 30%, #9a3200 70%, #6a2100 100%);
-  box-shadow: inset 2px 0 2px -1px rgba(255, 255, 255, 0.12), inset -2px 0 2px -1px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 4px rgba(0, 0, 0, 0.55), 0 10px 16px rgba(0, 0, 0, 0.45), 0 26px 44px -8px rgba(0, 0, 0, 0.6), 0 12px 36px rgba(252, 82, 0, 0.14);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 10%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0.28) 100%),
+    linear-gradient(180deg, #c74400 0%, #c74400 calc(100% - 9px), #a83700 calc(100% - 8px), #d04a00 calc(100% - 6px), #b53d00 calc(100% - 3px), #7f2a00 calc(100% - 1px), #4a1700 100%);
+  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.16), inset -3px 0 4px -2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6), 0 12px 40px rgba(252, 82, 0, 0.16);
 }
-/* the face */
+/* the cap's face */
 .go::after {
   z-index: -1;
   inset: 0;
-  background: var(--orange-key);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 2px 3px -1px rgba(255, 255, 255, 0.28), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.3), inset 2px 0 2px -1px rgba(255, 255, 255, 0.16), inset -2px 0 3px -1px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(90, 30, 0, 0.28);
+  background:
+    var(--grain-key),
+    radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.09) 32%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0.26) 100%),
+    linear-gradient(180deg, #ff8340 0%, #fd6219 55%, #f04e04 100%);
+  box-shadow: inset 0 4px 6px -2px rgba(255, 255, 255, 0.75), inset 4px 0 6px -3px rgba(255, 255, 255, 0.4), inset -5px 0 7px -3px rgba(0, 0, 0, 0.36), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.46), inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 @media (hover: hover) {
   .go:hover:not(:disabled)::after {
-    background: var(--orange-key-hover);
+    background:
+      var(--grain-key),
+      radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 100%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0) 62%),
+      radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.08) 70%, rgba(0, 0, 0, 0.22) 100%),
+      linear-gradient(180deg, #ff8c4c 0%, #ff6c24 55%, #f7550a 100%);
   }
 }
-/* Down: the face travels onto its seat, the wall all but gone under it,
+/* Down: the cap travels onto its seat, the wall all but gone under it,
    the socket's lip shading the top of the face, the seat's shadow drawn
    in tight. */
 .go:active:not(:disabled),
 .go[data-pressed]:not(:disabled) {
-  transform: translateY(6px);
+  transform: translateY(7px);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
 .go:active:not(:disabled)::before,
 .go[data-pressed]:not(:disabled)::before {
-  bottom: -1px;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.7);
+  bottom: -2px;
+  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.1), inset -3px 0 4px -2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
 .go:active:not(:disabled)::after,
 .go[data-pressed]:not(:disabled)::after {
-  background: var(--grain-key), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(180deg, #c94200 0%, #e85000 35%, #ff6a22 100%);
-  box-shadow: inset 0 7px 9px -3px rgba(0, 0, 0, 0.55), inset 2px 0 3px -2px rgba(0, 0, 0, 0.35), inset -2px 0 3px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
+  background:
+    var(--grain-key),
+    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.12) 70%, rgba(0, 0, 0, 0.3) 100%),
+    linear-gradient(180deg, #c24000 0%, #e04d00 35%, #fb6620 100%);
+  box-shadow: inset 0 8px 10px -3px rgba(0, 0, 0, 0.6), inset 3px 0 4px -2px rgba(0, 0, 0, 0.35), inset -3px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -2px 3px -1px rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(60, 20, 0, 0.45);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
-/* Not yet: a dark key, the same build, unlit. */
+/* Not yet: a dark key, the same build, unlit, its legend engraved unpainted. */
 .go:disabled {
-  color: var(--ink-3);
-  text-shadow: none;
+  color: #55545e;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.09);
   cursor: not-allowed;
 }
 .go:disabled::before {
-  background: linear-gradient(180deg, #232329 0%, #1a1a1f 40%, #0f0f12 100%);
-  box-shadow: inset 2px 0 2px -1px rgba(255, 255, 255, 0.06), inset -2px 0 2px -1px rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 4px rgba(0, 0, 0, 0.55), 0 10px 16px rgba(0, 0, 0, 0.45), 0 26px 44px -8px rgba(0, 0, 0, 0.6);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 10%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0.35) 100%),
+    linear-gradient(180deg, #1e1e24 0%, #1e1e24 calc(100% - 9px), #141418 calc(100% - 8px), #26262d calc(100% - 6px), #1a1a1f calc(100% - 3px), #0d0d10 calc(100% - 1px), #050506 100%);
+  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.07), inset -3px 0 4px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6);
 }
 .go:disabled::after {
-  background: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #2b2b32 0%, #202026 60%, #1a1a1f 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 2px 3px -1px rgba(255, 255, 255, 0.08), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.45), inset 2px 0 2px -1px rgba(255, 255, 255, 0.06), inset -2px 0 3px -1px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  background:
+    var(--grain-key),
+    radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.14) 70%, rgba(0, 0, 0, 0.34) 100%),
+    linear-gradient(180deg, #2e2e35 0%, #222228 55%, #1b1b20 100%);
+  box-shadow: inset 0 4px 6px -2px rgba(255, 255, 255, 0.2), inset 4px 0 6px -3px rgba(255, 255, 255, 0.09), inset -5px 0 7px -3px rgba(0, 0, 0, 0.45), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
+/* the chevrons, engraved like the letters */
 .go svg {
   position: relative;
   top: -0.05em;
   width: 30px;
   height: 22px;
+  filter: drop-shadow(0 -1px 0 rgba(70, 20, 0, 0.55)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4));
 }
 .go:disabled svg {
-  opacity: 0.4;
+  opacity: 0.6;
+  filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.09));
 }
 
 /* The stopwatch that runs while the engine searches, mounted in a tray cut

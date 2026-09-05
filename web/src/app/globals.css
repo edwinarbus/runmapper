@@ -680,6 +680,11 @@ span.plate-lab {
   background: var(--well-face);
   box-shadow: var(--slot);
 }
+/* The selector over the split-flap board lines up with the board's well,
+   which stands ten pixels wider than the column on either side. */
+.seg-draw {
+  margin-right: -10px;
+}
 .seg-thumb {
   position: absolute;
   top: 3px;
@@ -698,12 +703,12 @@ span.plate-lab {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 30px;                /* 36px with the slot, the height of every small key */
+  height: 26px;                /* 32px with the slot: a selector, smaller than a key */
   border-radius: 4px;
-  padding: 0 0.55rem;
-  font-size: 11.5px;
+  padding: 0 0.45rem;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-2);
   text-align: center;

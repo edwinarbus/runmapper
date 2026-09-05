@@ -654,7 +654,7 @@ export default function RunMapper() {
           <div key="setup" className="rise">
             {/* 01 Draw */}
             <section className="px-6 py-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <div className="step font-display">
                   <span className="num">01</span>
                   <span>Draw</span>
@@ -664,6 +664,7 @@ export default function RunMapper() {
                   value={mode}
                   onChange={setMode}
                   label="Words, a drawing or an image"
+                  className="seg-draw"
                 />
               </div>
               {mode === "text" ? (

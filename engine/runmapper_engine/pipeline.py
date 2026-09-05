@@ -216,7 +216,10 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
         # Two lines: one staircased stroke per line, the second a lattice row
         # below the first; the hop between lines and the way home are priced
         # roughly (the assembler picks the cheapest joins).
+        # The strokes are the staircased walk the streets can carry; `display`
+        # is the same walk with its diagonals kept, for the target on the map.
         Ps = [font.staircase(P, kx, ky) for P in lay["points_list"]]
+        Qs = [np.asarray(P, float) for P in lay["points_list"]]
         walk_ft = 0.0
         for P in Ps:
             d = np.abs(np.diff(P, axis=0))
@@ -230,10 +233,13 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
         scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
         strokes = [Stroke((P - ctr) / scale, name=f"text:{lay['parts'][i]}", closed=False, kind="text")
                    for i, P in enumerate(Ps)]
-        return dict(strokes=strokes, width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
+        display = [Stroke((Q - ctr) / scale, name=f"text:{lay['parts'][i]}", closed=False, kind="text")
+                   for i, Q in enumerate(Qs)]
+        return dict(strokes=strokes, display=display, width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
                     unit_ft=min(ux, uy), est_ft=(walk_ft + ret_ft) * INFLATION_ALIGNED,
                     units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
     P = font.staircase(lay["points"], kx, ky)
+    Q = np.asarray(lay["points"], float)
     d = np.abs(np.diff(P, axis=0))
     walk_ft = float(d[:, 0].sum() * ux + d[:, 1].sum() * uy)
     switches = sum(1 for a, b in zip(lay["sides"][:-1], lay["sides"][1:]) if a != b)
@@ -242,7 +248,8 @@ def _lattice_layout(rep, kx, ky, dx, dy, loop):
     ctr = (lo + hi) / 2.0
     scale = float(max(hi[0] - lo[0], hi[1] - lo[1])) or 1.0
     stroke = Stroke((P - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
-    return dict(strokes=[stroke], width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
+    shown = Stroke((Q - ctr) / scale, name=f"text:{lay['text']}", closed=False, kind="text")
+    return dict(strokes=[stroke], display=[shown], width_ft=ux * scale, aspect=uy / ux, ux=ux, uy=uy, kx=kx, ky=ky,
                 unit_ft=min(ux, uy), est_ft=(walk_ft + ret_ft) * INFLATION_ALIGNED,
                 units_per_width=scale, area=ux * uy, shape=abs(math.log((uy / ux) / 0.9)))
 
@@ -1135,14 +1142,20 @@ def _warp_to_streets(c, lines, xtree):
 
     cols_new, su = remap(cols, ulines, tol_u)
     rows_new, sv = remap(rows, vlines, tol_v)
-    warped = []
-    for p in polys:
+
+    def bend(p):
         u = p[:, 0] * ca + p[:, 1] * sa
         v = -p[:, 0] * sa + p[:, 1] * ca
         u2 = np.interp(u, cols, cols_new) if len(cols) > 1 else u
         v2 = np.interp(v, rows, rows_new) if len(rows) > 1 else v
-        warped.append(np.c_[u2 * ca - v2 * sa, u2 * sa + v2 * ca])
+        return np.c_[u2 * ca - v2 * sa, u2 * sa + v2 * ca]
+
+    warped = [bend(p) for p in polys]
     c["polys"] = warped
+    # The letters as designed, diagonals and all, bent to the same streets:
+    # what the map shows as the target, while the route follows the stairs.
+    if sz.get("display"):
+        c["shown"] = [bend(p) for p in transform(sz["display"], (c["cx"], c["cy"]), c["width_ft"], c["rot"], c["aspect"])]
     corners = np.unique(np.vstack(warped).round(1), axis=0)
     d, _ = xtree.query(corners)
     c["corner_cover"] = float((d <= 0.25 * min(sz["dx"], sz["dy"])).mean())
@@ -1199,7 +1212,13 @@ def _snap_one(sn, cand, choice, loop, cap_ft, bucket_key="long"):
     ideal = [s["ideal"] for s in snapped]
     v = vis_match(route_xy(g, full), ideal, tol_ft=match_tolerance(cand["width_ft"]))
     fits = dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else 1.02)
-    return dict(cand=cand, nodes=full, snapped=snapped, ideal=ideal, dist_ft=dist_ft,
+    # What the map shows as the target: the letters as designed (a Z with
+    # its diagonal) where the size keeps that form; the scored ideal is the
+    # staircase the streets can carry.
+    shown = cand.get("shown")
+    if shown is None and cand["size"].get("display"):
+        shown = transform(cand["size"]["display"], center, cand["width_ft"], cand["rot"], cand.get("aspect", 1.0))
+    return dict(cand=cand, nodes=full, snapped=snapped, ideal=ideal, shown=shown if shown is not None else ideal, dist_ft=dist_ft,
                 dist_mi=dist_ft / FT_PER_MI, fits=fits,
                 next_bucket=None if fits else suggest_bucket(dist_ft, bucket_key),
                 iou=v["iou"], cover=v["cover"], prec=v["prec"], connlen=connlen, graph=g)
@@ -1283,7 +1302,7 @@ def _finish(g, proj, best, choice, req, bucket):
         desc += f", {prof['gain']:.0f} ft gain"
     desc += ". Made with drawmy.run"
     ideal_ll = []
-    for poly in best["ideal"]:
+    for poly in best.get("shown") or best["ideal"]:
         la, lo = proj.to_ll(poly[:, 0], poly[:, 1])
         ideal_ll.append(np.c_[la, lo].round(6).tolist())
     b0 = math.degrees(math.atan2(X[1] - X[0], Y[1] - Y[0])) % 360.0 if len(X) > 1 else 0.0

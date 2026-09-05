@@ -139,11 +139,71 @@ export class PlanError extends Error {
   }
 }
 
+/** The engine has no record of the search: another worker answered, or it
+ *  was too long ago. */
+export class GoneError extends Error {}
+
+/** A search in flight: its id on the engine and how many of its lines the
+ *  page has read, so a page that lost the stream can ask for the rest. */
+export interface PlanJob {
+  id: string;
+  seen: number;
+}
+
+export function newJob(): PlanJob {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Array.from({ length: 24 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+  return { id, seen: 0 };
+}
+
+const UNREACHABLE = "Couldn't reach the route engine. Check your connection and try again.";
+const NO_ANSWER = "The route engine stopped without an answer. Try again.";
+const POLL_WAIT_S = 20;        // how long one GET may wait on the engine for a new line
+const POLL_PATIENCE_MS = 45_000; // how long the engine may go unreachable before giving up
+
+type Line = { type: string; message?: string; suggest_bucket?: Bucket | null };
+
+/** One line of the search, handed to whoever listens; the result is kept. */
+function take(ev: Line, onProgress: (p: ProgressEvent) => void, onOption: ((o: PlanOptionEvent) => void) | undefined, box: { result: PlanResult | null }) {
+  if (ev.type === "progress") onProgress(ev as unknown as ProgressEvent);
+  else if (ev.type === "option") onOption?.(ev as unknown as PlanOptionEvent);
+  else if (ev.type === "result") box.result = ev as unknown as PlanResult;
+  else if (ev.type === "error") throw new PlanError(ev.message || "Something went wrong.", ev.suggest_bucket ?? null);
+}
+
+/** Waits `ms`, or, while the browser says it is offline, until it is back
+ *  online (or `ms` has passed, whichever is later). */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const done = () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("online", online);
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const abort = () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("online", online);
+      reject(new DOMException("aborted", "AbortError"));
+    };
+    const online = () => {
+      timer = setTimeout(done, ms);
+    };
+    if (typeof navigator !== "undefined" && navigator.onLine === false) window.addEventListener("online", online, { once: true });
+    else timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export async function planRun(
   input: PlanInput,
   onProgress: (p: ProgressEvent) => void,
   signal?: AbortSignal,
   onOption?: (o: PlanOptionEvent) => void,
+  job?: PlanJob,
 ): Promise<PlanResult> {
   const fd = new FormData();
   fd.set("text", input.text ?? "");
@@ -152,6 +212,7 @@ export async function planRun(
   fd.set("bucket", input.bucket);
   fd.set("loop", input.loop ? "true" : "false");
   fd.set("style", input.style ?? "auto");
+  if (job) fd.set("job", job.id);
   if (input.image) fd.set("image", input.image, input.image.name);
 
   let res: Response;
@@ -159,7 +220,7 @@ export async function planRun(
     res = await fetch(`${API_URL}/api/plan`, { method: "POST", body: fd, signal });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new PlanError("Couldn't reach the route engine. Check your connection and try again.");
+    throw new PlanError(UNREACHABLE);
   }
   if (!res.ok || !res.body) {
     let msg = `The route engine answered ${res.status}. Try again in a moment.`;
@@ -175,7 +236,7 @@ export async function planRun(
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
-  let result: PlanResult | null = null;
+  const box = { result: null as PlanResult | null };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -185,15 +246,58 @@ export async function planRun(
       const line = buf.slice(0, nl).trim();
       buf = buf.slice(nl + 1);
       if (!line) continue;
-      const ev = JSON.parse(line);
-      if (ev.type === "progress") onProgress(ev as ProgressEvent);
-      else if (ev.type === "option") onOption?.(ev as PlanOptionEvent);
-      else if (ev.type === "result") result = ev as PlanResult;
-      else if (ev.type === "error") throw new PlanError(ev.message || "Something went wrong.", ev.suggest_bucket ?? null);
+      const ev = JSON.parse(line) as Line;
+      if (job) job.seen++;
+      take(ev, onProgress, onOption, box);
     }
   }
-  if (!result) throw new PlanError("The route engine stopped without an answer. Try again.");
-  return result;
+  if (!box.result) throw new PlanError(NO_ANSWER);
+  return box.result;
+}
+
+/** Picks a search back up from its record on the engine after the stream
+ *  was lost: the lines the page has not seen, waiting on the engine for new
+ *  ones, until the result. Throws GoneError when the engine has no record
+ *  of it, and stops asking at `until` (a time). */
+export async function resumeRun(
+  job: PlanJob,
+  onProgress: (p: ProgressEvent) => void,
+  signal: AbortSignal | undefined,
+  onOption: ((o: PlanOptionEvent) => void) | undefined,
+  until: number,
+): Promise<PlanResult> {
+  let missing = 0;   // when the engine first went unreachable, in this run of misses
+  const miss = async (why: string) => {
+    missing ||= Date.now();
+    if (Date.now() - missing > POLL_PATIENCE_MS) throw new PlanError(why);
+    await pause(1500, signal);
+  };
+  for (;;) {
+    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/api/plan/${encodeURIComponent(job.id)}?after=${job.seen}&wait=${POLL_WAIT_S}`, { signal, cache: "no-store" });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") throw err;
+      await miss(UNREACHABLE);
+      continue;
+    }
+    if (res.status === 404) throw new GoneError("no record of the search");
+    if (!res.ok) {
+      await miss(`The route engine answered ${res.status}. Try again in a moment.`);
+      continue;
+    }
+    missing = 0;
+    const j = (await res.json()) as { events: Line[]; done: boolean };
+    const box = { result: null as PlanResult | null };
+    for (const ev of j.events) {
+      job.seen++;
+      take(ev, onProgress, onOption, box);
+    }
+    if (box.result) return box.result;
+    if (j.done) throw new PlanError(NO_ANSWER);
+    if (Date.now() > until) throw new PlanError("The search took too long. Try again.");
+  }
 }
 
 /** One stroke of the word as it will be run: normalised points, y down. */

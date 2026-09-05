@@ -7,6 +7,7 @@ import {
   type Bucket,
   type EstimateResult,
   type PlanOption,
+  type PlanOptionEvent,
   type PlanResult,
   type ProgressEvent,
   STYLES,
@@ -18,7 +19,9 @@ import {
   downloadGpx,
   estimate,
   fmtDist,
+  newJob,
   planRun,
+  resumeRun,
   runFileStem,
 } from "@/lib/api";
 import { DAY_STYLE } from "@/lib/basemaps";
@@ -48,6 +51,9 @@ const MODES: { key: Mode; label: string; hint: string }[] = [
   { key: "image", label: "Image", hint: "Upload a logo or a simple drawing" },
 ];
 type Status = "idle" | "planning" | "done" | "error";
+// How long after starting a search the page keeps asking the engine for the
+// rest of it: the engine's own limit on a search (5 min) and a little over.
+const RESUME_LIMIT_MS = 330_000;
 
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
@@ -300,6 +306,7 @@ export default function RunMapper() {
     const ctl = new AbortController();
     abort.current = ctl;
     userPicked.current = false;
+    const t0 = Date.now();
     const arrived: PlanOption[] = [];
     const found = () => arrived.filter(Boolean);
     // A phone that puts the page to sleep drops the stream. Note it, so a
@@ -312,43 +319,61 @@ export default function RunMapper() {
     // A drawing travels as a stroked SVG, which the engine reads as line art.
     const upload = mode === "image" ? image : mode === "draw" ? new File([drawingSvg(draw)], DRAW_FILE, { type: "image/svg+xml" }) : null;
     const input = { text: mode === "text" ? text : undefined, image: upload, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style: mode === "draw" ? ("auto" as Style) : style };
+    const onProgress = (p: ProgressEvent) => {
+      setProgress(p);
+      if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
+    };
+    const onOption = (o: PlanOptionEvent) => {
+      // Show each route the moment it is found: the bibs and the map
+      // follow the newest one unless the user has picked one. The
+      // first look near the pin arrives early and may be replaced.
+      const { type: _t, index, ...opt } = o;
+      void _t;
+      arrived[index] = opt;
+      const first = arrived.find(Boolean);
+      if (!first) return;
+      setResult({ ...first, type: "result", options: found() });
+      if (!userPicked.current) setOptIdx(found().length - 1);
+      void lookupCity(opt.route.start);
+    };
+    const finish = (r: PlanResult) => {
+      // The final answer repeats the streamed options; keep those objects so
+      // the route on show is not redrawn.
+      setResult(arrived.length && r.options && r.options.length === found().length ? { ...r, options: found() } : r);
+      if (!arrived.length) setOptIdx(0);
+      void lookupCity(r.route.start);
+      setStatus("done");
+    };
+    // A stream that went, rather than an engine that answered.
+    const isDrop = (e: Error) => !(e instanceof PlanError) || /stopped without an answer|reach the route engine|took too long/i.test(e.message);
     try {
       for (let attempt = 1; ; attempt++) {
+        const job = newJob();
         try {
-          const r = await planRun(
-            input,
-            (p) => {
-              setProgress(p);
-              if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
-            },
-            ctl.signal,
-            (o) => {
-              // Show each route the moment it is found: the bibs and the map
-              // follow the newest one unless the user has picked one. The
-              // first look near the pin arrives early and may be replaced.
-              const { type: _t, index, ...opt } = o;
-              void _t;
-              arrived[index] = opt;
-              const first = arrived.find(Boolean);
-              if (!first) return;
-              setResult({ ...first, type: "result", options: found() });
-              if (!userPicked.current) setOptIdx(found().length - 1);
-              void lookupCity(opt.route.start);
-            },
-          );
-          // The final answer repeats the streamed options; keep those objects so
-          // the route on show is not redrawn.
-          setResult(arrived.length && r.options && r.options.length === found().length ? { ...r, options: found() } : r);
-          if (!arrived.length) setOptIdx(0);
-          void lookupCity(r.route.start);
-          setStatus("done");
+          finish(await planRun(input, onProgress, ctl.signal, onOption, job));
           return;
         } catch (e) {
           if ((e as Error).name === "AbortError") {
             setStatus("idle");
             return;
           }
-          const dropped = !(e instanceof PlanError) || /stopped without an answer|reach the route engine/i.test(e.message);
+          let err = e as Error;
+          if (isDrop(err)) {
+            // The stream went (a phone that sleeps the page cuts it), but the
+            // search goes on at the engine: pick it up from its record there.
+            setProgress((p) => ({ type: "progress", stage: "resume", pct: p?.pct ?? 2, msg: "Picking the search back up" }));
+            try {
+              finish(await resumeRun(job, onProgress, ctl.signal, onOption, t0 + RESUME_LIMIT_MS));
+              return;
+            } catch (e2) {
+              if ((e2 as Error).name === "AbortError") {
+                setStatus("idle");
+                return;
+              }
+              err = e2 as Error;   // no record of it, or the engine's own answer
+            }
+          }
+          const dropped = isDrop(err);
           if (dropped && found().length) {
             // The connection went, but routes had arrived: keep them.
             setResult({ ...found()[0], type: "result", options: found() });
@@ -364,8 +389,8 @@ export default function RunMapper() {
             setLaps(0);
             continue;
           }
-          setError(e instanceof PlanError ? e.message : `Something went wrong: ${(e as Error).message}`);
-          setSuggest(e instanceof PlanError ? e.suggest : null);
+          setError(err instanceof PlanError ? err.message : `Something went wrong: ${err.message}`);
+          setSuggest(err instanceof PlanError ? err.suggest : null);
           setStatus("error");
           return;
         }

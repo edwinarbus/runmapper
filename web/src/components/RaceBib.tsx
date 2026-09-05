@@ -192,7 +192,7 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
           </>
         )}
         <span className="bib-sponsor font-display" aria-hidden="true">
-          drawmy<i className="bib-dot" /><span>run</span>
+          drawmy<i className="bib-dot">.</i><span>run</span>
         </span>
       </div>
     </>

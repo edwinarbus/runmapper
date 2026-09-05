@@ -253,7 +253,8 @@ export default function MapView(props: MapViewProps) {
     });
     const setup = () => {
       if (ready.current || m.getSource("route")) return;
-      addRouteLayers(m, applied.current === "night");
+      // The dark casing serves the satellite map too: white is lost against the imagery.
+      addRouteLayers(m, applied.current !== "day");
       ready.current = true;
       apply();
     };

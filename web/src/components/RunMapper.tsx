@@ -515,8 +515,6 @@ export default function RunMapper() {
   };
 
   const statusWord = engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting";
-  // The wordmark's period as a status light.
-  const light = engine !== "online" ? "dim" : status === "planning" ? "busy" : status === "done" && result ? "ready" : "idle";
 
   const progressLane = <Stopwatch pct={progress?.pct ?? 0} msg={progress?.msg ?? "Working"} laps={laps} startedAt={startedAt} onStop={cancel} />;
 
@@ -552,13 +550,13 @@ export default function RunMapper() {
       >
         <div className="checker" aria-hidden="true" />
         <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
-          {/* The wordmark, and nothing else: drawmy.run, the .run in orange. Its period is
-              the status light: pulsing while the engine computes, green once a route is
-              ready, dim while the engine is out of reach. */}
+          {/* The wordmark, and nothing else: drawmy.run, the run in orange and the period
+              the green of the start dot. The period is the face's own glyph, so it is drawn
+              by the text engine with the letters, round, on the baseline, and kerned. */}
           <h1 className="logo font-display" aria-label="drawmy.run">
             <span className="logo-word" aria-hidden="true">
               <span className="logo-draw">DRAWMY</span>
-              <span className="logo-period" data-state={light} />
+              <span className="logo-period">.</span>
               <span className="logo-run">RUN</span>
             </span>
           </h1>

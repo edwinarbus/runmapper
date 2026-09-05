@@ -102,6 +102,8 @@ export function setRouteOpacity(m: maplibregl.Map, a: number, night: boolean) {
 /** Sources and layers for one route: glow or shadow, casing, line, the
  *  target shape, chevrons, start, finish and the draw head. */
 export function addRouteLayers(m: maplibregl.Map, night: boolean) {
+  // `night` is the dark treatment: a near-black casing under the line, for
+  // the night map and for satellite imagery, where a white casing is lost.
   if (m.getSource("route")) return;
   if (!m.hasImage(ARROW)) {
     const img = arrowImage();

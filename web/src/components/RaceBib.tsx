@@ -135,11 +135,11 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
         {o.message && <p className="bib-msg">{o.message}</p>}
         {tryLabel &&
           (live ? (
-            <button type="button" onClick={() => actions.onTry(o.suggest_bucket as Bucket)} className="pbtn pbtn-ink">
+            <button type="button" onClick={() => actions.onTry(o.suggest_bucket as Bucket)} className="pbtn pbtn-ink bib-try">
               {tryLabel}
             </button>
           ) : (
-            <span className="pbtn pbtn-ink">{tryLabel}</span>
+            <span className="pbtn pbtn-ink bib-try">{tryLabel}</span>
           ))}
       </div>
       <div className="bib-crease" aria-hidden="true" />

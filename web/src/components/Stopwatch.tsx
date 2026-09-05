@@ -11,6 +11,8 @@ import Icon from "./Icon";
 const CX = 60;
 const CY = 74;
 const R_FACE = 46;
+const R_ARC = 50.5;   // the progress track runs round the bezel, between the face's rim and the steel
+const ARC_W = 5;
 
 const TICKS = Array.from({ length: 60 }, (_, i) => {
   const a = (i / 60) * Math.PI * 2;
@@ -58,7 +60,7 @@ export default function Stopwatch({
   const ss = Math.floor(secs % 60);
   const tenths = Math.floor((secs * 10) % 10);
   const clock = `${mm}:${String(ss).padStart(2, "0")}.${tenths}`;
-  const arc = 2 * Math.PI * 50;
+  const arc = 2 * Math.PI * R_ARC;
   const p = Math.min(1, Math.max(0, pct / 100));
   const lapAngle = (laps % 12) * 30;
   // The starter's call over the first seconds, while the streets load.
@@ -89,6 +91,9 @@ export default function Stopwatch({
             <stop offset="0.55" stopColor="#fff" stopOpacity="0.05" />
             <stop offset="1" stopColor="#fff" stopOpacity="0" />
           </linearGradient>
+          <filter id="sw-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.6" />
+          </filter>
         </defs>
         {/* crown, knurled, and the side pusher */}
         <rect x="56" y="13" width="8" height="8" fill="url(#sw-steel-2)" />
@@ -102,16 +107,31 @@ export default function Stopwatch({
         </g>
         {/* bezel */}
         <circle cx={CX} cy={CY} r="56" fill="url(#sw-steel)" stroke="#1b1b1f" strokeWidth="1" />
-        <circle cx={CX} cy={CY} r="52.5" fill="#24242a" />
-        {/* progress arc in the groove */}
-        <circle cx={CX} cy={CY} r="50" fill="none" stroke="#3a3a42" strokeWidth="3" />
+        <circle cx={CX} cy={CY} r="53.5" fill="#1d1d22" />
+        {/* the progress arc: a wide track sunk in the bezel, filled in orange with a glow behind it */}
+        <circle cx={CX} cy={CY} r={R_ARC} fill="none" stroke="#2e2e35" strokeWidth={ARC_W} />
+        <circle cx={CX} cy={CY} r={R_ARC + ARC_W / 2} fill="none" stroke="#000" strokeOpacity="0.45" strokeWidth="0.6" />
         <circle
           cx={CX}
           cy={CY}
-          r="50"
+          r={R_ARC}
           fill="none"
-          stroke="#fc5200"
-          strokeWidth="3"
+          stroke="#ff6a1f"
+          strokeOpacity="0.7"
+          strokeWidth={ARC_W + 2}
+          strokeLinecap="round"
+          strokeDasharray={`${arc * p} ${arc}`}
+          transform={`rotate(-90 ${CX} ${CY})`}
+          filter="url(#sw-glow)"
+          style={{ transition: "stroke-dasharray 0.5s ease" }}
+        />
+        <circle
+          cx={CX}
+          cy={CY}
+          r={R_ARC}
+          fill="none"
+          stroke="#ff5a00"
+          strokeWidth={ARC_W}
           strokeLinecap="round"
           strokeDasharray={`${arc * p} ${arc}`}
           transform={`rotate(-90 ${CX} ${CY})`}

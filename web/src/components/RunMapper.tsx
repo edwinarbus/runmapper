@@ -761,7 +761,7 @@ export default function RunMapper() {
                       title="Miles or kilometres"
                       onClick={() => setUnits(units === "mi" ? "km" : "mi")}
                     >
-                      <Toggle />
+                      <Toggle on={units === "km"} />
                     </button>
                     <button type="button" className="uswitch-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
@@ -778,7 +778,7 @@ export default function RunMapper() {
                       className="switch"
                       onClick={() => setLoop((x) => !x)}
                     >
-                      <Toggle />
+                      <Toggle on={loop} />
                     </button>
                   </div>
                 </div>

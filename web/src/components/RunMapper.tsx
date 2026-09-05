@@ -748,9 +748,10 @@ export default function RunMapper() {
                   <span className="num">03</span>
                   <span>How far</span>
                 </div>
-                <div className="flex items-center gap-4">
+                {/* The switch plate: both toggles mounted through one plate screwed to the deck, their legends engraved in it and lit when live */}
+                <div className="plate" role="group" aria-label="Units and loop">
                   <div className="uswitch" role="group" aria-label="Units">
-                    <button type="button" className="uswitch-lab" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
+                    <button type="button" className="plate-lab" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
                       mi
                     </button>
                     <button
@@ -763,12 +764,13 @@ export default function RunMapper() {
                     >
                       <Toggle on={units === "km"} />
                     </button>
-                    <button type="button" className="uswitch-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
+                    <button type="button" className="plate-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
                     </button>
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className={`eyebrow${loop ? " eyebrow-on" : ""}`}>Loop</span>
+                  <span className="plate-rule" aria-hidden="true" />
+                  <div className="uswitch">
+                    <span className={`plate-lab${loop ? " plate-lab-on" : ""}`}>Loop</span>
                     <button
                       type="button"
                       role="switch"

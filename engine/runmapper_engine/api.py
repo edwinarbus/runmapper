@@ -16,6 +16,7 @@ different worker, each record is also put on a shelf every worker can reach,
 the Runtime Cache, so any of them can hand out its lines.
 """
 import asyncio
+import contextvars
 import json
 import os
 import queue
@@ -46,9 +47,12 @@ SHELF_EVERY_S = 1.0         # how often, at most, a running search is put on the
 
 def make_shelf():
     """Where records are shared between workers: the Vercel Runtime Cache
-    when this runs on Vercel (RUNTIME_CACHE_ENDPOINT is set and vercel-cache
-    is installed), else nothing, and a worker's records stay its own."""
-    if not os.environ.get("RUNTIME_CACHE_ENDPOINT"):
+    when this runs on Vercel (VERCEL=1 and vercel-cache installed), else
+    nothing, and a worker's records stay its own. The client finds the
+    cache through the request's context, which Vercel's runtime sets for
+    each request, so it is used from request handlers or from threads
+    that carry a copy of that context."""
+    if os.environ.get("VERCEL") != "1" and not os.environ.get("RUNTIME_CACHE_ENDPOINT"):
         return None
     try:
         from vercel.cache import RuntimeCache
@@ -77,7 +81,9 @@ class Record:
         self.shelf = shelf
         self.dirty = shelf is not None   # the shelf wants the empty record at once
         if shelf is not None:
-            threading.Thread(target=self._keep_shelved, daemon=True).start()
+            # The thread carries a copy of the request's context, where the
+            # shelf's client finds its connection.
+            threading.Thread(target=contextvars.copy_context().run, args=(self._keep_shelved,), daemon=True).start()
 
     def put(self, ev):
         """Append an event; None marks the end of the search."""
@@ -203,8 +209,26 @@ def create_app(cache_dir=None):
                        allow_headers=["*"])
 
     @app.get("/api/health")
-    def health():
-        return dict(ok=True, version=__version__, buckets=BUCKETS, max_chars=font.MAX_CHARS)
+    def health(check: str = ""):
+        """Alive, and what it serves. With ?check=shelf it also puts a line on
+        the shelf and reads it back, to show whether records are shared."""
+        out = dict(ok=True, version=__version__, buckets=BUCKETS, max_chars=font.MAX_CHARS,
+                   shelf="runtime-cache" if shelf is not None else "none")
+        if check == "shelf" and shelf is not None:
+            stamp = dict(at=time.time())
+            try:
+                shelf.set(shelf_key("health"), stamp, {"ttl": 60})
+                back = shelf.get(shelf_key("health"))
+                out["shelf_ok"] = back == stamp
+                if not out["shelf_ok"]:
+                    out["shelf_back"] = back
+                # which client answered: the cache itself, or the SDK's in-memory stand-in
+                from vercel.cache.runtime_cache import resolve_cache
+                out["shelf_client"] = type(resolve_cache(sync=True)).__name__
+            except Exception as ex:  # noqa: BLE001 - report it
+                out["shelf_ok"] = False
+                out["shelf_error"] = f"{type(ex).__name__}: {ex}"
+        return out
 
     class Estimate(BaseModel):
         text: str
@@ -320,11 +344,11 @@ def create_app(cache_dir=None):
         wait = max(0.0, min(wait, POLL_WAIT_MAX_S))
         with records_lock:
             rec = records.get(job)
-        loop_ = asyncio.get_running_loop()
         if rec is not None:
-            events, done = await loop_.run_in_executor(None, rec.after, after, wait)
+            events, done = await asyncio.get_running_loop().run_in_executor(None, rec.after, after, wait)
         elif shelf is not None and JOB_ID.match(job):
-            events, done = await loop_.run_in_executor(None, from_shelf, job, after, wait)
+            # to_thread carries the request's context along, for the shelf's client
+            events, done = await asyncio.to_thread(from_shelf, job, after, wait)
             if events is None:
                 raise HTTPException(404, "no search on record with that id")
         else:

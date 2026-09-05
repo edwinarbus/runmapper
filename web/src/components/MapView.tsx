@@ -143,6 +143,7 @@ export default function MapView(props: MapViewProps) {
     if (!flying.current) return;
     flying.current = false;
     if (m.getTerrain()) m.setTerrain(null);
+    m.setCenterClampedToGround(true);
     if (m.getPitch() !== 0 || m.getBearing() !== 0) m.jumpTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
   };
 
@@ -210,22 +211,17 @@ export default function MapView(props: MapViewProps) {
     // so corners are swept rather than snapped.
     const headingAt = (i: number) => bearingBetween(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i)]);
     let bearing = headingAt(1);
-    let lead = 0;   // the flight starts once the camera has swung down onto the start
-    if (fly) {
-      flying.current = true;
-      if (m.getSource("terrain") && !m.getTerrain()) m.setTerrain({ source: "terrain", exaggeration: 1.2 });
-      lead = 1400;
-      m.easeTo({ center: pts[0], zoom: FLY_ZOOM, pitch: FLY_PITCH, bearing, duration: lead, padding: flyPadding(m), essential: true });
-    }
-    const t0 = performance.now() + lead;
+    // The camera's height above the ground is set here, not left to the map:
+    // with terrain, the map would otherwise lift or drop the camera the
+    // moment a new elevation tile arrived under it, a jump mid-flight. The
+    // ground under the tip is asked for each frame and followed gradually.
+    let elev = 0;
+    const groundAt = (p: LngLat) => (m.getTerrain() ? m.queryTerrainElevation(p) ?? elev : 0);
+    let t0 = 0;
+    let last = 0;
     let k = 1;
-    let last = t0;
     const frame = (now: number) => {
       if (!anim.current || anim.current.token !== token) return;
-      if (now < t0) {
-        anim.current = { raf: requestAnimationFrame(frame), token };
-        return;
-      }
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const u = Math.min(1, (now - t0) / duration);
@@ -247,7 +243,8 @@ export default function MapView(props: MapViewProps) {
       head.setData(pointFeature(tip));
       if (fly) {
         bearing += turnTowards(bearing, headingAt(k)) * Math.min(1, dt * 2.2);
-        m.jumpTo({ center: tip, bearing, pitch: FLY_PITCH, zoom: FLY_ZOOM, padding: flyPadding(m) });
+        elev += (groundAt(tip) - elev) * Math.min(1, dt * 3);
+        m.jumpTo({ center: tip, elevation: elev, bearing, pitch: FLY_PITCH, zoom: FLY_ZOOM, padding: flyPadding(m) });
       }
       if (u < 1) {
         anim.current = { raf: requestAnimationFrame(frame), token };
@@ -268,7 +265,36 @@ export default function MapView(props: MapViewProps) {
         }
       }
     };
-    anim.current = { raf: requestAnimationFrame(frame), token };
+    const begin = () => {
+      if (!anim.current || anim.current.token !== token) return;
+      t0 = performance.now();
+      last = t0;
+      anim.current = { raf: requestAnimationFrame(frame), token };
+    };
+    // The draw is on record from here, so a stop cancels whatever stage it is at.
+    anim.current = { raf: 0, token };
+    if (!fly) {
+      begin();
+      return;
+    }
+    // The flight: terrain on, and once the map has the ground in (or has had
+    // a fair moment to get it), the camera swings down onto the start; the
+    // run sets off the moment it lands, and not before.
+    flying.current = true;
+    m.setCenterClampedToGround(false);
+    if (m.getSource("terrain") && !m.getTerrain()) m.setTerrain({ source: "terrain", exaggeration: 1.2 });
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      m.off("idle", settle);
+      if (!anim.current || anim.current.token !== token) return;
+      elev = groundAt(pts[0]);
+      m.once("moveend", begin);
+      m.easeTo({ center: pts[0], elevation: elev, zoom: FLY_ZOOM, pitch: FLY_PITCH, bearing, duration: 1400, padding: flyPadding(m), essential: true });
+    };
+    m.once("idle", settle);
+    window.setTimeout(settle, 2500);
   };
   useEffect(() => {
     startDrawRef.current = startDraw;

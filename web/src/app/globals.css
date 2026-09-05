@@ -59,6 +59,11 @@
   --grain-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.26 0 0 0 0 0.2 0 0 0 0.22 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
+/* A tap is a tap: no double-tap zoom anywhere on the deck (a pinch still zooms). */
+html {
+  touch-action: manipulation;
+}
+
 @theme inline {
   --color-orange: var(--orange);
   --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -198,7 +203,7 @@ body {
   background: var(--well-face);
   padding: 0.6rem 0.8rem;
   color: var(--ink);
-  font-size: 15px;
+  font-size: 16px;               /* not a point smaller: a phone zooms in on a field set any smaller */
   outline: none;
   box-shadow: var(--slot);
   transition: box-shadow 0.15s;
@@ -786,9 +791,8 @@ body {
   bottom: -9px;
   left: 0;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 10%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0.28) 100%),
     linear-gradient(180deg, #c74400 0%, #c74400 calc(100% - 9px), #a83700 calc(100% - 8px), #d04a00 calc(100% - 6px), #b53d00 calc(100% - 3px), #7f2a00 calc(100% - 1px), #4a1700 100%);
-  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.16), inset -3px 0 4px -2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6), 0 12px 40px rgba(252, 82, 0, 0.16);
+  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.3), inset -3px 0 3px -2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6), 0 12px 40px rgba(252, 82, 0, 0.16);
 }
 /* the cap's face */
 .go::after {
@@ -796,18 +800,18 @@ body {
   inset: 0;
   background:
     var(--grain-key),
-    radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.09) 32%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(70% 60% at 40% 0%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0) 62%),
     radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0.26) 100%),
     linear-gradient(180deg, #ff8340 0%, #fd6219 55%, #f04e04 100%);
-  box-shadow: inset 0 4px 6px -2px rgba(255, 255, 255, 0.75), inset 4px 0 6px -3px rgba(255, 255, 255, 0.4), inset -5px 0 7px -3px rgba(0, 0, 0, 0.36), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.46), inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.34), inset 0 4px 6px -2px rgba(255, 255, 255, 0.55), inset 3px 0 5px -3px rgba(255, 255, 255, 0.22), inset -3px 0 5px -3px rgba(255, 255, 255, 0.12), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(0, 0, 0, 0.12);
 }
 @media (hover: hover) {
   .go:hover:not(:disabled)::after {
     background:
       var(--grain-key),
-      radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 100%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.1) 32%, rgba(255, 255, 255, 0) 62%),
+      radial-gradient(70% 60% at 40% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 100%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.09) 32%, rgba(255, 255, 255, 0) 62%),
       radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.08) 70%, rgba(0, 0, 0, 0.22) 100%),
       linear-gradient(180deg, #ff8c4c 0%, #ff6c24 55%, #f7550a 100%);
   }
@@ -824,7 +828,7 @@ body {
 .go:active:not(:disabled)::before,
 .go[data-pressed]:not(:disabled)::before {
   bottom: -2px;
-  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.1), inset -3px 0 4px -2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.75), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.3), inset -3px 0 3px -2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
@@ -846,9 +850,8 @@ body {
 }
 .go:disabled::before {
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 10%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0.35) 100%),
     linear-gradient(180deg, #1e1e24 0%, #1e1e24 calc(100% - 9px), #141418 calc(100% - 8px), #26262d calc(100% - 6px), #1a1a1f calc(100% - 3px), #0d0d10 calc(100% - 1px), #050506 100%);
-  box-shadow: inset 3px 0 3px -2px rgba(255, 255, 255, 0.07), inset -3px 0 4px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.4), inset -3px 0 3px -2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6);
 }
 .go:disabled::after {
   background:
@@ -856,7 +859,7 @@ body {
     radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 100%),
     radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.14) 70%, rgba(0, 0, 0, 0.34) 100%),
     linear-gradient(180deg, #2e2e35 0%, #222228 55%, #1b1b20 100%);
-  box-shadow: inset 0 4px 6px -2px rgba(255, 255, 255, 0.2), inset 4px 0 6px -3px rgba(255, 255, 255, 0.09), inset -5px 0 7px -3px rgba(0, 0, 0, 0.45), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.09), inset 0 4px 6px -2px rgba(255, 255, 255, 0.16), inset 3px 0 5px -3px rgba(255, 255, 255, 0.06), inset -3px 0 5px -3px rgba(255, 255, 255, 0.04), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(0, 0, 0, 0.2);
 }
 /* the chevrons, engraved like the letters */
 .go svg {

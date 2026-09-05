@@ -177,12 +177,16 @@ export default function RunMapper() {
     return () => document.removeEventListener("pointerdown", down);
   }, []);
 
-  // Phones can hand the GPX straight to Strava, Garmin or Komoot.
+  // Phones can hand the GPX straight to Strava, Garmin or Komoot, and the
+  // GIF to X or Messages, through the share sheet. Desktops keep downloads,
+  // even where a browser offers a sheet of its own.
   useEffect(() => {
     const t = setTimeout(() => {
       try {
         const f = new File(["<gpx/>"], "run.gpx", { type: "application/gpx+xml" });
-        setCanShare(typeof navigator.share === "function" && navigator.canShare?.({ files: [f] }) === true);
+        const sheet = typeof navigator.share === "function" && navigator.canShare?.({ files: [f] }) === true;
+        const phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && window.matchMedia("(pointer: coarse)").matches);
+        setCanShare(sheet && phone);
       } catch {
         setCanShare(false);
       }
@@ -444,7 +448,7 @@ export default function RunMapper() {
   // The drawing as a GIF, rendered on a hidden map of its own (always the
   // light day map: it reads best when posted). The map code is loaded on
   // demand, since it can't run on the server. The last render is kept, so
-  // the GIF key and Post on X share one render per answer.
+  // a second tap on the key does not render again.
   const gifKey = shown ? `${runKey}|${stem}|${shown.route.distance_mi}|${shown.route.coords.length}` : "";
   const theGif = async (): Promise<Blob> => {
     if (!shown) throw new Error("nothing to render");
@@ -477,40 +481,25 @@ export default function RunMapper() {
     }
   };
 
-  // Post the GIF on X. X's web composer cannot take a file from a link, so
-  // on a phone the share sheet carries it (pick X there and the post opens
-  // with the GIF attached); on a desktop the file downloads and the composer
-  // opens with the words, ready for the file to be dropped in. The share
-  // sheet and a new tab both have to be asked for by the tap itself, and a
-  // render takes longer than a tap lasts: so a first tap renders (and, on a
-  // desktop, downloads), the key then says so, and the next tap posts.
-  const postText = () => [caption.word.toUpperCase(), caption.distance, caption.city].filter(Boolean).join(" · ") + " — a run that draws it, made with drawmy.run";
-  const postToX = async () => {
+  // Share the GIF from a phone: the share sheet with the file attached and
+  // nothing else (pick X or Messages there and the GIF is in the post). The
+  // sheet has to be asked for by the tap itself, and a render takes longer
+  // than a tap lasts: so a first tap renders, the key then says the GIF is
+  // ready, and the next tap opens the sheet.
+  const shareGif = async () => {
     if (!shown || gif.busy) return;
-    const cached = gifCache.current?.key === gifKey;
     try {
       const blob = await theGif();
       const file = new File([blob], `${stem}.gif`, { type: "image/gif" });
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], text: postText() });
-          setReadyKey("");
-        } catch (e) {
-          // Closed by hand is done; refused (no tap behind it) means: say it is ready, and post on the next tap.
-          setReadyKey((e as Error).name === "AbortError" ? "" : gifKey);
-        }
-        return;
-      }
-      const { saveBlob } = await import("@/lib/gif");
-      if (cached) {
-        window.open(`https://x.com/intent/post?text=${encodeURIComponent(postText())}&url=${encodeURIComponent("https://drawmy.run")}`, "_blank", "noopener");
+      try {
+        await navigator.share({ files: [file] });
         setReadyKey("");
-      } else {
-        saveBlob(blob, `${stem}.gif`);
-        setReadyKey(gifKey);
+      } catch (e) {
+        // Closed by hand is done; refused (no tap behind it) means: say it is ready, and share on the next tap.
+        setReadyKey((e as Error).name === "AbortError" ? "" : gifKey);
       }
     } catch (e) {
-      console.error("Post on X failed", e);
+      console.error("Share GIF failed", e);
     }
   };
 
@@ -617,11 +606,10 @@ export default function RunMapper() {
                   units,
                   canShare,
                   gif,
-                  // One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere.
+                  // One GPX key and one GIF key: the share sheet on phones (the GPX straight into Strava, Garmin or Komoot; the GIF into X or Messages), downloads elsewhere.
                   onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown, `${stem}.gpx`)),
-                  onGif: () => void makeGif(),
-                  onPost: () => void postToX(),
-                  post: { ready: readyKey !== "" && readyKey === gifKey },
+                  onGif: () => void (canShare ? shareGif() : makeGif()),
+                  gifReady: readyKey !== "" && readyKey === gifKey,
                   onTry: (b) => void go(b),
                 }}
               />

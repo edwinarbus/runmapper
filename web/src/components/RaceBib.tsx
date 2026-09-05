@@ -25,16 +25,16 @@ const IDLE = { dx: 0, w: 0, live: false, out: 0 as const, on: -1 };
 
 export interface BibActions {
   units: Units;
+  /** A phone: the GPX and the GIF go to the share sheet rather than downloading. */
   canShare: boolean;
   /** The GIF being rendered, with its progress (0 to 1). */
   gif: { busy: boolean; pct: number };
   onGpx: () => void;
+  /** The GIF: shared from a phone (rendered on the first tap, the sheet on
+   *  the next), downloaded elsewhere. */
   onGif: () => void;
-  /** Post the GIF on X: the phone's share sheet with the file attached, or
-   *  the download plus X's composer on a desktop. */
-  onPost: () => void;
-  /** The GIF is rendered and waits for the tap that posts it. */
-  post: { ready: boolean };
+  /** The GIF is rendered and waits for the tap that shares it. */
+  gifReady: boolean;
   onTry: (b: Bucket) => void;
 }
 
@@ -161,29 +161,22 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
               className="pbtn"
               disabled={actions.gif.busy}
               aria-busy={actions.gif.busy}
-              title="Download the route drawing itself in, as a GIF to post"
-            >
-              <Icon name="download" />
-              {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
-            </button>
-            <button
-              type="button"
-              onClick={actions.onPost}
-              className={actions.post.ready ? "pbtn pbtn-orange" : "pbtn pbtn-ink"}
-              disabled={actions.gif.busy}
-              aria-busy={actions.gif.busy}
               title={
-                actions.post.ready
-                  ? actions.canShare
-                    ? "The GIF is ready: tap to open your share sheet with it attached, and pick X"
-                    : "The GIF has downloaded: click to open X's composer, then drop the file in"
-                  : actions.canShare
-                    ? "Post the GIF on X: it renders first, then opens in your share sheet with the file attached"
-                    : "Post the GIF on X: it renders and downloads first, then X's composer opens for you to drop it in"
+                actions.canShare
+                  ? actions.gifReady
+                    ? "The GIF is ready: tap to open your share sheet with it attached"
+                    : "The route drawing itself in, as a GIF: it renders first, then opens in your share sheet"
+                  : "Download the route drawing itself in, as a GIF to post"
               }
             >
-              <Icon name="share" />
-              {actions.gif.busy ? `Preparing ${Math.round(actions.gif.pct * 100)}%` : actions.post.ready ? (actions.canShare ? "Ready · Post on X" : "Open X") : "Post on X"}
+              <Icon name={actions.canShare ? "share" : "download"} />
+              {actions.gif.busy
+                ? `${actions.canShare ? "Preparing" : "Generating"} ${Math.round(actions.gif.pct * 100)}%`
+                : actions.canShare
+                  ? actions.gifReady
+                    ? "Ready · Share GIF"
+                    : "Share GIF"
+                  : "GIF"}
             </button>
           </>
         ) : (
@@ -193,12 +186,8 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
               GPX
             </span>
             <span className="pbtn">
-              <Icon name="download" />
-              GIF
-            </span>
-            <span className="pbtn pbtn-ink">
-              <Icon name="share" />
-              Post on X
+              <Icon name={actions.canShare ? "share" : "download"} />
+              {actions.canShare ? "Share GIF" : "GIF"}
             </span>
           </>
         )}

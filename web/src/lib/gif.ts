@@ -11,7 +11,7 @@
 import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { metres } from "./geo";
-import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, setDecor, setRouteOpacity } from "./maplayers";
+import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, scaleRoute, setDecor, setRouteOpacity } from "./maplayers";
 
 export interface GifJob {
   style: string | maplibregl.StyleSpecification;
@@ -29,7 +29,8 @@ export interface GifJob {
 const FRAME_MS = 50;     // 20 frames a second
 const MAX_FRAMES = 150;
 const FADE_FRAMES = 8;   // the line melting away after the hold, so the loop comes round smoothly
-const BAND = 150;        // caption band height at 1280 x 720
+const BAND = 210;        // caption band height at 1280 x 720, along the top: X lays its GIF badge over the bottom left
+const THICK = 2;         // the route and its markers, this many times as thick as on screen
 const SIZE_LIMIT = 4.8 * 1024 * 1024;   // under the 5 MB X allows from a phone
 const TRANSPARENT = 255;                // the palette slot that means "as before"
 const SITE = { left: "DRAWMY", right: "RUN" };   // with the start dot as the period between
@@ -67,12 +68,13 @@ function displayFont(): string {
 function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
   ctx.textAlign = "left";
-  // The face's own period is 0.106em with 0.04em either side; the ring, not
-  // the dot, stands on the baseline.
+  // The face's own period is 0.106em; set as the face sets "Y.", it tucks
+  // 0.04em under the Y's arm and clears the R by their two bearings, 0.08em.
+  // The ring, not the dot, stands on the baseline.
   const dot = size * 0.11;
   const ring = size * 0.03;
-  const gapL = ring + size * 0.03;   // the Y's own side bearing supplies the rest
-  const gapR = ring;                 // the R's does likewise
+  const gapL = -size * 0.02;         // from the Y's advance to the dot
+  const gapR = size * 0.071;         // from the dot to the R's advance
   const wl = ctx.measureText(SITE.left).width;
   const wr = ctx.measureText(SITE.right).width;
   let x = right - (wl + gapL + dot + gapR + wr);
@@ -93,36 +95,53 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
   ctx.fillText(SITE.right, x, baseline);
 }
 
-/** A light band across the bottom: the word, a rule, the distance large
- *  with the town beside it, and the site on the right. Sized for 1280 wide
- *  and scaled with the frame. */
+/** How wide drawSite draws at `size`. */
+function siteWidth(ctx: CanvasRenderingContext2D, size: number, font: string) {
+  ctx.font = `${size}px ${font}`;
+  return ctx.measureText(SITE.left).width - size * 0.02 + size * 0.11 + size * 0.071 + ctx.measureText(SITE.right).width;
+}
+
+/** A wash of paper down from the top with the word, a rule, the distance
+ *  large and the town beside it, and the site bottom right on a small plate.
+ *  The bottom left stays clear: that is where X lays its GIF badge. Sized
+ *  for 1280 wide and scaled with the frame. */
 function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: GifJob["caption"], font: string) {
   const s = w / 1280;
-  const g = ctx.createLinearGradient(0, h - (BAND + 60) * s, 0, h);
-  g.addColorStop(0, "rgba(247, 245, 240, 0)");
-  g.addColorStop(0.35, "rgba(247, 245, 240, 0.86)");
-  g.addColorStop(1, "rgba(247, 245, 240, 0.98)");
+  const g = ctx.createLinearGradient(0, 0, 0, (BAND + 70) * s);
+  g.addColorStop(0, "rgba(247, 245, 240, 0.98)");
+  g.addColorStop(0.7, "rgba(247, 245, 240, 0.86)");
+  g.addColorStop(1, "rgba(247, 245, 240, 0)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, h - (BAND + 60) * s, w, (BAND + 60) * s);
+  ctx.fillRect(0, 0, w, (BAND + 70) * s);
   const x = 56 * s;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
   ctx.fillStyle = "#151517";
-  ctx.font = `${74 * s}px ${font}`;
-  ctx.fillText(caption.word.toUpperCase(), x, h - 80 * s);
+  ctx.font = `${104 * s}px ${font}`;
+  ctx.fillText(caption.word.toUpperCase(), x, 110 * s);
   // a short orange rule under the word, like the field on the page
   ctx.fillStyle = "#fc5200";
-  ctx.fillRect(x, h - 66 * s, Math.min(w * 0.3, 220 * s), 3 * s);
+  ctx.fillRect(x, 126 * s, Math.min(w * 0.3, 300 * s), 4 * s);
   // the distance, large, and the town to its right
-  ctx.font = `${46 * s}px ${font}`;
+  ctx.font = `${64 * s}px ${font}`;
   const distance = caption.distance.toUpperCase();
-  ctx.fillText(distance, x + 2 * s, h - 22 * s);
+  const dw = ctx.measureText(distance).width;
+  ctx.fillText(distance, x + 2 * s, 196 * s);
   if (caption.city) {
     ctx.fillStyle = "#6f6e68";
-    ctx.font = `${28 * s}px ${font}`;
-    ctx.fillText(caption.city.toUpperCase(), x + 2 * s + ctx.measureText(distance).width * (46 / 28) + 18 * s, h - 22 * s);
+    ctx.font = `${36 * s}px ${font}`;
+    ctx.fillText(caption.city.toUpperCase(), x + 2 * s + dw + 24 * s, 196 * s);
   }
-  drawSite(ctx, w - 56 * s, h - 22 * s, 28 * s, font);
+  // the site, bottom right, on a plate of paper so it reads on any map
+  const size = 36 * s;
+  const sw = siteWidth(ctx, size, font);
+  const pad = 14 * s;
+  const baseline = h - 40 * s;
+  ctx.fillStyle = "rgba(247, 245, 240, 0.92)";
+  ctx.beginPath();
+  ctx.roundRect(w - 56 * s - sw - pad, baseline - size * 0.7 - pad, sw + 2 * pad, size * 0.7 + 2 * pad, 8 * s);
+  ctx.fill();
+  drawSite(ctx, w - 56 * s, baseline, size, font);
 }
 
 export async function renderGif(job: GifJob): Promise<Blob> {
@@ -172,12 +191,13 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       }, 30000);
     });
     addRouteLayers(m, job.night);
+    scaleRoute(m, THICK, job.night);
     const src = (id: string) => m.getSource(id) as maplibregl.GeoJSONSource;
     src("start").setData(job.start ? pointFeature([job.start[1], job.start[0]]) : EMPTY);
     src("finish").setData(job.finish ? pointFeature([job.finish[1], job.finish[0]]) : EMPTY);
     src("route").setData(lineFeature(job.route));
     setDecor(m, true);
-    m.fitBounds(routeBounds(job.route), { padding: { top: 64, right: 64, bottom: 64 + BAND, left: 64 }, duration: 0, maxZoom: 16.5 });
+    m.fitBounds(routeBounds(job.route), { padding: { top: 48 + BAND, right: 64, bottom: 64 + 60, left: 64 }, duration: 0, maxZoom: 16.5 });
     await idle(m, 20000);   // tiles for the whole frame
     if (typeof document.fonts?.ready?.then === "function") await document.fonts.ready;
     const font = displayFont();

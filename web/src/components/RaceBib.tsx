@@ -30,6 +30,9 @@ export interface BibActions {
   gif: { busy: boolean; pct: number };
   onGpx: () => void;
   onGif: () => void;
+  /** Post the GIF on X: the phone's share sheet with the file attached, or
+   *  the download plus X's composer on a desktop. */
+  onPost: () => void;
   onTry: (b: Bucket) => void;
 }
 
@@ -161,6 +164,16 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
               <Icon name="download" />
               {actions.gif.busy ? `Generating ${Math.round(actions.gif.pct * 100)}%` : "GIF"}
             </button>
+            <button
+              type="button"
+              onClick={actions.onPost}
+              className="pbtn pbtn-ink"
+              disabled={actions.gif.busy}
+              title={actions.canShare ? "Post the GIF on X: it opens in your share sheet with the file attached" : "Post the GIF on X: the file downloads and X's composer opens for you to drop it in"}
+            >
+              <Icon name="share" />
+              Post on X
+            </button>
           </>
         ) : (
           <>
@@ -171,6 +184,10 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
             <span className="pbtn">
               <Icon name="download" />
               GIF
+            </span>
+            <span className="pbtn pbtn-ink">
+              <Icon name="share" />
+              Post on X
             </span>
           </>
         )}

@@ -62,6 +62,29 @@ export function setDecor(m: maplibregl.Map, visible: boolean) {
   if (m.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
 }
 
+/** The route and its markers `k` times as thick as on screen (a GIF is
+ *  seen small on a phone). */
+export function scaleRoute(m: maplibregl.Map, k: number, night: boolean) {
+  const paint = (id: string, prop: string, v: unknown) => {
+    if (m.getLayer(id)) m.setPaintProperty(id, prop, v);
+  };
+  const layout = (id: string, prop: string, v: unknown) => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, prop, v);
+  };
+  paint("route-shadow", "line-width", (night ? 12 : 14) * k);
+  paint("route-shadow", "line-blur", (night ? 4 : 6) * k);
+  paint("route-shadow", "line-translate", [0, (night ? 1 : 2) * k]);
+  paint("route-casing", "line-width", 9 * k);
+  paint("route", "line-width", 5 * k);
+  paint("ideal", "line-width", 2.5 * k);
+  layout("route-arrows", "icon-size", 0.85 * k);
+  layout("route-arrows", "symbol-spacing", 70 * k);
+  for (const id of ["start", "finish", "head"]) {
+    paint(id, "circle-radius", (id === "start" ? 7 : 6) * k);
+    paint(id, "circle-stroke-width", 2.5 * k);
+  }
+}
+
 /** The route's opacity, 0 to 1: the line with its casing, shadow and
  *  chevrons, and the finish marker. The start marker stays as it is. */
 export function setRouteOpacity(m: maplibregl.Map, a: number, night: boolean) {

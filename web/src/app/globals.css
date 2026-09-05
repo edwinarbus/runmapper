@@ -93,15 +93,22 @@ body {
   display: inline-flex;
   align-items: baseline;
 }
+/* The period stands between the two words as its own piece, outside the
+   letters' shadow filter (which blurred a dark halo under it), on a hard
+   one-pixel lip of its own like theirs. */
 .logo-period {
-  display: inline-block;
+  position: relative;
+  top: -0.03em;                  /* the ring, not the dot, stands on the baseline */
+  flex: none;
   width: 0.11em;                 /* the face's own period is 0.106em */
   height: 0.11em;
-  margin: 0 0.03em 0 0.01em;     /* the period's side bearings (0.04em), counting the ring and the letter-spacing */
+  /* Set as the face sets "Y.": the period tucks 0.04em under the Y's arm
+     (its kern is -0.093em) and clears the R by its two bearings, 0.08em;
+     the ring and the letter-spacing are counted in. */
+  margin: 0 0.1em 0 -0.07em;
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%, #7cf0c4 0%, #12b886 55%, #0a8a63 100%);
-  box-shadow: 0 0 0 0.03em #fff; /* the white ring of the start marker on the map */
-  vertical-align: 0.03em;        /* the ring, not the dot, stands on the baseline */
+  box-shadow: 0 0 0 0.03em #fff, 0 1px 0 0.03em rgba(0, 0, 0, 0.75);   /* the white ring of the start marker, on its lip */
 }
 .logo-draw,
 .logo-run {
@@ -1100,7 +1107,7 @@ details[open] > .disclose svg {
   display: inline-block;
   width: 0.11em;
   height: 0.11em;
-  margin: 0 0.03em 0 0.01em;
+  margin: 0 0.14em 0 -0.12em;   /* tucked under the Y, clear of the R, with this line's wider letter-spacing counted in */
   border-radius: 50%;
   background: #12b886;
   box-shadow: 0 0 0 0.03em #fff, 0 0 0 0.045em rgba(23, 23, 26, 0.2);
@@ -1275,6 +1282,11 @@ details[open] > .disclose svg {
   align-items: center;
   gap: 0.45rem;
   height: 36px;
+  min-height: 36px;              /* pinned both ways: Safari sized these keys by their contents */
+  max-height: 36px;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
   padding: 0.1em 0.75rem 0;
   border: 0;
   border-radius: 6px;
@@ -1367,6 +1379,8 @@ details[open] > .disclose svg {
   position: relative;
   z-index: 1;
   height: 30px;
+  min-height: 30px;
+  max-height: 30px;
   padding: 0.1em 0.6rem 0;
   border-radius: 4px;
   background: transparent;

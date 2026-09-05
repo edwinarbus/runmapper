@@ -417,23 +417,56 @@ export default function RunMapper() {
   // The drawing as a GIF, rendered on a hidden map of its own (always the
   // light day map: it reads best when posted) and downloaded. The map code
   // is loaded on demand, since it can't run on the server.
+  const renderTheGif = async () => {
+    if (!shown) throw new Error("nothing to render");
+    const { renderGif } = await import("@/lib/gif");
+    return renderGif({
+      style: DAY_STYLE,
+      night: false,
+      route: shown.route.coords,
+      start: shown.route.start,
+      finish,
+      caption,
+      onProgress: (pct) => setGif({ busy: true, pct }),
+    });
+  };
   const makeGif = async () => {
     if (!shown || gif.busy) return;
     setGif({ busy: true, pct: 0 });
     try {
-      const { renderGif, saveBlob } = await import("@/lib/gif");
-      const blob = await renderGif({
-        style: DAY_STYLE,
-        night: false,
-        route: shown.route.coords,
-        start: shown.route.start,
-        finish,
-        caption,
-        onProgress: (pct) => setGif({ busy: true, pct }),
-      });
-      saveBlob(blob, `${stem}.gif`);
+      const { saveBlob } = await import("@/lib/gif");
+      saveBlob(await renderTheGif(), `${stem}.gif`);
     } catch (e) {
       console.error("GIF export failed", e);
+    } finally {
+      setGif({ busy: false, pct: 0 });
+    }
+  };
+
+  // Post the GIF on X. X's web composer cannot take a file from a link, so
+  // on a phone the share sheet carries it (pick X there and the post opens
+  // with the GIF attached); on a desktop the file downloads and the composer
+  // opens with the words, ready for the file to be dropped in.
+  const postToX = async () => {
+    if (!shown || gif.busy) return;
+    const text = [caption.word.toUpperCase(), caption.distance, caption.city].filter(Boolean).join(" · ") + " — a run that draws it, made with drawmy.run";
+    setGif({ busy: true, pct: 0 });
+    try {
+      const { saveBlob } = await import("@/lib/gif");
+      const blob = await renderTheGif();
+      const file = new File([blob], `${stem}.gif`, { type: "image/gif" });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text });
+          return;
+        } catch (e) {
+          if ((e as Error).name === "AbortError") return;
+        }
+      }
+      saveBlob(blob, `${stem}.gif`);
+      window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent("https://drawmy.run")}`, "_blank", "noopener");
+    } catch (e) {
+      console.error("Post on X failed", e);
     } finally {
       setGif({ busy: false, pct: 0 });
     }
@@ -491,8 +524,8 @@ export default function RunMapper() {
             <h1 className="logo font-display" aria-label="drawmy.run">
               <span className="logo-word" aria-hidden="true">
                 <span className="logo-draw">DRAWMY</span>
-                <span className="logo-run">
-                  <span className="logo-period" />RUN
+                <span className="logo-period" />
+                <span className="logo-run">RUN
                 </span>
               </span>
             </h1>
@@ -545,6 +578,7 @@ export default function RunMapper() {
                   // One GPX button: the share sheet on phones (straight into Strava, Garmin or Komoot), a download elsewhere.
                   onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown, `${stem}.gpx`)),
                   onGif: () => void makeGif(),
+                  onPost: () => void postToX(),
                   onTry: (b) => void go(b),
                 }}
               />

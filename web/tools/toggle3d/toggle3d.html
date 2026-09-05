@@ -43,12 +43,12 @@ scene.environment = pmrem.fromScene(studio(), 0.02).texture;
 scene.environmentIntensity = 1.0;
 
 const camera = new THREE.PerspectiveCamera(26, 1, 1, 400);
-camera.position.set(0, 84, 74);
-camera.lookAt(0, 17.5, 0);
+camera.position.set(0, 112, 50);
+camera.lookAt(0, 9, 0);
 
 // the key light, top left and in front, for the shadow
 const key = new THREE.DirectionalLight(0xfff4ea, 2.2);
-key.position.set(-30, 60, 35);
+key.position.set(-34, 80, 30);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 key.shadow.camera.left = -30; key.shadow.camera.right = 30; key.shadow.camera.top = 30; key.shadow.camera.bottom = -30;
@@ -113,11 +113,14 @@ lever.position.y = pivotY;
 parts.add(lever);
 const ball = new THREE.Mesh(new THREE.SphereGeometry(3.0, 48, 32), chrome); ball.castShadow = true; lever.add(ball);
 const profile = [];
-const L = 24;
-for (let i = 0; i <= 40; i++) {
-  const u = i / 40;                          // along the handle
+const L = 23;
+for (let i = 0; i <= 60; i++) {
+  const u = i / 60;                          // along the handle
   const y = 2.0 + u * L;
-  const r = u < 0.78 ? 1.35 + 1.55 * Math.pow(u / 0.78, 1.6) : 2.9 * Math.sqrt(Math.max(0, 1 - Math.pow((u - 0.78) / 0.22, 2)));
+  // a shaft of 1.4 that swells into a bulb of 4.3 centred at 77% of the way up, rounded off at the top
+  const bulb = 4.3 * Math.sqrt(Math.max(0, 1 - Math.pow((u - 0.77) / 0.25, 2)));
+  const shaft = 1.4 + 0.9 * Math.pow(u, 2);
+  const r = Math.max(shaft * (u < 0.98 ? 1 : 0), bulb);
   profile.push(new THREE.Vector2(Math.max(0.001, r), y));
 }
 profile.push(new THREE.Vector2(0.001, 2.0 + L + 0.01));

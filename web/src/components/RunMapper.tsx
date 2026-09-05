@@ -78,6 +78,8 @@ export default function RunMapper() {
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
   const [gif, setGif] = useState({ busy: false, pct: 0 });
+  const gifCache = useRef<{ key: string; blob: Blob } | null>(null);   // the last GIF rendered, and for which answer
+  const [readyKey, setReadyKey] = useState("");                         // the answer whose GIF is rendered and waiting for the tap that posts it
   const [note, setNote] = useState<string | null>(null);   // something worth knowing about the answer
   const [city, setCity] = useState("");                   // where the run is, for file names
   const cityFor = useRef("");                             // the start the city was looked up for
@@ -415,60 +417,75 @@ export default function RunMapper() {
   }, [showResult]);
 
   // The drawing as a GIF, rendered on a hidden map of its own (always the
-  // light day map: it reads best when posted) and downloaded. The map code
-  // is loaded on demand, since it can't run on the server.
-  const renderTheGif = async () => {
+  // light day map: it reads best when posted). The map code is loaded on
+  // demand, since it can't run on the server. The last render is kept, so
+  // the GIF key and Post on X share one render per answer.
+  const gifKey = shown ? `${runKey}|${stem}|${shown.route.distance_mi}|${shown.route.coords.length}` : "";
+  const theGif = async (): Promise<Blob> => {
     if (!shown) throw new Error("nothing to render");
-    const { renderGif } = await import("@/lib/gif");
-    return renderGif({
-      style: DAY_STYLE,
-      night: false,
-      route: shown.route.coords,
-      start: shown.route.start,
-      finish,
-      caption,
-      onProgress: (pct) => setGif({ busy: true, pct }),
-    });
+    if (gifCache.current?.key === gifKey) return gifCache.current.blob;
+    setGif({ busy: true, pct: 0 });
+    try {
+      const { renderGif } = await import("@/lib/gif");
+      const blob = await renderGif({
+        style: DAY_STYLE,
+        night: false,
+        route: shown.route.coords,
+        start: shown.route.start,
+        finish,
+        caption,
+        onProgress: (pct) => setGif({ busy: true, pct }),
+      });
+      gifCache.current = { key: gifKey, blob };
+      return blob;
+    } finally {
+      setGif({ busy: false, pct: 0 });
+    }
   };
   const makeGif = async () => {
     if (!shown || gif.busy) return;
-    setGif({ busy: true, pct: 0 });
     try {
       const { saveBlob } = await import("@/lib/gif");
-      saveBlob(await renderTheGif(), `${stem}.gif`);
+      saveBlob(await theGif(), `${stem}.gif`);
     } catch (e) {
       console.error("GIF export failed", e);
-    } finally {
-      setGif({ busy: false, pct: 0 });
     }
   };
 
   // Post the GIF on X. X's web composer cannot take a file from a link, so
   // on a phone the share sheet carries it (pick X there and the post opens
   // with the GIF attached); on a desktop the file downloads and the composer
-  // opens with the words, ready for the file to be dropped in.
+  // opens with the words, ready for the file to be dropped in. The share
+  // sheet and a new tab both have to be asked for by the tap itself, and a
+  // render takes longer than a tap lasts: so a first tap renders (and, on a
+  // desktop, downloads), the key then says so, and the next tap posts.
+  const postText = () => [caption.word.toUpperCase(), caption.distance, caption.city].filter(Boolean).join(" · ") + " — a run that draws it, made with drawmy.run";
   const postToX = async () => {
     if (!shown || gif.busy) return;
-    const text = [caption.word.toUpperCase(), caption.distance, caption.city].filter(Boolean).join(" · ") + " — a run that draws it, made with drawmy.run";
-    setGif({ busy: true, pct: 0 });
+    const cached = gifCache.current?.key === gifKey;
     try {
-      const { saveBlob } = await import("@/lib/gif");
-      const blob = await renderTheGif();
+      const blob = await theGif();
       const file = new File([blob], `${stem}.gif`, { type: "image/gif" });
       if (navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], text });
-          return;
+          await navigator.share({ files: [file], text: postText() });
+          setReadyKey("");
         } catch (e) {
-          if ((e as Error).name === "AbortError") return;
+          // Closed by hand is done; refused (no tap behind it) means: say it is ready, and post on the next tap.
+          setReadyKey((e as Error).name === "AbortError" ? "" : gifKey);
         }
+        return;
       }
-      saveBlob(blob, `${stem}.gif`);
-      window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent("https://drawmy.run")}`, "_blank", "noopener");
+      const { saveBlob } = await import("@/lib/gif");
+      if (cached) {
+        window.open(`https://x.com/intent/post?text=${encodeURIComponent(postText())}&url=${encodeURIComponent("https://drawmy.run")}`, "_blank", "noopener");
+        setReadyKey("");
+      } else {
+        saveBlob(blob, `${stem}.gif`);
+        setReadyKey(gifKey);
+      }
     } catch (e) {
       console.error("Post on X failed", e);
-    } finally {
-      setGif({ busy: false, pct: 0 });
     }
   };
 
@@ -579,6 +596,7 @@ export default function RunMapper() {
                   onGpx: () => (canShare ? void shareGpx() : downloadGpx(shown, `${stem}.gpx`)),
                   onGif: () => void makeGif(),
                   onPost: () => void postToX(),
+                  post: { ready: readyKey !== "" && readyKey === gifKey },
                   onTry: (b) => void go(b),
                 }}
               />

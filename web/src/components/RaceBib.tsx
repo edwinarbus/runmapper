@@ -33,6 +33,8 @@ export interface BibActions {
   /** Post the GIF on X: the phone's share sheet with the file attached, or
    *  the download plus X's composer on a desktop. */
   onPost: () => void;
+  /** The GIF is rendered and waits for the tap that posts it. */
+  post: { ready: boolean };
   onTry: (b: Bucket) => void;
 }
 
@@ -167,12 +169,21 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
             <button
               type="button"
               onClick={actions.onPost}
-              className="pbtn pbtn-ink"
+              className={actions.post.ready ? "pbtn pbtn-orange" : "pbtn pbtn-ink"}
               disabled={actions.gif.busy}
-              title={actions.canShare ? "Post the GIF on X: it opens in your share sheet with the file attached" : "Post the GIF on X: the file downloads and X's composer opens for you to drop it in"}
+              aria-busy={actions.gif.busy}
+              title={
+                actions.post.ready
+                  ? actions.canShare
+                    ? "The GIF is ready: tap to open your share sheet with it attached, and pick X"
+                    : "The GIF has downloaded: click to open X's composer, then drop the file in"
+                  : actions.canShare
+                    ? "Post the GIF on X: it renders first, then opens in your share sheet with the file attached"
+                    : "Post the GIF on X: it renders and downloads first, then X's composer opens for you to drop it in"
+              }
             >
               <Icon name="share" />
-              Post on X
+              {actions.gif.busy ? `Preparing ${Math.round(actions.gif.pct * 100)}%` : actions.post.ready ? (actions.canShare ? "Ready · Post on X" : "Open X") : "Post on X"}
             </button>
           </>
         ) : (

@@ -33,8 +33,11 @@
   --white-key: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #fbfaf6 0%, #ecebe5 55%, #dad7ce 100%);
   --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, 0.14), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
   --white-skirt-3: 0 1px 0 #c9c6bd, 0 2px 0 #aeaba2, 0 3px 0 #8f8c84, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
-  --orange-key: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 46%, rgba(255, 255, 255, 0) 54%), linear-gradient(180deg, #ff8447 0%, #ff5f12 45%, #f34c00 100%);
-  --orange-key-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.1) 46%, rgba(255, 255, 255, 0) 54%), linear-gradient(180deg, #ff9257 0%, #ff6a20 45%, #f95000 100%);
+  /* An orange face under the light: a soft flare towards the top left where
+     the light lands, the edges falling into shade all round, a fine grain
+     like moulded plastic, and no gloss line. */
+  --orange-key: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.16) 100%), linear-gradient(180deg, #ff7c38 0%, #fd5e12 60%, #f65104 100%);
+  --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
   --orange-skirt-3: 0 1px 0 #d24500, 0 2px 0 #b83c00, 0 3px 0 #9a3100, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.25);
   /* A slot cut into the deck: black at its top edge, shade down its sides,
@@ -51,6 +54,8 @@
   --sunk-white: inset 0 5px 8px -2px rgba(0, 0, 0, 0.45), inset 2px 0 3px -2px rgba(0, 0, 0, 0.25), inset -2px 0 3px -2px rgba(0, 0, 0, 0.25), inset 0 -1px 0 #fff, 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07);
   --slot: inset 0 3px 6px rgba(0, 0, 0, 0.9), inset 0 1px 0 #000, inset 1px 0 2px rgba(0, 0, 0, 0.6), inset -1px 0 2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.07), 0 1px 0 rgba(255, 255, 255, 0.07);
   --grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
+  /* The grain of a moulded key: fine noise, light and dark, faint. */
+  --grain-key: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch' seed='4'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeColorMatrix values='3 0 0 0 -1 0 3 0 0 -1 0 0 3 0 -1 0 0 0 0 0.05'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   --grain-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.26 0 0 0 0 0.2 0 0 0 0.22 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
@@ -108,14 +113,19 @@ body {
   display: inline-flex;
   align-items: baseline;
 }
-/* The period is the face's own full stop, set between the two words so the
-   text engine draws it round, on the baseline, and it is the green of the
-   start dot. It stands on the same lip of shadow as the letters; a little
-   negative margin gives it the kern the face gives "Y." (-0.093em) against
-   the letter-spacing, and the R keeps its own bearing. */
+/* The period is a round dot, the green of the start dot, drawn as a circle
+   in its own right (a vector: neither the face's square full stop nor a box
+   that pixel rounding can squash). It stands on the baseline like a full
+   stop, tucked under the Y's arm and a bearing clear of the R, on the same
+   lip of shadow as the letters. */
 .logo-period {
-  margin: 0 -0.01em 0 -0.13em;
-  color: #12b886;
+  flex: none;
+  align-self: baseline;
+  width: 0.19em;
+  height: 0.19em;
+  margin: 0 0.06em 0 -0.07em;
+  overflow: visible;
+  fill: #12b886;
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }
 .logo-draw,
@@ -155,15 +165,17 @@ body {
 }
 
 /* Units, beside the loop switch: plain words, the one in use white. */
-.units {
+/* Units: a two-way slide switch between its two legends. The knob slides
+   to the unit in use and the legend beside it lights; the other dims. */
+.uswitch {
   display: inline-flex;
   align-items: center;
-  gap: 0.3em;
+  gap: 7px;
 }
-.unit {
+.uswitch-lab {
   border: 0;
   background: none;
-  padding: 4px 2px;
+  padding: 4px 1px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -172,14 +184,17 @@ body {
   cursor: pointer;
   transition: color 0.15s;
 }
-.unit[aria-pressed="true"] {
+.uswitch-lab[aria-pressed="true"] {
   color: var(--ink);
 }
-.unit-slash {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--ink-3);
-  opacity: 0.6;
+/* The track is a .switch (the Loop switch's slot and knob); the knob's
+   side is the unit's, not an on or off. */
+.uswitch-track[data-pos="r"]::after {
+  transform: translateX(20px);
+}
+.uswitch-track[data-pos="r"]:active::after,
+.uswitch-track[data-pos="r"][data-pressed]::after {
+  transform: translateX(20px) scale(0.9);
 }
 
 /* Slots: fields cut into the deck. */
@@ -203,19 +218,19 @@ body {
 }
 /* A key set into the right end of a field: the crosshair for My location. */
 .field-keyed {
-  padding-right: 2.8rem;
+  padding-right: 2.4rem;
 }
 .field-key {
   position: absolute;
   top: 50%;
-  right: 5px;
+  right: 7px;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   transform: translateY(-50%);
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
@@ -229,6 +244,10 @@ body {
 }
 .field-key:active {
   color: var(--orange);
+}
+.field-key svg {
+  width: 15px;
+  height: 15px;
 }
 .well {
   border-radius: 8px;
@@ -717,9 +736,16 @@ body {
   width: 100%;
 }
 
-/* The start key: big, orange, and it goes down when you hit it. */
+/* The start key: big, orange, and it goes down when you hit it. Built the
+   way a key is: a face under the light (a soft flare at the top left, the
+   edges falling away all round, a thread of light along the top lip and
+   the left edge, shade along the bottom and the right, a fine grain), on a
+   side wall in its own shade, darker as it nears the deck, seated by a
+   tight contact shadow with a broad soft one under that, and a little of
+   its orange thrown back onto the deck. */
 .go {
   position: relative;
+  z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -729,36 +755,82 @@ body {
   padding-top: 0.1em;
   border: 0;
   border-radius: 10px;
-  background: var(--orange-key);
-  color: #fff;
+  background: none;
+  color: #fff6f0;
   font-size: 2.1rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.2), inset 1px 0 0 rgba(255, 255, 255, 0.14), inset -1px 0 0 rgba(0, 0, 0, 0.22), 0 1px 0 #d84700, 0 2px 0 #c44000, 0 3px 0 #b03900, 0 4px 0 #9d3200, 0 5px 0 #8a2b00, 0 6px 0 #772400, 0 7px 2px rgba(0, 0, 0, 0.55), 0 12px 16px rgba(0, 0, 0, 0.45), 0 20px 34px rgba(252, 82, 0, 0.28);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
+  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.go::before,
+.go::after {
+  content: "";
+  position: absolute;
+  border-radius: 10px;
+  pointer-events: none;
+  transition: bottom 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
+}
+/* the side wall, and the key's seat on the deck */
+.go::before {
+  z-index: -2;
+  top: 0;
+  right: 0;
+  bottom: -7px;
+  left: 0;
+  background: linear-gradient(180deg, #d94b00 0%, #bd3f00 30%, #9a3200 70%, #6a2100 100%);
+  box-shadow: inset 2px 0 2px -1px rgba(255, 255, 255, 0.12), inset -2px 0 2px -1px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 4px rgba(0, 0, 0, 0.55), 0 10px 16px rgba(0, 0, 0, 0.45), 0 26px 44px -8px rgba(0, 0, 0, 0.6), 0 12px 36px rgba(252, 82, 0, 0.14);
+}
+/* the face */
+.go::after {
+  z-index: -1;
+  inset: 0;
+  background: var(--orange-key);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 2px 3px -1px rgba(255, 255, 255, 0.28), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.3), inset 2px 0 2px -1px rgba(255, 255, 255, 0.16), inset -2px 0 3px -1px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(90, 30, 0, 0.28);
 }
 @media (hover: hover) {
-  .go:hover:not(:disabled) {
+  .go:hover:not(:disabled)::after {
     background: var(--orange-key-hover);
   }
 }
+/* Down: the face travels onto its seat, the wall all but gone under it,
+   the socket's lip shading the top of the face, the seat's shadow drawn
+   in tight. */
 .go:active:not(:disabled),
 .go[data-pressed]:not(:disabled) {
   transform: translateY(6px);
-  background: linear-gradient(180deg, #b93a00 0%, #de4500 35%, #ff6f26 100%);
-  box-shadow: inset 0 6px 10px -2px rgba(0, 0, 0, 0.6), inset 2px 0 4px -2px rgba(0, 0, 0, 0.35), inset -2px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px #000, 0 1px 0 rgba(255, 255, 255, 0.07), 0 4px 10px rgba(252, 82, 0, 0.2);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
+.go:active:not(:disabled)::before,
+.go[data-pressed]:not(:disabled)::before {
+  bottom: -1px;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.7);
+  transition-duration: 0.06s;
+  transition-timing-function: ease-out;
+}
+.go:active:not(:disabled)::after,
+.go[data-pressed]:not(:disabled)::after {
+  background: var(--grain-key), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(180deg, #c94200 0%, #e85000 35%, #ff6a22 100%);
+  box-shadow: inset 0 7px 9px -3px rgba(0, 0, 0, 0.55), inset 2px 0 3px -2px rgba(0, 0, 0, 0.35), inset -2px 0 3px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
+  transition-duration: 0.06s;
+  transition-timing-function: ease-out;
+}
+/* Not yet: a dark key, the same build, unlit. */
 .go:disabled {
-  background: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #26262d 0%, #1c1c21 50%, #17171b 100%);
   color: var(--ink-3);
   text-shadow: none;
-  box-shadow: var(--key-hi), var(--skirt-4);
   cursor: not-allowed;
+}
+.go:disabled::before {
+  background: linear-gradient(180deg, #232329 0%, #1a1a1f 40%, #0f0f12 100%);
+  box-shadow: inset 2px 0 2px -1px rgba(255, 255, 255, 0.06), inset -2px 0 2px -1px rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 4px rgba(0, 0, 0, 0.55), 0 10px 16px rgba(0, 0, 0, 0.45), 0 26px 44px -8px rgba(0, 0, 0, 0.6);
+}
+.go:disabled::after {
+  background: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #2b2b32 0%, #202026 60%, #1a1a1f 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 2px 3px -1px rgba(255, 255, 255, 0.08), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.45), inset 2px 0 2px -1px rgba(255, 255, 255, 0.06), inset -2px 0 3px -1px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
 .go svg {
   position: relative;
@@ -1008,6 +1080,9 @@ details[open] > .disclose svg {
   gap: 0.5rem;
   min-width: 0;
 }
+/* The lane number in its white circle: the digit on centre (no letter-spacing
+   here, which would add its space after the digit and push it left; the
+   capitals' 0.05em lift met with a little more padding above). */
 .bib-lane b {
   position: relative;
   top: -0.05em;
@@ -1021,7 +1096,8 @@ details[open] > .disclose svg {
   color: var(--orange);
   font-size: 0.95rem;
   font-weight: 400;
-  padding-top: 0.1em;
+  letter-spacing: 0;
+  padding-top: 0.12em;
 }
 .bib-away {
   display: inline-flex;
@@ -1169,12 +1245,15 @@ details[open] > .disclose svg {
 .bib-sponsor span {
   color: var(--orange);
 }
-/* The period in the sponsor's address: the face's full stop, green like the wordmark's. */
+/* The period in the sponsor's address: a round green dot like the wordmark's. */
 .bib-dot {
-  display: inline;
-  margin: 0 -0.02em 0 -0.15em;   /* the face's kern for "Y." against this line's wider letter-spacing */
-  color: #12b886;
-  font-style: normal;
+  display: inline-block;
+  width: 0.19em;
+  height: 0.19em;
+  margin: 0 0.06em 0 -0.07em;
+  vertical-align: baseline;
+  overflow: visible;
+  fill: #12b886;
 }
 /* Printed keys on the paper: the same 3px lip and the same fall of shadow
    whatever their colour, so they stand at one height. */
@@ -1281,6 +1360,25 @@ details[open] > .disclose svg {
   50% { opacity: 1; transform: translateY(0) rotate(0.8deg); }
   75% { transform: rotate(-0.3deg); }
   100% { transform: none; }
+}
+/* A bib tapped in the pile is pulled out sideways from under the front bib
+   (lifted off its pins: a deeper shadow) and laid down on top from the
+   side; the bib that was in front slides up into the pile behind it. */
+.bib-lift {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 30px 44px -14px rgba(0, 0, 0, 0.85), 0 8px 14px rgba(0, 0, 0, 0.4);
+}
+.bib-front.bib-land {
+  animation: bib-land 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.06) backwards;
+}
+@keyframes bib-land {
+  0% { transform: translateX(calc(100% + 60px)) rotate(5deg); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 34px 48px -14px rgba(0, 0, 0, 0.85), 0 10px 16px rgba(0, 0, 0, 0.4); }
+  100% { transform: none; }
+}
+.bib-tuck {
+  animation: bib-tuck 0.36s ease-out backwards;
+}
+@keyframes bib-tuck {
+  from { transform: translateY(var(--tuck)) rotate(0deg) scale(1); }
 }
 
 /* The cue sheet as a pace band: a strip of paper, distances down the edge,
@@ -1468,40 +1566,95 @@ details[open] > .disclose svg {
   box-shadow: none;
   transition: transform 0.05s ease-out;
 }
+/* The replay key on the map: a round key with its face a little domed (a
+   soft flare towards the top left, the rim falling away into shade all
+   round), on a wall that shows below it as a crescent, lit on the left and
+   in shade on the right, seated on the map by a tight contact shadow and a
+   soft cast one. */
 .map-round {
+  position: relative;
+  z-index: 0;
   display: grid;
   place-items: center;
   width: 56px;
   height: 56px;
   border: 0;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ff6f26, #f04a00);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 5px 0 var(--orange-deep), 0 10px 20px rgba(0, 0, 0, 0.5);
+  background: none;
+  color: #fff6f0;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
+  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.map-round::before,
+.map-round::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: bottom 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
+}
+.map-round::before {
+  z-index: -2;
+  top: 0;
+  right: 0;
+  bottom: -6px;
+  left: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.35) 100%), linear-gradient(90deg, #d84a00 0%, #b83d00 45%, #8f2e00 100%);
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.5), 0 8px 14px rgba(0, 0, 0, 0.4), 0 18px 30px -6px rgba(0, 0, 0, 0.5);
+}
+.map-round::after {
+  z-index: -1;
+  inset: 0;
+  background: var(--grain-key), radial-gradient(75% 65% at 35% 22%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.22) 100%), linear-gradient(180deg, #ff7c38 0%, #fd5e12 60%, #f65104 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.3), inset 2px 0 2px -1px rgba(255, 255, 255, 0.14), inset -2px 0 3px -1px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(90, 30, 0, 0.28);
 }
 @media (hover: hover) {
-  .map-round:hover:not(:disabled) {
-    background: linear-gradient(180deg, #ff7f3d, #ff5c0a);
+  .map-round:hover:not(:disabled)::after {
+    background: var(--grain-key), radial-gradient(75% 65% at 35% 22%, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   }
 }
 .map-round:active:not(:disabled),
 .map-round[data-pressed]:not(:disabled) {
   transform: translateY(5px);
-  background: linear-gradient(180deg, #b93a00 0%, #de4500 35%, #ff6f26 100%);
-  box-shadow: inset 0 5px 8px -2px rgba(0, 0, 0, 0.6), inset 2px 0 4px -2px rgba(0, 0, 0, 0.35), inset -2px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px #000, 0 3px 8px rgba(0, 0, 0, 0.35);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
+.map-round:active:not(:disabled)::before,
+.map-round[data-pressed]:not(:disabled)::before {
+  bottom: -1px;
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  transition-duration: 0.06s;
+  transition-timing-function: ease-out;
+}
+.map-round:active:not(:disabled)::after,
+.map-round[data-pressed]:not(:disabled)::after {
+  background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #c94200 0%, #e85000 35%, #ff6a22 100%);
+  box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
+  transition-duration: 0.06s;
+  transition-timing-function: ease-out;
+}
+/* While the run plays, the key stays down: held, its face in the socket's
+   shade, the mark dimmed. */
 .map-round:disabled {
-  opacity: 0.55;
+  transform: translateY(5px);
+  color: rgba(255, 246, 240, 0.55);
   cursor: default;
 }
+.map-round:disabled::before {
+  bottom: -1px;
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.map-round:disabled::after {
+  background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #b93c00 0%, #d64a00 35%, #ef5f1c 100%);
+  box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
+}
+/* The play mark, printed on the face and set by its weight: the triangle's
+   mass is towards its flat side, so it stands a touch right of centre. */
 .map-round svg {
   width: 24px;
   height: 24px;
-  margin-left: 3px;
+  transform: translateX(0.25px);
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.22));
 }
 .hint {
   max-width: min(90%, 420px);
@@ -1588,9 +1741,13 @@ summary:focus-visible {
   .btn,
   .pbtn,
   .go,
+  .go::before,
+  .go::after,
   .tile,
   .map-btn,
   .map-round,
+  .map-round::before,
+  .map-round::after,
   .field,
   .well {
     transition: none;

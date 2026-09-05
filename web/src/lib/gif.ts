@@ -68,12 +68,12 @@ function displayFont(): string {
 function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
   ctx.textAlign = "left";
-  // The face's own period is 0.106em; set as the face sets "Y.", it tucks
-  // 0.04em under the Y's arm and clears the R by their two bearings, 0.08em,
-  // and stands on the baseline like a full stop.
-  const dot = size * 0.11;
-  const gapL = -size * 0.04;         // from the Y's advance to the dot
-  const gapR = size * 0.08;          // from the dot to the R's advance
+  // A round dot, 0.19em like the wordmark's, tucked a little under the Y's
+  // arm and a bearing clear of the R, standing on the baseline like a full
+  // stop.
+  const dot = size * 0.19;
+  const gapL = -size * 0.05;         // from the Y's advance to the dot
+  const gapR = size * 0.07;          // from the dot to the R's advance
   const wl = ctx.measureText(SITE.left).width;
   const wr = ctx.measureText(SITE.right).width;
   let x = right - (wl + gapL + dot + gapR + wr);

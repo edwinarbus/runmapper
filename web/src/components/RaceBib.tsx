@@ -1,6 +1,6 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
 import { isDrawing } from "@/lib/drawing";
@@ -15,13 +15,16 @@ import Icon from "./Icon";
 // The bib just behind the front is the next answer, drawn whole, so dragging
 // the front bib aside is a peek at it (let go and the front springs back) or
 // a throw (it flies off, the next bib comes forward, and the thrown one goes
-// to the back of the pile). A tap on any band brings that bib to the front.
+// to the back of the pile). A tap on any band brings that bib to the front:
+// it is pulled out sideways from under the front bib and laid on top, and
+// the bib that was in front slides up into the pile.
 
 const PEEK = 30;                       // how much of a bib behind shows, in px
 const BACK_SCALE = 0.94;               // the bibs behind are a little smaller, as if farther away
 const REVEAL_AT = 0.4;                 // the drag, as a share of the bib's width, that brings the next bib fully forward
 const TILT = [-1.4, 1.1, -0.7, 0.9];  // back bibs hang a little crooked
 const IDLE = { dx: 0, w: 0, live: false, out: 0 as const, on: -1 };
+const SHUFFLE_OUT_MS = 200;            // a tapped bib's slide out from under the front bib, before it lands on top
 
 export interface BibActions {
   units: Units;
@@ -192,7 +195,11 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
           </>
         )}
         <span className="bib-sponsor font-display" aria-hidden="true">
-          drawmy<i className="bib-dot">.</i><span>run</span>
+          drawmy
+          <svg className="bib-dot" viewBox="0 0 10 10">
+            <circle cx="5" cy="5" r="5" />
+          </svg>
+          <span>run</span>
         </span>
       </div>
     </>
@@ -215,6 +222,18 @@ export function BibStack({
   const { units } = actions;
   const count = options.length;
 
+  // The pile, front to back. The parent says which bib is in front; the pile
+  // remembers the order of the rest: a throw sends the front bib to the back
+  // and brings the one under it forward, a tap pulls a bib out and lays it
+  // on top with the front one right behind it, and new answers join at the
+  // back. Whatever the parent puts in front, the rest keep their order.
+  const [pile, setPile] = useState<number[]>([]);
+  const order = useMemo(() => {
+    const rest = pile.filter((i) => i < count && i !== index);
+    for (let i = 0; i < count; i++) if (i !== index && !rest.includes(i)) rest.push(i);
+    return [index, ...rest];
+  }, [pile, index, count]);
+
   // Dragging the front bib aside brings the next one forward underneath it;
   // a throw (far enough, or fast enough) sends the front bib off and makes
   // the next one the front. Vertical movement is left to the panel's
@@ -224,10 +243,56 @@ export function BibStack({
   const ptr = useRef<{ id: number; x0: number; y0: number; axis: "x" | null; lastX: number; lastT: number; vx: number } | null>(null);
   const swiped = useRef(false);
   const [drag, setDrag] = useState<{ dx: number; w: number; live: boolean; out: -1 | 0 | 1; on: number }>(IDLE);
-  // A bib that came forward under a throw is already in place: no settling in.
-  const [arrived, setArrived] = useState<"pick" | "throw">("pick");
+  // How the front bib got there: picked (it settles in), thrown forward (it
+  // is already in place), or shuffled out of the pile (it lands from the side).
+  const [arrived, setArrived] = useState<"pick" | "throw" | "shuffle">("pick");
   const active = drag.on === index;
   const live = active && drag.live;
+
+  // A tap on a bib in the pile: it pulls out sideways from under the front
+  // bib, then comes down on top of it from the side, while the bib that was
+  // in front slides up into the pile.
+  const [shuffle, setShuffle] = useState<number | null>(null);
+  const [tucked, setTucked] = useState<number | null>(null);   // the front bib the last shuffle put back
+  const pick = (i: number) => {
+    if (shuffle !== null) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setArrived("pick");
+      onPick(i);
+      return;
+    }
+    const front = index;
+    setShuffle(i);
+    window.setTimeout(() => {
+      setTucked(front);
+      setArrived("shuffle");
+      setPile([i, front, ...order.slice(1).filter((j) => j !== i)]);
+      onPick(i);
+      setShuffle(null);
+    }, SHUFFLE_OUT_MS);
+  };
+  // The front bib goes to the back of the pile and the one under it comes
+  // forward (a throw, or the right arrow); the left arrow brings the one at
+  // the very back round to the front.
+  const advance = () => {
+    const next = order[1];
+    setPile([next, ...order.slice(2), index]);
+    onPick(next);
+  };
+  const retreat = () => {
+    const last = order[order.length - 1];
+    setPile([last, ...order.slice(0, -1)]);
+    onPick(last);
+  };
+  // The arrow keys change which bib is the front one, which is a new element:
+  // the keyboard's focus follows it onto the new front bib.
+  const frontEl = useRef<HTMLElement>(null);
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    frontEl.current?.focus({ preventScroll: true });
+  }, [index]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (ptr.current || (active && drag.out !== 0) || count < 2) return;   // one finger at a time
@@ -283,10 +348,9 @@ export function BibStack({
     // Thrown either way, the bib underneath is the one that comes forward.
     const dir: -1 | 1 = (Math.abs(dx) > 8 ? dx : p.vx) < 0 ? -1 : 1;
     setDrag({ dx: dir * (w + 140), w, live: false, out: dir, on: index });
-    const next = (index + 1) % count;
     window.setTimeout(() => {
       setArrived("throw");
-      onPick(next);
+      advance();
       setDrag(IDLE);
     }, 230);
   };
@@ -303,9 +367,8 @@ export function BibStack({
 
   const o = options[index];
   if (!o) return null;
-  // The pile behind the front bib, farthest first: the next answer is nearest,
-  // the one after it behind that, round to the one just thrown at the back.
-  const behind = Array.from({ length: count - 1 }, (_, k) => (index + count - 1 - k) % count);
+  // The pile behind the front bib, farthest first.
+  const behind = order.slice(1).reverse();
   const n = behind.length + (planning ? 1 : 0);
   const v = verdictOf(o.verdict);
   // How far the next bib has come forward under the drag: all the way once
@@ -351,15 +414,20 @@ export function BibStack({
         const slot = r + (planning ? 1 : 0);
         const t = r === behind.length - 1 ? reveal : 0;   // only the nearest comes forward
         const tilt = TILT[i % TILT.length];
+        const out = shuffle === i;                          // tapped: on its way out from under the front bib
+        const back = tucked === i;                          // just put back from the front: slides up into its slot
         return (
           <div
             key={i}
-            className="bib bib-back"
+            className={`bib bib-back${out ? " bib-lift" : ""}${back ? " bib-tuck" : ""}`}
             style={{
               top: slot * PEEK,
               zIndex: slot + 1,
-              transform: `translateY(${PEEK * t}px) rotate(${tilt * (1 - t)}deg) scale(${BACK_SCALE + (1 - BACK_SCALE) * t})`,
-              transition: live ? "none" : "transform 0.24s ease-out, top 0.24s ease-out",
+              transform: out
+                ? "translateX(calc(100% + 60px)) rotate(5deg) scale(1)"
+                : `translateY(${PEEK * t}px) rotate(${tilt * (1 - t)}deg) scale(${BACK_SCALE + (1 - BACK_SCALE) * t})`,
+              transition: live ? "none" : out ? "transform 0.2s cubic-bezier(0.4, 0, 0.8, 0.6), box-shadow 0.2s" : "transform 0.24s ease-out, top 0.24s ease-out",
+              ...(back ? ({ "--tuck": `${(n - slot) * PEEK}px` } as CSSProperties) : null),
             }}
           >
             <SafetyPin corner="tl" />
@@ -367,10 +435,7 @@ export function BibStack({
             <button
               type="button"
               className="bib-band-btn"
-              onClick={() => {
-                setArrived("pick");
-                onPick(i);
-              }}
+              onClick={() => pick(i)}
               aria-label={`Show route ${i + 1}, ${options[i].label}: ${awayLabel(options[i], units)}, ${verdictOf(options[i].verdict).label}`}
             >
               <Band index={i} o={options[i]} units={units} />
@@ -384,7 +449,8 @@ export function BibStack({
 
       <article
         key={index}
-        className={`bib bib-front${live || (active && drag.out) ? " bib-drag" : ""}${arrived === "throw" ? " bib-still" : ""}`}
+        ref={frontEl}
+        className={`bib bib-front${live || (active && drag.out) ? " bib-drag" : ""}${arrived === "throw" ? " bib-still" : arrived === "shuffle" ? " bib-land" : ""}`}
         style={{
           zIndex: n + 1,
           transform: active && drag.dx ? `translateX(${drag.dx}px) rotate(${drag.dx / 24}deg)` : undefined,
@@ -411,12 +477,14 @@ export function BibStack({
           if (count < 2) return;
           if (e.key === "ArrowRight") {
             e.preventDefault();
+            refocus.current = true;
             setArrived("pick");
-            onPick((index + 1) % count);
+            advance();
           } else if (e.key === "ArrowLeft") {
             e.preventDefault();
+            refocus.current = true;
             setArrived("pick");
-            onPick((index - 1 + count) % count);
+            retreat();
           }
         }}
       >

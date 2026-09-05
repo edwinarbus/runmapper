@@ -551,12 +551,13 @@ export default function RunMapper() {
         <div className="checker" aria-hidden="true" />
         <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
           {/* The wordmark, and nothing else: drawmy.run, the run in orange and the period
-              the green of the start dot. The period is the face's own glyph, so it is drawn
-              by the text engine with the letters, round, on the baseline, and kerned. */}
+              a round dot the green of the start dot, drawn as a circle on the baseline. */}
           <h1 className="logo font-display" aria-label="drawmy.run">
             <span className="logo-word" aria-hidden="true">
               <span className="logo-draw">DRAWMY</span>
-              <span className="logo-period">.</span>
+              <svg className="logo-period" viewBox="0 0 10 10">
+                <circle cx="5" cy="5" r="5" />
+              </svg>
               <span className="logo-run">RUN</span>
             </span>
           </h1>
@@ -747,14 +748,19 @@ export default function RunMapper() {
                   <span>How far</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="units" role="group" aria-label="Units">
-                    <button type="button" className="unit" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
+                  <div className="uswitch" role="group" aria-label="Units">
+                    <button type="button" className="uswitch-lab" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
                       mi
                     </button>
-                    <span className="unit-slash" aria-hidden="true">
-                      /
-                    </span>
-                    <button type="button" className="unit" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
+                    <button
+                      type="button"
+                      className="switch uswitch-track"
+                      data-pos={units === "km" ? "r" : "l"}
+                      aria-label={units === "mi" ? "Switch to kilometres" : "Switch to miles"}
+                      title="Miles or kilometres"
+                      onClick={() => setUnits(units === "mi" ? "km" : "mi")}
+                    />
+                    <button type="button" className="uswitch-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
                     </button>
                   </div>

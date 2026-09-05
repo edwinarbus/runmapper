@@ -771,13 +771,17 @@ span.plate-lab {
   transform: translateX(16px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -6px 0 8px -5px rgba(0, 0, 0, 0.8), inset 6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 3px 6px rgba(0, 0, 0, 0.7);
 }
-/* a finger on it pushes the knob towards the other side before it goes over */
-.switch:active .knob {
+/* A finger on it pushes the knob towards the other side, and it goes over
+   from there when the finger lifts. The push is data-pressed rather than
+   :active, which phones hold on to for a while after a tap: it is set by
+   the touch and cleared by the click that flips the switch, in the same
+   breath, so the two moves join up as one. */
+.switch[data-pressed] .knob {
   transform: translateX(5px);
   transition-duration: 0.06s;
 }
-.switch[aria-checked="true"]:active .knob,
-.switch[data-pos="r"]:active .knob {
+.switch[aria-checked="true"][data-pressed] .knob,
+.switch[data-pos="r"][data-pressed] .knob {
   transform: translateX(11px);
 }
 /* the lamp in Loop's knob: dark until it is on, then lit orange */

@@ -173,12 +173,28 @@ export default function RunMapper() {
       // The deck's noises: the start key knocks and clacks back up, a switch
       // makes its own snap when it goes over, everything else ticks.
       const big = key.classList.contains("go");
-      if (!key.classList.contains("switch")) play(big ? "go" : "key");
+      const sw = key.classList.contains("switch");
+      if (!sw) play(big ? "go" : "key");
       const t0 = performance.now();
       const up = () => {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
         if (big) play("goUp");
+        if (sw) {
+          // A switch goes over on the click that follows the finger lifting,
+          // so its push is held until that click has flipped it, and the knob
+          // goes straight on from under the finger to the far side. If the
+          // finger lifts elsewhere and no click comes, the knob eases back.
+          let t = 0;
+          const done = () => {
+            window.removeEventListener("click", done);
+            window.clearTimeout(t);
+            delete key.dataset.pressed;
+          };
+          window.addEventListener("click", done);
+          t = window.setTimeout(done, 150);
+          return;
+        }
         window.setTimeout(() => delete key.dataset.pressed, Math.max(0, 110 - (performance.now() - t0)));
       };
       window.addEventListener("pointerup", up);

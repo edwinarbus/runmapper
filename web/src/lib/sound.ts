@@ -3,8 +3,9 @@
 // The deck's own noises, made rather than recorded. Every sound here is a
 // burst of noise shaped by a filter with a knock under it, so nothing is
 // downloaded and no two presses land quite alike. A browser will not start
-// audio before the first tap, so the context opens on the first sound and
-// every sound is asked for by a tap or a key press.
+// audio before the first tap, so the context is opened early but stays
+// silent until the first sound, and every sound is asked for by a tap or a
+// key press.
 
 type Shape = {
   /** the noise's colour, in hertz, and how tightly it is filtered */
@@ -65,6 +66,14 @@ if (typeof window !== "undefined") {
   };
   window.addEventListener("pointerdown", first, true);
   window.addEventListener("keydown", first, true);
+  // Opening the context takes the browser a moment, long enough to hold up
+  // whatever the first tap was meant to do, so it is opened ahead of time,
+  // once the page has settled, and simply waits, silent, for the first sound.
+  const ahead = () => {
+    if (on) start();
+  };
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(ahead, { timeout: 2500 });
+  else window.setTimeout(ahead, 1200);
 }
 
 /** Whether the deck is making its noises. */
@@ -140,6 +149,6 @@ export function play(voice: keyof typeof VOICES) {
   if (!on || !touched) return;
   const c = start();
   if (!c) return;
-  if (c.state === "suspended") c.resume().catch(() => undefined);
+  if (c.state !== "running") c.resume().catch(() => undefined);   // also "interrupted", on an iPhone after a call
   fire(VOICES[voice], c.currentTime + 0.001);
 }

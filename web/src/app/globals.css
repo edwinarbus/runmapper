@@ -315,17 +315,29 @@ span.plate-lab {
    invisible. */
 .flap-board {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 0 5px;                  /* between tiles; words and rows are spaced by the board */
-  padding: 4px;                /* room for the focus ring; the margin gives the width back */
+  padding: 4px;                /* the housing's lip; the margin gives the width back */
   margin: -4px;
   border-radius: 10px;
   cursor: text;
 }
-.flap-board:focus-within {
-  box-shadow: 0 0 0 2px var(--orange);
+/* The housing the modules sit in: a black well let into the deck, a lip of
+   light on its lower edge, the drums' shadows falling inside it. */
+.flap-board::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -6px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #040405 0%, #09090b 40%, #0c0c0f 100%);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95), inset 0 1px 0 #000, inset 1px 0 3px rgba(0, 0, 0, 0.7), inset -1px 0 3px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.flap-board:focus-within::before {
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95), inset 0 1px 0 #000, inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 0 0 2px var(--orange), 0 0 14px rgba(252, 82, 0, 0.35);
 }
 .flap-gap {
   flex: none;
@@ -333,7 +345,7 @@ span.plate-lab {
 }
 .flap-break {
   flex-basis: 100%;
-  height: 6px;                 /* the next tile starts a new row, this far down */
+  height: 10px;                /* the next tile starts a new row, this far down: room for the stacks' edges */
 }
 .flap {
   --h: calc(var(--w, 64px) * 1.32);
@@ -342,10 +354,12 @@ span.plate-lab {
   width: var(--w, 64px);
   height: var(--h);
   perspective: 500px;
-  color: var(--ink);
+  color: #e8e3d6;
   font-family: var(--font-display), "Arial Narrow", Impact, sans-serif;
   font-size: calc(var(--w, 64px) * 1.12);
   line-height: 1;
+  background: #050506;         /* the dark of the drum, seen in the seam between the leaves */
+  border-radius: 6px;
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
 }
 .flap-half,
@@ -356,6 +370,8 @@ span.plate-lab {
   height: calc(50% - 1px);
   overflow: hidden;
 }
+/* The letter, printed into the leaf: paint in a shallow recess, a line of
+   shade along the top of each stroke and a thread of light along the bottom. */
 .flap-half > i,
 .flap-face > i {
   position: absolute;
@@ -366,13 +382,25 @@ span.plate-lab {
   place-items: center;
   padding-top: calc(var(--w, 64px) * 0.08);
   font-style: normal;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.16);
 }
+/* The leaves: cards of dark plastic with a fine grain. The top leaf faces up
+   into the light (a thread of light along its top edge, a soft sheen below
+   it, shade where it curls under into the hinge); the bottom leaf hangs in
+   the top one's shadow, a band of it falling across its upper edge, a hint
+   of light on its lower lip. */
 .flap-top,
 .flap-face-front {
   top: 0;
   border-radius: 6px 6px 2px 2px;
-  background: linear-gradient(180deg, #454550 0%, #35353f 60%, #2d2d35 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.7);
+  background: var(--grain-key), radial-gradient(90% 55% at 50% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 100%), linear-gradient(180deg, #4b4b56 0%, #3d3d47 55%, #33333c 88%, #2a2a32 100%);
+}
+.flap-top {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.75),
+    0 -1px 0 #2c2c33, 0 -2px 0 #111114, 0 -3px 0 #26262d, 0 -4px 0 #0e0e11, 0 -5px 0 #1f1f25;
+}
+.flap-face-front {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.75);
 }
 .flap-top > i,
 .flap-face-front > i {
@@ -382,8 +410,14 @@ span.plate-lab {
 .flap-face-back {
   bottom: 0;
   border-radius: 2px 2px 6px 6px;
-  background: linear-gradient(180deg, #1e1e24 0%, #272730 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 1px 0 0 rgba(255, 255, 255, 0.03), inset -1px 0 0 rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  background: var(--grain-key), linear-gradient(180deg, #1c1c22 0%, #26262e 45%, #2a2a33 100%);
+}
+.flap-bot {
+  box-shadow: inset 0 4px 4px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 0, 0, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09),
+    0 1px 0 #1f1f25, 0 2px 0 #0e0e11, 0 3px 0 #1b1b20, 0 4px 0 #0a0a0c;
+}
+.flap-face-back {
+  box-shadow: inset 0 4px 4px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 0, 0, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09);
 }
 .flap-bot > i,
 .flap-face-back > i {
@@ -430,31 +464,34 @@ span.plate-lab {
   from { filter: brightness(1.7); }
   to { filter: brightness(1); }
 }
-/* the hinge pins at the seam */
+/* the hinge pins at the seam: steel, standing a little proud of the leaves */
 .flap::before,
 .flap::after {
   content: "";
   position: absolute;
-  top: calc(50% - 3px);
+  top: calc(50% - 4px);
   z-index: 2;
-  width: 3px;
-  height: 6px;
-  border-radius: 1px;
-  background: linear-gradient(180deg, #8a8a94, #4a4a52);
+  width: 4px;
+  height: 8px;
+  border-radius: 1.5px;
+  background: linear-gradient(180deg, #e2e2e8 0%, #a4a4ad 40%, #5e5e68 75%, #3a3a42 100%);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.8);
 }
 .flap::before {
-  left: 0;
+  left: -1px;
 }
 .flap::after {
-  right: 0;
+  right: -1px;
 }
 .flap-ghost .flap-half > i {
-  color: #3c3c45;
+  color: #3b3b45;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+/* the next module along, empty: the drum's dark, ringed in orange */
 .flap-cursor {
   border-radius: 6px;
-  background: #0f0f12;
-  box-shadow: inset 0 0 0 2px var(--orange);
+  background: linear-gradient(180deg, #08080a, #101014);
+  box-shadow: inset 0 0 0 2px var(--orange), inset 0 3px 6px rgba(0, 0, 0, 0.8);
   animation: pulse 1.2s ease-in-out infinite;
   filter: none;
 }

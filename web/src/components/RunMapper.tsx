@@ -515,6 +515,8 @@ export default function RunMapper() {
   };
 
   const statusWord = engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting";
+  // The wordmark's period as a status light.
+  const light = engine !== "online" ? "dim" : status === "planning" ? "busy" : status === "done" && result ? "ready" : "idle";
 
   const progressLane = <Stopwatch pct={progress?.pct ?? 0} msg={progress?.msg ?? "Working"} laps={laps} startedAt={startedAt} onStop={cancel} />;
 
@@ -549,29 +551,18 @@ export default function RunMapper() {
         className={`tower panel-scroll overflow-x-hidden overflow-y-auto border-b border-[var(--line)] md:max-h-none md:border-r md:border-b-0 ${showResult ? "max-h-[56dvh]" : "max-h-[64dvh]"}`}
       >
         <div className="checker" aria-hidden="true" />
-        <header className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
-          <div className="min-w-0">
-            {/* The wordmark: drawmy.run in enamel letters, the .run in orange. */}
-            <h1 className="logo font-display" aria-label="drawmy.run">
-              <span className="logo-word" aria-hidden="true">
-                <span className="logo-draw">DRAWMY</span>
-                <span className="logo-period" />
-                <span className="logo-run">RUN
-                </span>
-              </span>
-            </h1>
-            <p className="eyebrow mt-1.5 truncate">{engine === "online" && status !== "planning" ? "Workout GPS art" : statusWord}</p>
-          </div>
-          <Seg
-            className="mt-1 shrink-0"
-            options={[
-              { key: "mi", label: "mi" },
-              { key: "km", label: "km" },
-            ]}
-            value={units}
-            onChange={setUnits}
-            label="Units"
-          />
+        <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
+          {/* The wordmark, and nothing else: drawmy.run, the .run in orange. Its period is
+              the status light: pulsing while the engine computes, green once a route is
+              ready, dim while the engine is out of reach. */}
+          <h1 className="logo font-display" aria-label="drawmy.run">
+            <span className="logo-word" aria-hidden="true">
+              <span className="logo-draw">DRAWMY</span>
+              <span className="logo-period" data-state={light} />
+              <span className="logo-run">RUN</span>
+            </span>
+          </h1>
+          <span className="sr-only" role="status">{statusWord}</span>
         </header>
         <div className="rule" />
 
@@ -709,17 +700,11 @@ export default function RunMapper() {
             </section>
             <div className="rule" />
 
-            {/* 02 Start */}
+            {/* 02 Start: the address field, with the crosshair for My location set into its end */}
             <section className="px-6 py-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="step font-display">
-                  <span className="num">02</span>
-                  <span>Start</span>
-                </div>
-                <button type="button" onClick={useMyLocation} className="btn btn-sm">
-                  <Icon name="locate" />
-                  My location
-                </button>
+              <div className="step font-display mb-2">
+                <span className="num">02</span>
+                <span>Start</span>
               </div>
               <div className="relative">
                 <input
@@ -734,8 +719,11 @@ export default function RunMapper() {
                   placeholder={pin ? pinLabel : "Address or place"}
                   aria-label="Start address or place"
                   title={pin ? `Pinned at ${pinLabel}. Drag the pin or tap the map to move it.` : undefined}
-                  className="field"
+                  className="field field-keyed"
                 />
+                <button type="button" onClick={useMyLocation} className="field-key" aria-label="My location" title="Start from where you are">
+                  <Icon name="locate" />
+                </button>
                 {(places.length > 0 || searching) && query.trim().length >= 3 && (
                   <ul className="menu" aria-label="Places">
                     {searching && places.length === 0 && <li className="menu-note">Searching…</li>}
@@ -753,24 +741,37 @@ export default function RunMapper() {
             </section>
             <div className="rule" />
 
-            {/* 03 Distance, with the loop switch in its corner */}
+            {/* 03 Distance, with the units and the loop switch in its corner */}
             <section className="px-6 py-4">
               <div className="mb-3 flex items-center justify-between">
                 <div className="step font-display">
                   <span className="num">03</span>
                   <span>How far</span>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="eyebrow">Loop</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={loop}
-                    aria-label="Perfect loop: finish where you start"
-                    title="Perfect loop: finish where you start"
-                    className="switch"
-                    onClick={() => setLoop((x) => !x)}
-                  />
+                <div className="flex items-center gap-4">
+                  <div className="units" role="group" aria-label="Units">
+                    <button type="button" className="unit" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
+                      mi
+                    </button>
+                    <span className="unit-slash" aria-hidden="true">
+                      /
+                    </span>
+                    <button type="button" className="unit" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
+                      km
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="eyebrow">Loop</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={loop}
+                      aria-label="Perfect loop: finish where you start"
+                      title="Perfect loop: finish where you start"
+                      className="switch"
+                      onClick={() => setLoop((x) => !x)}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2" role="group" aria-label="Distance">

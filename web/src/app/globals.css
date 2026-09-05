@@ -65,8 +65,8 @@ body {
   background-image: var(--grain-dark), linear-gradient(180deg, #18181c, var(--panel) 180px);
 }
 .checker {
-  height: 8px;
-  background: repeating-conic-gradient(var(--ink) 0 25%, var(--bg) 0 50%) 0 0 / 8px 8px;
+  height: 6px;
+  background: repeating-conic-gradient(var(--ink) 0 25%, var(--bg) 0 50%) 0 0 / 6px 6px;
   box-shadow: 0 1px 0 #000, 0 2px 0 rgba(255, 255, 255, 0.07);
 }
 /* A groove cut between sections: a dark line, light catching its lower edge. */
@@ -75,9 +75,9 @@ body {
   background: linear-gradient(180deg, #000 0, #000 50%, rgba(255, 255, 255, 0.08) 50%);
 }
 
-/* The wordmark: drawmy.run in flat capitals on a lip of shadow, the run in
-   orange, and the period the green start marker, a small dot standing on the
-   baseline the way a full stop does. No gloss on any of it. */
+/* The wordmark: drawmy.run in flat capitals on a lip of shadow, the .run in
+   orange, the period a small dot standing on the baseline the way a full stop
+   does, and doubling as the status light. No gloss on any of it. */
 .logo {
   display: inline-block;
   font-size: 1.75rem;
@@ -95,20 +95,33 @@ body {
 }
 /* The period stands between the two words as its own piece, outside the
    letters' shadow filter (which blurred a dark halo under it), on a hard
-   one-pixel lip of its own like theirs. */
+   one-pixel lip of its own like theirs. It is the status light: orange as
+   part of the address, pulsing while the engine computes, green once a
+   route is ready, dim while the engine is out of reach. */
 .logo-period {
   position: relative;
-  top: -0.03em;                  /* the ring, not the dot, stands on the baseline */
   flex: none;
   width: 0.11em;                 /* the face's own period is 0.106em */
   height: 0.11em;
   /* Set as the face sets "Y.": the period tucks 0.04em under the Y's arm
      (its kern is -0.093em) and clears the R by its two bearings, 0.08em;
-     the ring and the letter-spacing are counted in. */
-  margin: 0 0.1em 0 -0.07em;
+     the letter-spacing is counted in. */
+  margin: 0 0.07em 0 -0.04em;
   border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.75);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.logo-period[data-state="busy"] {
+  animation: pulse 1.1s ease-in-out infinite;
+  box-shadow: 0 0 0.3em rgba(252, 82, 0, 0.75), 0 1px 0 rgba(0, 0, 0, 0.75);
+}
+.logo-period[data-state="ready"] {
   background: #12b886;
-  box-shadow: 0 0 0 0.03em #fff, 0 1px 0 0.03em rgba(0, 0, 0, 0.75);   /* the white ring of the start marker, on its lip */
+  box-shadow: 0 0 0.3em rgba(18, 184, 134, 0.6), 0 1px 0 rgba(0, 0, 0, 0.75);
+}
+.logo-period[data-state="dim"] {
+  background: #4a4a52;
 }
 .logo-draw,
 .logo-run {
@@ -144,6 +157,34 @@ body {
   50% { opacity: 0.35; }
 }
 
+/* Units, beside the loop switch: plain words, the one in use white. */
+.units {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+.unit {
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.unit[aria-pressed="true"] {
+  color: var(--ink);
+}
+.unit-slash {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+  opacity: 0.6;
+}
+
 /* Slots: fields cut into the deck. */
 .field {
   width: 100%;
@@ -162,6 +203,35 @@ body {
 }
 .field::placeholder {
   color: var(--ink-3);
+}
+/* A key set into the right end of a field: the crosshair for My location. */
+.field-keyed {
+  padding-right: 2.8rem;
+}
+.field-key {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+@media (hover: hover) {
+  .field-key:hover {
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+.field-key:active {
+  color: var(--orange);
 }
 .well {
   border-radius: 8px;
@@ -400,7 +470,7 @@ body {
   animation: rise-in 0.25s ease-out backwards;
 }
 
-/* Distance keys: raised, and the chosen one pressed down, lit orange. */
+/* Distance keys: raised, and the chosen one pressed down, in white. */
 .tile {
   position: relative;
   height: 52px;
@@ -436,12 +506,13 @@ body {
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
-/* The chosen key stays down in its socket, lit orange. */
+/* The chosen key stays down in its socket, in white: the selectors' key
+   treatment, so orange is left to the one real action. */
 .tile[aria-pressed="true"]:not(:disabled),
 .tile[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--orange-down);
-  color: #fff;
-  box-shadow: var(--sunk-orange), 0 0 18px rgba(252, 82, 0, 0.3);
+  background: var(--white-down);
+  color: var(--paper-ink);
+  box-shadow: var(--sunk-white);
 }
 .tile .big-label {
   display: block;
@@ -1099,16 +1170,15 @@ details[open] > .disclose svg {
 .bib-sponsor span {
   color: var(--orange);
 }
-/* The period in the sponsor's address: the start marker, green in a white ring. */
+/* The period in the sponsor's address, orange like the wordmark's. */
 .bib-dot {
   display: inline-block;
   width: 0.11em;
   height: 0.11em;
-  margin: 0 0.14em 0 -0.12em;   /* tucked under the Y, clear of the R, with this line's wider letter-spacing counted in */
+  margin: 0 0.11em 0 -0.09em;   /* tucked under the Y, clear of the R, with this line's wider letter-spacing counted in */
   border-radius: 50%;
-  background: #12b886;
-  box-shadow: 0 0 0 0.03em #fff, 0 0 0 0.045em rgba(23, 23, 26, 0.2);
-  vertical-align: 0.03em;
+  background: var(--orange);
+  vertical-align: 0;
 }
 /* Printed keys on the paper: the same 3px lip and the same fall of shadow
    whatever their colour, so they stand at one height. */

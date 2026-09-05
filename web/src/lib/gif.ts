@@ -63,42 +63,35 @@ function displayFont(): string {
   return fam ? `${fam}, "Arial Narrow", Impact, sans-serif` : `"Arial Narrow", Impact, sans-serif`;
 }
 
-/** The site's address with its right edge at `right`: DRAWMY, the green
- *  start dot in its white ring as the period, RUN in orange. */
+/** The site's address with its right edge at `right`: DRAWMY, then the
+ *  period and RUN in orange, as the wordmark on the page. */
 function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
   ctx.textAlign = "left";
   // The face's own period is 0.106em; set as the face sets "Y.", it tucks
-  // 0.04em under the Y's arm and clears the R by their two bearings, 0.08em.
-  // The ring, not the dot, stands on the baseline.
+  // 0.04em under the Y's arm and clears the R by their two bearings, 0.08em,
+  // and stands on the baseline like a full stop.
   const dot = size * 0.11;
-  const ring = size * 0.03;
-  const gapL = -size * 0.02;         // from the Y's advance to the dot
-  const gapR = size * 0.071;         // from the dot to the R's advance
+  const gapL = -size * 0.04;         // from the Y's advance to the dot
+  const gapR = size * 0.08;          // from the dot to the R's advance
   const wl = ctx.measureText(SITE.left).width;
   const wr = ctx.measureText(SITE.right).width;
   let x = right - (wl + gapL + dot + gapR + wr);
   ctx.fillStyle = "#6f6e68";
   ctx.fillText(SITE.left, x, baseline);
   x += wl + gapL;
-  const cy = baseline - ring - dot / 2;
   ctx.beginPath();
-  ctx.arc(x + dot / 2, cy, dot / 2 + ring, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x + dot / 2, cy, dot / 2, 0, Math.PI * 2);
-  ctx.fillStyle = "#12b886";
+  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2, 0, Math.PI * 2);
+  ctx.fillStyle = "#fc5200";
   ctx.fill();
   x += dot + gapR;
-  ctx.fillStyle = "#fc5200";
   ctx.fillText(SITE.right, x, baseline);
 }
 
 /** How wide drawSite draws at `size`. */
 function siteWidth(ctx: CanvasRenderingContext2D, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
-  return ctx.measureText(SITE.left).width - size * 0.02 + size * 0.11 + size * 0.071 + ctx.measureText(SITE.right).width;
+  return ctx.measureText(SITE.left).width - size * 0.04 + size * 0.11 + size * 0.08 + ctx.measureText(SITE.right).width;
 }
 
 /** A wash of paper down from the top with the word, a rule, the distance

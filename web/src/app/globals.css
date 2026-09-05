@@ -1708,3 +1708,38 @@ summary:focus-visible {
     transition: none;
   }
 }
+
+/* The 3D deck in the column: a canvas as wide as the column and as tall as
+   the panel, with the real HTML controls laid over it. */
+.deck3d {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+}
+.deck3d canvas {
+  display: block;
+}
+.deck-html {
+  pointer-events: auto;
+}
+/* Typed into over the LED readout: the readout shows the letters, so the
+   field itself shows nothing, not even its caret. */
+.led-input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 22px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  outline: none;
+}
+.led-input::selection {
+  background: rgba(61, 255, 106, 0.25);
+}

@@ -29,7 +29,7 @@ export interface GifJob {
 const FRAME_MS = 50;     // 20 frames a second
 const MAX_FRAMES = 150;
 const FADE_FRAMES = 8;   // the line melting away after the hold, so the loop comes round smoothly
-const BAND = 210;        // caption band height at 1280 x 720, along the top: X lays its GIF badge over the bottom left
+const BAND = 132;        // caption band height at 1280 x 720, along the top: X lays its GIF badge over the bottom left
 const THICK = 2;         // the route and its markers, this many times as thick as on screen
 const SIZE_LIMIT = 4.8 * 1024 * 1024;   // under the 5 MB X allows from a phone
 const TRANSPARENT = 255;                // the palette slot that means "as before"
@@ -63,8 +63,8 @@ function displayFont(): string {
   return fam ? `${fam}, "Arial Narrow", Impact, sans-serif` : `"Arial Narrow", Impact, sans-serif`;
 }
 
-/** The site's address with its right edge at `right`: DRAWMY, then the
- *  period and RUN in orange, as the wordmark on the page. */
+/** The site's address with its right edge at `right`: DRAWMY, the green
+ *  period of a route that is ready, RUN in orange. */
 function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
   ctx.font = `${size}px ${font}`;
   ctx.textAlign = "left";
@@ -82,9 +82,10 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
   x += wl + gapL;
   ctx.beginPath();
   ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2, 0, Math.PI * 2);
-  ctx.fillStyle = "#fc5200";
+  ctx.fillStyle = "#12b886";
   ctx.fill();
   x += dot + gapR;
+  ctx.fillStyle = "#fc5200";
   ctx.fillText(SITE.right, x, baseline);
 }
 
@@ -94,47 +95,35 @@ function siteWidth(ctx: CanvasRenderingContext2D, size: number, font: string) {
   return ctx.measureText(SITE.left).width - size * 0.04 + size * 0.11 + size * 0.08 + ctx.measureText(SITE.right).width;
 }
 
-/** A wash of paper down from the top with the word, a rule, the distance
- *  large and the town beside it, and the site bottom right on a small plate.
- *  The bottom left stays clear: that is where X lays its GIF badge. Sized
- *  for 1280 wide and scaled with the frame. */
+/** A wash of paper down from the top with the distance, large, and the
+ *  town beside it; the site top right. The bottom corners stay clear: X
+ *  lays its GIF badge over the bottom left. Sized for 1280 wide and scaled
+ *  with the frame. */
 function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: GifJob["caption"], font: string) {
   const s = w / 1280;
-  const g = ctx.createLinearGradient(0, 0, 0, (BAND + 70) * s);
+  const g = ctx.createLinearGradient(0, 0, 0, (BAND + 60) * s);
   g.addColorStop(0, "rgba(247, 245, 240, 0.98)");
   g.addColorStop(0.7, "rgba(247, 245, 240, 0.86)");
   g.addColorStop(1, "rgba(247, 245, 240, 0)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, (BAND + 70) * s);
+  ctx.fillRect(0, 0, w, (BAND + 60) * s);
   const x = 56 * s;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
-  ctx.fillStyle = "#151517";
-  ctx.font = `${104 * s}px ${font}`;
-  ctx.fillText(caption.word.toUpperCase(), x, 110 * s);
-  // a short orange rule under the word, like the field on the page
-  ctx.fillStyle = "#fc5200";
-  ctx.fillRect(x, 126 * s, Math.min(w * 0.3, 300 * s), 4 * s);
   // the distance, large, and the town to its right
-  ctx.font = `${64 * s}px ${font}`;
+  ctx.fillStyle = "#fc5200";
+  ctx.font = `${96 * s}px ${font}`;
   const distance = caption.distance.toUpperCase();
   const dw = ctx.measureText(distance).width;
-  ctx.fillText(distance, x + 2 * s, 196 * s);
+  ctx.fillText(distance, x, 108 * s);
   if (caption.city) {
     ctx.fillStyle = "#6f6e68";
-    ctx.font = `${36 * s}px ${font}`;
-    ctx.fillText(caption.city.toUpperCase(), x + 2 * s + dw + 24 * s, 196 * s);
+    ctx.font = `${44 * s}px ${font}`;
+    ctx.fillText(caption.city.toUpperCase(), x + dw + 26 * s, 108 * s);
   }
-  // the site, bottom right, on a plate of paper so it reads on any map
-  const size = 36 * s;
-  const sw = siteWidth(ctx, size, font);
-  const pad = 14 * s;
-  const baseline = h - 40 * s;
-  ctx.fillStyle = "rgba(247, 245, 240, 0.92)";
-  ctx.beginPath();
-  ctx.roundRect(w - 56 * s - sw - pad, baseline - size * 0.7 - pad, sw + 2 * pad, size * 0.7 + 2 * pad, 8 * s);
-  ctx.fill();
-  drawSite(ctx, w - 56 * s, baseline, size, font);
+  // the site, top right, in the band's wash
+  void h;
+  drawSite(ctx, w - 56 * s, 78 * s, 36 * s, font);
 }
 
 export async function renderGif(job: GifJob): Promise<Blob> {
@@ -189,8 +178,8 @@ export async function renderGif(job: GifJob): Promise<Blob> {
     src("start").setData(job.start ? pointFeature([job.start[1], job.start[0]]) : EMPTY);
     src("finish").setData(job.finish ? pointFeature([job.finish[1], job.finish[0]]) : EMPTY);
     src("route").setData(lineFeature(job.route));
-    setDecor(m, true);
-    m.fitBounds(routeBounds(job.route), { padding: { top: 48 + BAND, right: 64, bottom: 64 + 60, left: 64 }, duration: 0, maxZoom: 16.5 });
+    setDecor(m, false);   // no chevrons on the GIF: the line reads cleaner small
+    m.fitBounds(routeBounds(job.route), { padding: { top: BAND + 16, right: 36, bottom: 44, left: 36 }, duration: 0, maxZoom: 17 });
     await idle(m, 20000);   // tiles for the whole frame
     if (typeof document.fonts?.ready?.then === "function") await document.fonts.ready;
     const font = displayFont();
@@ -220,7 +209,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       // as well so the line has colours to fade through.
       src("route").setData(lineFeature(job.route));
       src("head").setData(EMPTY);
-      setDecor(m, true);
+      setDecor(m, false);
       const sample: number[] = [];
       for (const a of [0.55, 0.25]) {
         setRouteOpacity(m, a, job.night);
@@ -288,7 +277,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       // Hold on the finished drawing with its chevrons.
       src("route").setData(lineFeature(job.route));
       src("head").setData(EMPTY);
-      setDecor(m, true);
+      setDecor(m, false);
       await idle(m, 1500);
       frame(snap(), 2200);
       tick();

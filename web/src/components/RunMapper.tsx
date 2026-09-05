@@ -33,7 +33,6 @@ import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
 import Icon from "./Icon";
-import Toggle from "./Toggle";
 import Seg from "./Seg";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
@@ -762,7 +761,7 @@ export default function RunMapper() {
                       title="Miles or kilometres"
                       onClick={() => setUnits(units === "mi" ? "km" : "mi")}
                     >
-                      <Toggle on={units === "km"} />
+                      <span className="rocker-cap" aria-hidden="true" />
                     </button>
                     <button type="button" className="plate-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
                       km
@@ -780,7 +779,9 @@ export default function RunMapper() {
                       className="switch"
                       onClick={() => setLoop((x) => !x)}
                     >
-                      <Toggle on={loop} />
+                      <span className="rocker-cap" aria-hidden="true">
+                        <i className="rocker-lamp" />
+                      </span>
                     </button>
                   </div>
                 </div>

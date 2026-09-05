@@ -167,7 +167,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       }, 30000);
     });
     addRouteLayers(m, job.night);
-    scaleRoute(m, THICK, job.night);
+    scaleRoute(m, THICK);
     const src = (id: string) => m.getSource(id) as maplibregl.GeoJSONSource;
     src("start").setData(job.start ? pointFeature([job.start[1], job.start[0]]) : EMPTY);
     src("finish").setData(job.finish ? pointFeature([job.finish[1], job.finish[0]]) : EMPTY);
@@ -206,12 +206,12 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       setDecor(m, false);
       const sample: number[] = [];
       for (const a of [0.55, 0.25]) {
-        setRouteOpacity(m, a, job.night);
+        setRouteOpacity(m, a);
         await idle(m, 1500);
         const px = snap();
         for (let p = 0; p < px.length; p += 4 * 3) sample.push(px[p], px[p + 1], px[p + 2], px[p + 3]);
       }
-      setRouteOpacity(m, 1, job.night);
+      setRouteOpacity(m, 1);
       await idle(m, 1500);
       const full = snap();
       const both = new Uint8ClampedArray(full.length + sample.length);
@@ -246,12 +246,12 @@ export async function renderGif(job: GifJob): Promise<Blob> {
       // beat before the drawing begins.
       for (let i = 1; i <= FADE_FRAMES; i++) {
         const t = i / FADE_FRAMES;
-        setRouteOpacity(m, 1 - t * t * (3 - 2 * t), job.night);
+        setRouteOpacity(m, 1 - t * t * (3 - 2 * t));
         await idle(m, 1500);
         frame(snap(), i === FADE_FRAMES ? 300 : 60);
         tick();
       }
-      setRouteOpacity(m, 1, job.night);
+      setRouteOpacity(m, 1);
       setDecor(m, false);
       let k = 1;
       for (let i = 0; i <= n; i++) {

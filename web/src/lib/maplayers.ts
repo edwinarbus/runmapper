@@ -64,16 +64,13 @@ export function setDecor(m: maplibregl.Map, visible: boolean) {
 
 /** The route and its markers `k` times as thick as on screen (a GIF is
  *  seen small on a phone). */
-export function scaleRoute(m: maplibregl.Map, k: number, night: boolean) {
+export function scaleRoute(m: maplibregl.Map, k: number) {
   const paint = (id: string, prop: string, v: unknown) => {
     if (m.getLayer(id)) m.setPaintProperty(id, prop, v);
   };
   const layout = (id: string, prop: string, v: unknown) => {
     if (m.getLayer(id)) m.setLayoutProperty(id, prop, v);
   };
-  paint("route-shadow", "line-width", (night ? 12 : 14) * k);
-  paint("route-shadow", "line-blur", (night ? 4 : 6) * k);
-  paint("route-shadow", "line-translate", [0, (night ? 1 : 2) * k]);
   paint("route-casing", "line-width", 9 * k);
   paint("route", "line-width", 5 * k);
   paint("ideal", "line-width", 2.5 * k);
@@ -85,13 +82,12 @@ export function scaleRoute(m: maplibregl.Map, k: number, night: boolean) {
   }
 }
 
-/** The route's opacity, 0 to 1: the line with its casing, shadow and
- *  chevrons, and the finish marker. The start marker stays as it is. */
-export function setRouteOpacity(m: maplibregl.Map, a: number, night: boolean) {
+/** The route's opacity, 0 to 1: the line with its casing and chevrons, and
+ *  the finish marker. The start marker stays as it is. */
+export function setRouteOpacity(m: maplibregl.Map, a: number) {
   const set = (id: string, prop: string, v: number) => {
     if (m.getLayer(id)) m.setPaintProperty(id, prop, v);
   };
-  set("route-shadow", "line-opacity", (night ? 0.35 : 0.16) * a);
   set("route-casing", "line-opacity", 0.9 * a);
   set("route", "line-opacity", a);
   set("route-arrows", "icon-opacity", a);
@@ -99,8 +95,9 @@ export function setRouteOpacity(m: maplibregl.Map, a: number, night: boolean) {
   set("finish", "circle-stroke-opacity", a);
 }
 
-/** Sources and layers for one route: glow or shadow, casing, line, the
- *  target shape, chevrons, start, finish and the draw head. */
+/** Sources and layers for one route: casing, line, the target shape,
+ *  chevrons, start, finish and the draw head. The line lies flat on the
+ *  map, with no shadow under it. */
 export function addRouteLayers(m: maplibregl.Map, night: boolean) {
   // `night` is the dark treatment: a near-black casing under the line, for
   // the night map and for satellite imagery, where a white casing is lost.
@@ -110,16 +107,6 @@ export function addRouteLayers(m: maplibregl.Map, night: boolean) {
     if (img) m.addImage(ARROW, img, { pixelRatio: 2 });
   }
   for (const id of ["route", "ideal", "start", "finish", "head"]) m.addSource(id, { type: "geojson", data: EMPTY });
-  // Under the line: a soft shadow by day; at night the dark casing is enough.
-  m.addLayer({
-    id: "route-shadow",
-    type: "line",
-    source: "route",
-    layout: { "line-cap": "round", "line-join": "round" },
-    paint: night
-      ? { "line-color": "#000000", "line-width": 12, "line-opacity": 0.35, "line-blur": 4, "line-translate": [0, 1] }
-      : { "line-color": "#000000", "line-width": 14, "line-opacity": 0.16, "line-blur": 6, "line-translate": [0, 2] },
-  });
   m.addLayer({
     id: "route-casing",
     type: "line",

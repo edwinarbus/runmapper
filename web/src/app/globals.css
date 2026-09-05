@@ -1788,12 +1788,11 @@ details[open] > .disclose svg {
   z-index: 0;
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 44px;                   /* a round key a size up from the square ones, not a dome */
+  height: 44px;
   border: 0;
   border-radius: 50%;
   background: none;
-  color: #fff6f0;
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
@@ -1809,7 +1808,7 @@ details[open] > .disclose svg {
   z-index: -2;
   top: 0;
   right: 0;
-  bottom: -6px;
+  bottom: -5px;
   left: 0;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.35) 100%), linear-gradient(90deg, #d84a00 0%, #b83d00 45%, #8f2e00 100%);
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.5), 0 8px 14px rgba(0, 0, 0, 0.4), 0 18px 30px -6px rgba(0, 0, 0, 0.5);
@@ -1827,7 +1826,7 @@ details[open] > .disclose svg {
 }
 .map-round:active:not(:disabled),
 .map-round[data-pressed]:not(:disabled) {
-  transform: translateY(5px);
+  transform: translateY(4px);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
@@ -1848,8 +1847,7 @@ details[open] > .disclose svg {
 /* While the run plays, the key stays down: held, its face in the socket's
    shade, the mark dimmed. */
 .map-round:disabled {
-  transform: translateY(5px);
-  color: rgba(255, 246, 240, 0.55);
+  transform: translateY(4px);
   cursor: default;
 }
 .map-round:disabled::before {
@@ -1860,13 +1858,33 @@ details[open] > .disclose svg {
   background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #b93c00 0%, #d64a00 35%, #ef5f1c 100%);
   box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
 }
-/* The play mark, printed on the face and set by its weight: the triangle's
-   mass is towards its flat side, so it stands a touch right of centre. */
+/* The play mark, pressed into the face (see MapView for its three layers) and
+   set by its weight: the triangle's mass is towards its flat side, so it
+   stands a touch right of centre. The floor of the cut is the face in shade,
+   deeper shade along its upper edges, a thread of light along the lower. */
 .map-round svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   transform: translateX(0.25px);
-  filter: var(--cut-orange-icon);
+}
+.play-lip {
+  fill: rgba(255, 236, 222, 0.55);
+}
+.play-shade {
+  fill: #6a2200;
+}
+.play-floor {
+  fill: #c04400;
+}
+/* held down while the run plays: the whole key in the socket's shade */
+.map-round:disabled .play-lip {
+  fill: rgba(255, 236, 222, 0.32);
+}
+.map-round:disabled .play-shade {
+  fill: #4e1900;
+}
+.map-round:disabled .play-floor {
+  fill: #8f3200;
 }
 .hint {
   max-width: min(90%, 420px);

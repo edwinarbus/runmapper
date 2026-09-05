@@ -21,6 +21,9 @@ import Icon from "./Icon";
 import Seg from "./Seg";
 
 // Used when the basemap style can't be fetched, so the route still shows.
+// The play mark's triangle, with its mass towards the flat side; see .map-round svg.
+const PLAY = "M8 5.5v13l11-6.5z";
+
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {},
@@ -510,7 +513,21 @@ export default function MapView(props: MapViewProps) {
       {hasRoute && (
         <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-round" onClick={() => startDraw(basemap === "satellite")} disabled={drawing} aria-label={basemap === "satellite" ? "Fly the route" : "Replay the route drawing"} title={basemap === "satellite" ? "Fly the route: first person, over the terrain" : "Replay"}>
-            <Icon name="play" />
+            {/* The play mark, pressed into the face: the floor of the cut in shade, a
+                band of deeper shade along its upper edges where the cut's wall shadows
+                it, and a thread of light along its lower edges where the lip catches
+                the light. Three copies of one triangle: the lit lip a touch below, the
+                shade, and the floor shifted down and clipped to the cut. */}
+            <svg className="play-mark" viewBox="0 0 24 24" aria-hidden="true">
+              <defs>
+                <clipPath id="play-cut">
+                  <path d={PLAY} />
+                </clipPath>
+              </defs>
+              <path className="play-lip" d={PLAY} transform="translate(0 1.1)" />
+              <path className="play-shade" d={PLAY} />
+              <path className="play-floor" d={PLAY} transform="translate(0 1.25)" clipPath="url(#play-cut)" />
+            </svg>
           </button>
         </div>
       )}

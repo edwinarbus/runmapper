@@ -28,18 +28,29 @@
   --key: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #3b3b45 0%, #2b2b33 50%, #222229 100%);
   --key-hover: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #43434e 0%, #31313a 50%, #27272e 100%);
   --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
-  --skirt-3: 0 1px 0 #2b2b32, 0 2px 0 #1a1a1f, 0 3px 0 #0b0b0d, 0 4px 1px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
-  --skirt-4: 0 1px 0 #2b2b32, 0 2px 0 #1e1e24, 0 3px 0 #131317, 0 4px 0 #0a0a0c, 0 5px 1px rgba(0, 0, 0, 0.6), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
+  --skirt-3: 0 1px 0 #26262c, 0 2px 0 #151519, 0 3px 0 #07070a, 0 4px 1px rgba(0, 0, 0, 0.75), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
+  --skirt-4: 0 1px 0 #26262c, 0 2px 0 #1a1a1f, 0 3px 0 #101013, 0 4px 0 #07070a, 0 5px 1px rgba(0, 0, 0, 0.75), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
   --white-key: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #fbfaf6 0%, #ecebe5 55%, #dad7ce 100%);
   --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, 0.14), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
-  --white-skirt-3: 0 1px 0 #c9c6bd, 0 2px 0 #aeaba2, 0 3px 0 #8f8c84, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
+  --white-skirt-3: 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
   /* An orange face under the light: a soft flare towards the top left where
      the light lands, the edges falling into shade all round, a fine grain
      like moulded plastic, and no gloss line. */
   --orange-key: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.16) 100%), linear-gradient(180deg, #ff7c38 0%, #fd5e12 60%, #f65104 100%);
   --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
-  --orange-skirt-3: 0 1px 0 #d24500, 0 2px 0 #b83c00, 0 3px 0 #9a3100, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.25);
+  --orange-skirt-3: 0 1px 0 #cf4800, 0 2px 0 #a33900, 0 3px 0 #7a2b00, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
+  /* A legend engraved in a key's face, as on the start key: a line of shade
+     along the top of each letter, where the cut's upper wall shadows it, and
+     a thread of light along the bottom, where its lower lip catches the
+     light. One for each face, for the letters (text-shadow) and for the
+     icons beside them (a filter, which follows the icon's own outline). */
+  --cut-dark: 0 -1px 0 rgba(0, 0, 0, 0.85), 0 1px 0 rgba(255, 255, 255, 0.14);
+  --cut-light: 0 -1px 0 rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.85);
+  --cut-orange: 0 -1px 0 rgba(70, 20, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.42);
+  --cut-dark-icon: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.85)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.14));
+  --cut-light-icon: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.3)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
+  --cut-orange-icon: drop-shadow(0 -1px 0 rgba(70, 20, 0, 0.55)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.42));
   /* A slot cut into the deck: black at its top edge, shade down its sides,
      a thread of light on its lower lip. */
   --well-face: linear-gradient(180deg, #050506 0%, #0a0a0d 35%, #0d0d10 100%);
@@ -168,6 +179,7 @@ body {
 .mute svg {
   width: 16px;
   height: 16px;
+  filter: var(--cut-dark-icon);
 }
 
 /* Step headings and small labels. */
@@ -616,6 +628,7 @@ span.plate-lab {
   padding: 0 0.4rem;
   text-align: center;
   color: var(--ink);
+  text-shadow: var(--cut-dark);
   cursor: pointer;
   box-shadow: var(--key-hi), var(--skirt-4);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
@@ -648,6 +661,7 @@ span.plate-lab {
 .tile[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--white-down);
   color: var(--paper-ink);
+  text-shadow: var(--cut-light);
   box-shadow: var(--sunk-white);
 }
 .tile .big-label {
@@ -693,7 +707,7 @@ span.plate-lab {
   width: calc((100% - 4px) / var(--n, 3) - 2px);
   border-radius: 4px;
   background: var(--white-key);
-  box-shadow: var(--white-hi), 0 1px 0 #b5b2a9, 0 2px 0 #8f8c84, 0 3px 3px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--white-hi), 0 1px 0 #aaa79d, 0 2px 0 #7d7a72, 0 3px 3px rgba(0, 0, 0, 0.65);
   transition: left 0.22s cubic-bezier(0.3, 0.9, 0.35, 1.18);
   pointer-events: none;
 }
@@ -711,6 +725,7 @@ span.plate-lab {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-2);
+  text-shadow: var(--cut-dark);
   text-align: center;
   white-space: nowrap;
   cursor: pointer;
@@ -723,6 +738,7 @@ span.plate-lab {
 }
 .seg-btn[aria-pressed="true"] {
   color: var(--bg);
+  text-shadow: var(--cut-light);
 }
 .seg-btn:active,
 .seg-btn[data-pressed] {
@@ -825,6 +841,7 @@ span.plate-lab {
   text-transform: uppercase;
   line-height: 1;
   white-space: nowrap;
+  text-shadow: var(--cut-dark);
   cursor: pointer;
   user-select: none;
   box-shadow: var(--key-hi), var(--skirt-3);
@@ -853,11 +870,16 @@ span.plate-lab {
   width: 16px;
   height: 16px;
   flex: none;
+  filter: var(--cut-dark-icon);
 }
 .btn-fill {
   background: var(--white-key);
   color: var(--bg);
+  text-shadow: var(--cut-light);
   box-shadow: var(--white-hi), var(--white-skirt-3);
+}
+.btn-fill svg {
+  filter: var(--cut-light-icon);
 }
 @media (hover: hover) {
   .btn-fill:hover:not(:disabled) {
@@ -871,8 +893,12 @@ span.plate-lab {
 }
 .btn-orange {
   background: var(--orange-key);
-  color: #fff;
+  color: #fff3ea;
+  text-shadow: var(--cut-orange);
   box-shadow: var(--orange-hi), var(--orange-skirt-3);
+}
+.btn-orange svg {
+  filter: var(--cut-orange-icon);
 }
 @media (hover: hover) {
   .btn-orange:hover:not(:disabled) {
@@ -1420,8 +1446,10 @@ details[open] > .disclose svg {
   overflow: visible;
   fill: #12b886;
 }
-/* Printed keys on the paper: the same 3px lip and the same fall of shadow
-   whatever their colour, so they stand at one height. */
+/* Keys on the paper: the same 3px wall and the same fall of shadow whatever
+   their colour, so they stand at one height; the wall in shade, so a key
+   reads as a part standing on the paper rather than a plate printed on it,
+   and the legends cut into the faces. */
 .pbtn {
   display: inline-flex;
   align-items: center;
@@ -1439,8 +1467,9 @@ details[open] > .disclose svg {
   text-transform: uppercase;
   line-height: 1;
   white-space: nowrap;
+  text-shadow: var(--cut-light);
   cursor: pointer;
-  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #cfccc3, 0 2px 0 #b3b0a7, 0 3px 0 #99968e, 0 4px 1px rgba(0, 0, 0, 0.28), 0 6px 8px rgba(0, 0, 0, 0.22), 0 10px 14px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.26), 0 10px 14px rgba(0, 0, 0, 0.14);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
 @media (hover: hover) {
@@ -1463,6 +1492,7 @@ details[open] > .disclose svg {
   transform: translateY(3px);
   background: linear-gradient(180deg, #0f0f12, #202024);
   color: var(--paper);
+  text-shadow: var(--cut-dark);
   box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.55);
 }
 .pbtn svg {
@@ -1471,12 +1501,19 @@ details[open] > .disclose svg {
   width: 16px;
   height: 16px;
   flex: none;
+  filter: var(--cut-light-icon);
+}
+.pbtn[aria-pressed="true"] svg {
+  filter: var(--cut-dark-icon);
 }
 .pbtn-orange {
   background: var(--orange-key);
-  color: #fff;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
-  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #d24500, 0 2px 0 #b83c00, 0 3px 0 #9a3100, 0 4px 1px rgba(0, 0, 0, 0.3), 0 6px 8px rgba(0, 0, 0, 0.22);
+  color: #fff3ea;
+  text-shadow: var(--cut-orange);
+  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #cf4800, 0 2px 0 #a33900, 0 3px 0 #7a2b00, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.26);
+}
+.pbtn-orange svg {
+  filter: var(--cut-orange-icon);
 }
 @media (hover: hover) {
   .pbtn-orange:hover {
@@ -1491,7 +1528,11 @@ details[open] > .disclose svg {
 .pbtn-ink {
   background: linear-gradient(180deg, #2a2a30 0%, #1a1a1e 55%, #121215 100%);
   color: var(--paper);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #0d0d0f, 0 2px 0 #08080a, 0 3px 0 #000, 0 4px 1px rgba(0, 0, 0, 0.35), 0 6px 8px rgba(0, 0, 0, 0.3);
+  text-shadow: var(--cut-dark);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #0d0d0f, 0 2px 0 #08080a, 0 3px 0 #000, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.3);
+}
+.pbtn-ink svg {
+  filter: var(--cut-dark-icon);
 }
 @media (hover: hover) {
   .pbtn-ink:hover {
@@ -1628,7 +1669,8 @@ details[open] > .disclose svg {
   text-transform: uppercase;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 3px 0 #050506, 0 5px 10px rgba(0, 0, 0, 0.45);
+  text-shadow: var(--cut-dark);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.7), 0 5px 10px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
@@ -1656,7 +1698,11 @@ details[open] > .disclose svg {
 .map-btn[aria-pressed="true"]:hover {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
-  box-shadow: inset 0 1px 0 #fff, 0 3px 0 #8f8d86, 0 5px 10px rgba(0, 0, 0, 0.45);
+  text-shadow: var(--cut-light);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 10px rgba(0, 0, 0, 0.45);
+}
+.map-btn[aria-pressed="true"] svg {
+  filter: var(--cut-light-icon);
 }
 .map-btn[aria-pressed="true"]:active,
 .map-btn[aria-pressed="true"][data-pressed] {
@@ -1669,6 +1715,7 @@ details[open] > .disclose svg {
   width: 16px;
   height: 16px;
   flex: none;
+  filter: var(--cut-dark-icon);
 }
 /* Square keys: zoom always; the route keys on a phone, where they keep
    their icons and drop their words. */
@@ -1819,7 +1866,7 @@ details[open] > .disclose svg {
   width: 24px;
   height: 24px;
   transform: translateX(0.25px);
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.22));
+  filter: var(--cut-orange-icon);
 }
 .hint {
   max-width: min(90%, 420px);

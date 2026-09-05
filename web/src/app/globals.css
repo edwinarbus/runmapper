@@ -765,28 +765,25 @@ span.plate-lab {
   width: 100%;
 }
 
-/* The start key: big, orange, and it goes down when you hit it. Built the
-   way a moulded key is: a cap whose face pillows up a little (brightest
-   above centre, rolling off into shade towards every edge), a rolled edge
-   all round (a wide band of light along the top and the left, of shade
-   along the bottom and the right), a flare where the light lands top left,
-   a fine grain; under it a side wall in its own shade, a crease where the
-   wall meets the cap's edge, darkest at the deck; seated by a tight contact
-   shadow with a broad soft one under that, a little orange thrown back on
-   the deck. The legend is engraved: paint in a recess, a line of shade
-   along the top of each letter and a thread of light along the bottom. */
+/* The start key: big, orange, and it goes down when you hit it. It is a
+   real render (three.js; web/tools/toggle3d/key3d.html): a cap, rounded in
+   plan with a fillet round its top edge and a face that pillows up a touch,
+   standing on its wall on the deck, lit in the same studio as the switches
+   and throwing its own shadow; cut as a border image, so it stretches to
+   any width with its corners kept whole. Three looks: up; down, the cap on
+   its seat with two pixels of wall left; and dark, not yet ready. The
+   legend is engraved: paint in a recess, a line of shade along the top of
+   each letter and a thread of light along the bottom. */
 .go {
   position: relative;
   z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.9rem;
   width: 100%;
-  height: 68px;
-  padding-top: 0.1em;
+  height: 77px;                  /* the face, 68, on its wall, 9 */
+  padding: 0 0 9px;
   border: 0;
-  border-radius: 11px;
   background: none;
   color: #f6e8dc;
   font-size: 2.1rem;
@@ -795,93 +792,57 @@ span.plate-lab {
   line-height: 1;
   text-shadow: 0 -1px 0 rgba(70, 20, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.42), 0 2px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
-.go::before,
-.go::after {
+/* The picture of the key, behind the legend: the render with its margins
+   for the shadow (26 above and either side, 44 below), sliced 46px in from
+   the top and sides and 73 from the bottom so the corners, the fillet and
+   the wall's ends stay whole while the middle stretches. */
+.go::before {
   content: "";
   position: absolute;
-  border-radius: 11px;
-  pointer-events: none;
-  transition: bottom 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
-}
-/* the side wall (its visible band is the bottom 9px), and the key's seat */
-.go::before {
-  z-index: -2;
-  top: 0;
-  right: 0;
-  bottom: -9px;
-  left: 0;
-  background:
-    linear-gradient(180deg, #c74400 0%, #c74400 calc(100% - 9px), #a83700 calc(100% - 8px), #d04a00 calc(100% - 6px), #b53d00 calc(100% - 3px), #7f2a00 calc(100% - 1px), #4a1700 100%);
-  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.3), inset -3px 0 3px -2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6), 0 12px 40px rgba(252, 82, 0, 0.16);
-}
-/* the cap's face */
-.go::after {
   z-index: -1;
-  inset: 0;
-  background:
-    var(--grain-key),
-    radial-gradient(70% 60% at 40% 0%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0) 62%),
-    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.1) 70%, rgba(0, 0, 0, 0.26) 100%),
-    linear-gradient(180deg, #ff8340 0%, #fd6219 55%, #f04e04 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.34), inset 0 4px 6px -2px rgba(255, 255, 255, 0.55), inset 3px 0 5px -3px rgba(255, 255, 255, 0.22), inset -3px 0 5px -3px rgba(255, 255, 255, 0.12), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(0, 0, 0, 0.12);
+  inset: -26px -26px -44px;
+  border: 0 solid transparent;
+  border-image-source: url("/key-up.png");
+  border-image-source: image-set(url("/key-up.webp") type("image/webp"), url("/key-up.png") type("image/png"));
+  border-image-slice: 138 138 219 138 fill;
+  border-image-width: 46px 46px 73px 46px;
+  border-image-repeat: stretch;
+  pointer-events: none;
+}
+.go-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding-top: 0.1em;
+  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
 @media (hover: hover) {
-  .go:hover:not(:disabled)::after {
-    background:
-      var(--grain-key),
-      radial-gradient(70% 60% at 40% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 100%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.09) 32%, rgba(255, 255, 255, 0) 62%),
-      radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.08) 70%, rgba(0, 0, 0, 0.22) 100%),
-      linear-gradient(180deg, #ff8c4c 0%, #ff6c24 55%, #f7550a 100%);
+  .go:hover:not(:disabled) {
+    filter: brightness(1.06);
   }
 }
-/* Down: the cap travels onto its seat, the wall all but gone under it,
-   the socket's lip shading the top of the face, the seat's shadow drawn
-   in tight. */
-.go:active:not(:disabled),
-.go[data-pressed]:not(:disabled) {
+/* Down: the cap on its seat, the legend travelling with it. */
+.go:active:not(:disabled)::before,
+.go[data-pressed]:not(:disabled)::before {
+  border-image-source: url("/key-down.png");
+  border-image-source: image-set(url("/key-down.webp") type("image/webp"), url("/key-down.png") type("image/png"));
+}
+.go:active:not(:disabled) .go-cap,
+.go[data-pressed]:not(:disabled) .go-cap {
   transform: translateY(7px);
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
-.go:active:not(:disabled)::before,
-.go[data-pressed]:not(:disabled)::before {
-  bottom: -2px;
-  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.3), inset -3px 0 3px -2px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.5), 0 5px 8px rgba(0, 0, 0, 0.35);
-  transition-duration: 0.06s;
-  transition-timing-function: ease-out;
+/* Not yet: the same key in dark plastic, its legend cut but unpainted. */
+.go:disabled::before {
+  border-image-source: url("/key-dark.png");
+  border-image-source: image-set(url("/key-dark.webp") type("image/webp"), url("/key-dark.png") type("image/png"));
 }
-.go:active:not(:disabled)::after,
-.go[data-pressed]:not(:disabled)::after {
-  background:
-    var(--grain-key),
-    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.12) 70%, rgba(0, 0, 0, 0.3) 100%),
-    linear-gradient(180deg, #c24000 0%, #e04d00 35%, #fb6620 100%);
-  box-shadow: inset 0 8px 10px -3px rgba(0, 0, 0, 0.6), inset 3px 0 4px -2px rgba(0, 0, 0, 0.35), inset -3px 0 4px -2px rgba(0, 0, 0, 0.35), inset 0 -2px 3px -1px rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(60, 20, 0, 0.45);
-  transition-duration: 0.06s;
-  transition-timing-function: ease-out;
-}
-/* Not yet: a dark key, the same build, unlit, its legend engraved unpainted. */
 .go:disabled {
-  color: #55545e;
+  color: #5b5a64;
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.09);
   cursor: not-allowed;
-}
-.go:disabled::before {
-  background:
-    linear-gradient(180deg, #1e1e24 0%, #1e1e24 calc(100% - 9px), #141418 calc(100% - 8px), #26262d calc(100% - 6px), #1a1a1f calc(100% - 3px), #0d0d10 calc(100% - 1px), #050506 100%);
-  box-shadow: inset 3px 0 3px -2px rgba(0, 0, 0, 0.4), inset -3px 0 3px -2px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 2px rgba(0, 0, 0, 0.6), 0 6px 8px rgba(0, 0, 0, 0.5), 0 14px 22px rgba(0, 0, 0, 0.45), 0 30px 48px -10px rgba(0, 0, 0, 0.6);
-}
-.go:disabled::after {
-  background:
-    var(--grain-key),
-    radial-gradient(60% 55% at 28% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(135% 125% at 50% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.14) 70%, rgba(0, 0, 0, 0.34) 100%),
-    linear-gradient(180deg, #2e2e35 0%, #222228 55%, #1b1b20 100%);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.09), inset 0 4px 6px -2px rgba(255, 255, 255, 0.16), inset 3px 0 5px -3px rgba(255, 255, 255, 0.06), inset -3px 0 5px -3px rgba(255, 255, 255, 0.04), inset 0 -7px 9px -3px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(0, 0, 0, 0.2);
 }
 /* the chevrons, engraved like the letters */
 .go svg {
@@ -1792,9 +1753,7 @@ summary:focus-visible {
   .seg-thumb,
   .btn,
   .pbtn,
-  .go,
-  .go::before,
-  .go::after,
+  .go-cap,
   .tile,
   .map-btn,
   .map-round,

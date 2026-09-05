@@ -827,14 +827,16 @@ export default function RunMapper() {
             )}
 
             {/* Go: pinned to the bottom of the column on wide screens */}
-            <section className="space-y-3 px-6 py-4 md:sticky md:bottom-0 md:z-10 md:bg-[var(--panel)] md:shadow-[0_-16px_24px_rgba(18,18,21,0.9)]">
+            <section className="space-y-3 px-6 pt-4 pb-10 md:sticky md:bottom-0 md:z-10 md:bg-[var(--panel)] md:shadow-[0_-16px_24px_rgba(18,18,21,0.9)]">
               {status === "planning" ? (
                 progressLane
               ) : (
                 <div className="space-y-3">
                   <button type="button" disabled={!canGo} onClick={() => go()} className="go font-display">
-                    Draw my run
-                    <Icon name="chevrons" />
+                    <span className="go-cap">
+                      Draw my run
+                      <Icon name="chevrons" />
+                    </span>
                   </button>
                   {result && shown && (
                     <button type="button" onClick={() => setEditing(false)} className="btn btn-block">

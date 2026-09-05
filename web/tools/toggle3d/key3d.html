@@ -1,0 +1,139 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+// The start key as an object: a cap, a rounded rectangle in plan with a fillet all
+// round its top edge, standing 18 units on the deck, seen from above with the view
+// tipped 30 degrees forward so its front wall shows as a band 9px tall. Drawn at
+// 1 world unit = 1 CSS px, three device px to the unit, with room round it for the
+// shadow it throws. ?state=up|down (down: the cap dropped onto its seat) and
+// ?tone=orange|dark (the dark key is the one that is not yet ready).
+const q = new URLSearchParams(location.search);
+const STATE = q.get("state") || "up";
+const TONE = q.get("tone") || "orange";
+const PX = 3;
+const CAP_W = 360, CAP_H = 68 / Math.cos(Math.PI / 6);   // the face, 68px tall once tipped
+const RADIUS = 11, FILLET = 3.2, DEPTH = 18;
+const MARGIN = { top: 26, side: 26, bottom: 44 };
+const IMG_W = CAP_W + MARGIN.side * 2;
+const IMG_H = 68 + 9 + MARGIN.top + MARGIN.bottom;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(IMG_W, IMG_H);
+renderer.setPixelRatio(PX);
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.25;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+function studio() {
+  const s = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(2000, 1200, 2000), new THREE.MeshBasicMaterial({ color: 0x2a2a31, side: THREE.BackSide }));
+  room.position.y = 500; s.add(room);
+  const light = (w, h, x, y, z, k, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).multiplyScalar(k), side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.rotation.set(rx, ry, rz); s.add(m);
+  };
+  light(900, 400, -400, 950, 200, 5, Math.PI / 2 + 0.5);
+  light(400, 900, 800, 400, -200, 2.2, 0, -Math.PI / 2);
+  light(1200, 300, 0, 300, -950, 1.0);
+  light(2000, 2000, 0, -0.5, 0, 0.25, -Math.PI / 2);
+  return s;
+}
+scene.environment = pmrem.fromScene(studio(), 0.02).texture;
+scene.environmentIntensity = 1.1;
+
+// an orthographic view from above, tipped forward 30 degrees: y up out of the deck,
+// z towards the viewer; the image's x is the world's x, the image's y climbs the tipped view
+const TILT = Math.PI / 6;
+const camera = new THREE.OrthographicCamera(-IMG_W / 2, IMG_W / 2, IMG_H / 2, -IMG_H / 2, -1000, 1000);
+camera.position.set(0, Math.cos(TILT) * 500, Math.sin(TILT) * 500);
+camera.up.set(0, 1, 0);
+camera.lookAt(0, 0, 0);
+
+const key = new THREE.DirectionalLight(0xfff3e8, 2.8);
+key.position.set(-260, 600, 340);
+key.castShadow = true;
+key.shadow.mapSize.set(4096, 4096);
+key.shadow.camera.left = -320; key.shadow.camera.right = 320; key.shadow.camera.top = 320; key.shadow.camera.bottom = -320;
+key.shadow.camera.near = 100; key.shadow.camera.far = 1400;
+key.shadow.radius = 8;
+key.shadow.bias = -0.0006;
+scene.add(key);
+scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+
+const catcher = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.ShadowMaterial({ opacity: 0.62 }));
+catcher.rotation.x = -Math.PI / 2;
+catcher.receiveShadow = true;
+scene.add(catcher);
+
+// the cap: a rounded rectangle extruded up from the deck, its top edge filleted
+function roundedRect(w, h, r) {
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2 + r, -h / 2);
+  s.lineTo(w / 2 - r, -h / 2); s.absarc(w / 2 - r, -h / 2 + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(w / 2, h / 2 - r); s.absarc(w / 2 - r, h / 2 - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-w / 2 + r, h / 2); s.absarc(-w / 2 + r, h / 2 - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-w / 2, -h / 2 + r); s.absarc(-w / 2 + r, -h / 2 + r, r, Math.PI, Math.PI * 1.5, false);
+  return s;
+}
+let geo = new THREE.ExtrudeGeometry(roundedRect(CAP_W, CAP_H, RADIUS), { depth: DEPTH - FILLET, bevelEnabled: true, bevelThickness: FILLET, bevelSize: FILLET, bevelOffset: -FILLET, bevelSegments: 10, curveSegments: 32 });
+geo.rotateX(-Math.PI / 2);   // extruded along +y: up out of the deck
+// the face pillows up a touch (2.4 units at its centre), so the studio's lights play across it
+{
+  const pos = geo.attributes.position;
+  const top = DEPTH;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const t = Math.max(0, Math.min(1, (y - (top - FILLET - 0.5)) / (FILLET + 0.5)));
+    if (t > 0) {
+      const dx = Math.max(0, 1 - Math.pow((2 * x) / CAP_W, 2));
+      const dz = Math.max(0, 1 - Math.pow((2 * z) / CAP_H, 2));
+      pos.setY(i, y + 2.4 * dx * dz * t);
+    }
+  }
+  geo = mergeVertices(geo, 1e-4);
+  geo.computeVertexNormals();
+}
+const plastic = TONE === "orange"
+  ? new THREE.MeshPhysicalMaterial({ color: 0xff6418, roughness: 0.42, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.38 })
+  : new THREE.MeshPhysicalMaterial({ color: 0x3b3b44, roughness: 0.5, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.45 });
+const cap = new THREE.Mesh(geo, plastic);
+cap.castShadow = true;
+cap.receiveShadow = true;
+// the image is centred on the cap's face: put the face's centre at the image's centre
+// (the deck plane sits below by the cap's height)
+const DROP = STATE === "down" ? 14 : 0;   // 7px on screen: the cap on its seat, 2px of wall left
+cap.position.y = -DROP;
+scene.add(cap);
+// the socket the key sits in: a shade round the cap where the deck falls away under it
+{
+  const c = document.createElement("canvas"); c.width = 512; c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = "rgba(0,0,0,0)"; g.fillRect(0, 0, 512, 128);
+  const grad = g.createLinearGradient(0, 0, 0, 128);
+  grad.addColorStop(0, "rgba(0,0,0,0.55)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad; g.fillRect(0, 0, 512, 128);
+}
+// The face's centre is the world's origin (the cap stands DEPTH below it on the deck).
+// In the view, a row r of the image from the top is view-y = camera.top - r, so for the
+// face's centre to land MARGIN.top + 34 rows down, the frustum's top is that many units.
+scene.position.y = -DEPTH;
+const faceCentreFromTop = MARGIN.top + 34;
+camera.top = faceCentreFromTop;
+camera.bottom = faceCentreFromTop - IMG_H;
+camera.updateProjectionMatrix();
+
+renderer.render(scene, camera);
+window.__ready = true;
+</script>
+</body></html>

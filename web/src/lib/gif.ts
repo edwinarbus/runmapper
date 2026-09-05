@@ -89,12 +89,6 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
   ctx.fillText(SITE.right, x, baseline);
 }
 
-/** How wide drawSite draws at `size`. */
-function siteWidth(ctx: CanvasRenderingContext2D, size: number, font: string) {
-  ctx.font = `${size}px ${font}`;
-  return ctx.measureText(SITE.left).width - size * 0.04 + size * 0.11 + size * 0.08 + ctx.measureText(SITE.right).width;
-}
-
 /** A wash of paper down from the top with the distance, large, and the
  *  town beside it; the site top right. The bottom corners stay clear: X
  *  lays its GIF badge over the bottom left. Sized for 1280 wide and scaled

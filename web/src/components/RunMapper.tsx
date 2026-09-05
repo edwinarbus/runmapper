@@ -55,6 +55,10 @@ type Status = "idle" | "planning" | "done" | "error";
 // How long after starting a search the page keeps asking the engine for the
 // rest of it: the engine's own limit on a search (5 min) and a little over.
 const RESUME_LIMIT_MS = 330_000;
+// The start key, hit: it stays down this long after the press began, springs
+// back, and the stopwatch takes its place this long after that.
+const HOLD_MS = 560;
+const LIFT_MS = 200;
 
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
@@ -93,6 +97,9 @@ export default function RunMapper() {
   const cityFor = useRef("");                             // the start the city was looked up for
   const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
   const [startedAt, setStartedAt] = useState(0);
+  const [held, setHeld] = useState<"" | "down" | "up">("");   // the start key after a hit: held down, then back up, then gone for the stopwatch
+  const hitAt = useRef(0);                                     // when the start key was last pressed
+  const holdTimers = useRef<number[]>([]);
   const abort = useRef<AbortController | null>(null);
   const searchAbort = useRef<AbortController | null>(null);
   const focusKey = useRef(0);
@@ -179,7 +186,28 @@ export default function RunMapper() {
       const up = () => {
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
-        if (big) play("goUp");
+        const rest = Math.max(0, 110 - (performance.now() - t0));
+        if (big) {
+          // The start key comes back up with its clack, unless the click that
+          // follows starts a search: hit() then holds it down (data-held) and
+          // lets it up itself, in its own time.
+          let t = 0;
+          const release = () => {
+            window.removeEventListener("click", release);
+            window.clearTimeout(t);
+            if (key.hasAttribute("data-held")) {
+              delete key.dataset.pressed;
+              return;
+            }
+            window.setTimeout(() => {
+              play("goUp");
+              delete key.dataset.pressed;
+            }, rest);
+          };
+          window.addEventListener("click", release);
+          t = window.setTimeout(release, 200);
+          return;
+        }
         if (sw) {
           // A switch goes over on the click that follows the finger lifting,
           // so its push is held until that click has flipped it, and the knob
@@ -195,7 +223,7 @@ export default function RunMapper() {
           t = window.setTimeout(done, 150);
           return;
         }
-        window.setTimeout(() => delete key.dataset.pressed, Math.max(0, 110 - (performance.now() - t0)));
+        window.setTimeout(() => delete key.dataset.pressed, rest);
       };
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
@@ -433,6 +461,32 @@ export default function RunMapper() {
   };
 
   const cancel = () => abort.current?.abort();
+
+  // A deliberate press. The key goes down under the finger and the search
+  // starts the moment it is let go, but the key stays down for a moment
+  // longer, comes back up with its clack, and the stopwatch takes its place a
+  // beat after that, so hitting it is seen and heard rather than glimpsed.
+  const hit = () => {
+    if (held) return;
+    if (performance.now() - hitAt.current > 1000) hitAt.current = performance.now();   // by keyboard: no press to count from
+    const timers = holdTimers.current;
+    timers.forEach((t) => window.clearTimeout(t));
+    timers.length = 0;
+    setHeld("down");
+    const wait = Math.max(0, HOLD_MS - (performance.now() - hitAt.current));
+    timers.push(
+      window.setTimeout(() => {
+        setHeld("up");
+        play("goUp");
+      }, wait),
+      window.setTimeout(() => setHeld(""), wait + LIFT_MS),
+    );
+    void go();
+  };
+  useEffect(() => {
+    const timers = holdTimers.current;
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, []);
 
   // The answers, as bibs: the streamed options, or the result itself when it came alone.
   const lanes = useMemo<PlanOption[]>(() => {
@@ -878,11 +932,20 @@ export default function RunMapper() {
 
             {/* Go: pinned to the bottom of the column on wide screens */}
             <section className="space-y-3 px-6 pt-4 pb-10 md:sticky md:bottom-0 md:z-10 md:bg-[var(--panel)] md:shadow-[0_-16px_24px_rgba(18,18,21,0.9)]">
-              {status === "planning" ? (
+              {status === "planning" && !held ? (
                 progressLane
               ) : (
                 <div className="space-y-3">
-                  <button type="button" disabled={!canGo} onClick={() => go()} className="go font-display">
+                  <button
+                    type="button"
+                    disabled={!canGo && !held}
+                    data-held={held || undefined}
+                    onPointerDown={() => {
+                      hitAt.current = performance.now();
+                    }}
+                    onClick={hit}
+                    className="go font-display"
+                  >
                     <span className="go-cap">
                       Draw my run
                       <Icon name="chevrons" />

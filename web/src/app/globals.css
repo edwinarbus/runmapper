@@ -951,28 +951,37 @@ span.plate-lab {
   align-items: center;
   gap: 0.9rem;
   padding-top: 0.1em;
-  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
+  transition: transform 0.24s cubic-bezier(0.2, 1.5, 0.4, 1);   /* back up: thrown by its spring */
 }
 @media (hover: hover) {
   .go:hover:not(:disabled) {
     filter: brightness(1.06);
   }
 }
-/* Down: the cap on its seat, the legend travelling with it, the shadow tight. */
+/* Down: the cap on its seat, the legend travelling with it, the shadow tight.
+   Hit, the key is held down (data-held="down") for a deliberate moment after
+   the finger has gone, then let back up, and it takes no second press until
+   the stopwatch has taken its place. */
 .go:active:not(:disabled),
-.go[data-pressed]:not(:disabled) {
+.go[data-pressed]:not(:disabled),
+.go[data-held="down"] {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.45), 0 5px 10px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(252, 82, 0, 0.08);
 }
 .go:active:not(:disabled)::before,
-.go[data-pressed]:not(:disabled)::before {
+.go[data-pressed]:not(:disabled)::before,
+.go[data-held="down"]::before {
   border-image-source: url("/key-down.png");
   border-image-source: image-set(url("/key-down.webp") type("image/webp"), url("/key-down.png") type("image/png"));
 }
 .go:active:not(:disabled) .go-cap,
-.go[data-pressed]:not(:disabled) .go-cap {
+.go[data-pressed]:not(:disabled) .go-cap,
+.go[data-held="down"] .go-cap {
   transform: translateY(7px);
-  transition-duration: 0.06s;
+  transition-duration: 0.11s;    /* down: pushed, settling on its seat */
   transition-timing-function: ease-out;
+}
+.go[data-held] {
+  pointer-events: none;
 }
 /* Not yet: the same key in dark plastic, its legend cut but unpainted. */
 .go:disabled::before {

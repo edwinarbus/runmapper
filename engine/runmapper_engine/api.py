@@ -79,7 +79,8 @@ class Record:
         self.cond = threading.Condition()
         self.job = job
         self.shelf = shelf
-        self.dirty = shelf is not None   # the shelf wants the empty record at once
+        self.shelving = threading.Lock()   # one write to the shelf at a time, in order
+        self.dirty = shelf is not None     # the shelf wants the empty record at once
         if shelf is not None:
             # The thread carries a copy of the request's context, where the
             # shelf's client finds its connection.
@@ -87,32 +88,51 @@ class Record:
 
     def put(self, ev):
         """Append an event; None marks the end of the search."""
+        if ev is None:
+            self.close()
+            return
         with self.cond:
-            if ev is None:
-                self.done = True
-            else:
-                self.events.append(ev)
+            self.events.append(ev)
             self.touched = time.time()
             self.dirty = True
             self.cond.notify_all()
 
-    def _keep_shelved(self):
-        """Puts the record on the shelf whenever it has changed, at most
-        about once a second while the search runs and once more when it
-        ends, so a worker that did not run the search can still hand out
-        its lines. The search itself never waits on this."""
-        while True:
-            with self.cond:
-                while not self.dirty:
-                    self.cond.wait()
-                self.dirty = False
-                snap = dict(events=list(self.events), done=self.done)
+    def close(self):
+        """The search has ended. Its last word goes on the shelf here and
+        now, before the stream ends, because a worker with no request in
+        flight may be put to sleep at once, thread and all."""
+        with self.cond:
+            self.done = True
+            self.dirty = False
+            self.touched = time.time()
+            snap = dict(events=list(self.events), done=True)
+            self.cond.notify_all()
+        if self.shelf is not None:
+            self._shelve(snap)
+
+    def _shelve(self, snap):
+        with self.shelving:
+            if self.done and not snap["done"]:
+                return   # the last word is on the shelf already; an older one must not follow it
             try:
                 self.shelf.set(shelf_key(self.job), snap, {"ttl": SHELF_TTL_S})
             except Exception as ex:  # noqa: BLE001 - the shelf is a convenience, never the search
                 print(f"[plan] the shelf did not take the record: {type(ex).__name__}: {ex}", flush=True)
-            if snap["done"]:
-                return
+
+    def _keep_shelved(self):
+        """Puts the record on the shelf whenever it has changed, at most
+        about once a second while the search runs, so a worker that did not
+        run the search can still hand out its lines. The search itself never
+        waits on this; the last word is close()'s to write."""
+        while True:
+            with self.cond:
+                while not self.dirty and not self.done:
+                    self.cond.wait()
+                if self.done:
+                    return
+                self.dirty = False
+                snap = dict(events=list(self.events), done=False)
+            self._shelve(snap)
             time.sleep(SHELF_EVERY_S)
 
     def after(self, n, wait, settle=POLL_SETTLE_S):

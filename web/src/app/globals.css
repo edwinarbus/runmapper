@@ -880,22 +880,30 @@ span.plate-lab {
   text-transform: uppercase;
   line-height: 1;
   text-shadow: 0 -1px 0 rgba(70, 20, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.42), 0 2px 2px rgba(0, 0, 0, 0.08);
+  /* The shadow the key throws on the deck is drawn here rather than baked into
+     the render: baked, its edge was nearly hard and it read as a dark rectangle
+     lying beside the key. It falls from the key's own outline, softening as it
+     goes, with a little of its orange thrown back on the deck. */
+  border-radius: 11px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 5px rgba(0, 0, 0, 0.5), 0 9px 16px rgba(0, 0, 0, 0.45), 0 22px 38px -12px rgba(0, 0, 0, 0.55), 0 10px 34px rgba(252, 82, 0, 0.12);
+  transition: box-shadow 0.12s ease-out;
   cursor: pointer;
 }
-/* The picture of the key, behind the legend: the render with its margins
-   for the shadow (26 above and either side, 44 below), sliced 46px in from
-   the top and sides and 73 from the bottom so the corners, the fillet and
-   the wall's ends stay whole while the middle stretches. */
+/* The picture of the key, behind the legend: the render, whose frame is only
+   as wide as the key plus a little air (6 above and either side, 10 below for
+   the pressed cap), sliced 26px in from the top and sides and 39 from the
+   bottom so the corners, the fillet and the wall's ends stay whole while the
+   middle stretches to any width. */
 .go::before {
   content: "";
   position: absolute;
   z-index: -1;
-  inset: -26px -26px -44px;
+  inset: -6px -6px -10px;
   border: 0 solid transparent;
   border-image-source: url("/key-up.png");
   border-image-source: image-set(url("/key-up.webp") type("image/webp"), url("/key-up.png") type("image/png"));
-  border-image-slice: 138 138 219 138 fill;
-  border-image-width: 46px 46px 73px 46px;
+  border-image-slice: 78 78 117 78 fill;
+  border-image-width: 26px 26px 39px 26px;
   border-image-repeat: stretch;
   pointer-events: none;
 }
@@ -911,7 +919,11 @@ span.plate-lab {
     filter: brightness(1.06);
   }
 }
-/* Down: the cap on its seat, the legend travelling with it. */
+/* Down: the cap on its seat, the legend travelling with it, the shadow tight. */
+.go:active:not(:disabled),
+.go[data-pressed]:not(:disabled) {
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.45), 0 5px 10px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(252, 82, 0, 0.08);
+}
 .go:active:not(:disabled)::before,
 .go[data-pressed]:not(:disabled)::before {
   border-image-source: url("/key-down.png");
@@ -929,6 +941,7 @@ span.plate-lab {
   border-image-source: image-set(url("/key-dark.webp") type("image/webp"), url("/key-dark.png") type("image/png"));
 }
 .go:disabled {
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 5px rgba(0, 0, 0, 0.5), 0 9px 16px rgba(0, 0, 0, 0.45), 0 22px 38px -12px rgba(0, 0, 0, 0.55);
   color: #5b5a64;
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.09);
   cursor: not-allowed;

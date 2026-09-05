@@ -36,6 +36,25 @@ const BASEMAPS: { key: Basemap; label: string }[] = [
 const styleFor = (b: Basemap) => (b === "satellite" ? SATELLITE_STYLE : b === "day" ? DAY_STYLE : NIGHT_STYLE);
 const DARK = "(prefers-color-scheme: dark)";
 const PHONE = "(max-width: 767px)";
+// The flyover: how far down the camera looks, how close it flies, and where
+// the tip sits on screen: in the lower part, so the screen above it shows
+// the way ahead (padding the top pushes the map's centre down).
+const FLY_PITCH = 64;
+const FLY_ZOOM = 16.4;
+const flyPadding = (m: maplibregl.Map) => ({ top: Math.round(m.getContainer().clientHeight * 0.44), bottom: 0, left: 0, right: 0 });
+
+/** The compass bearing from one point to the next, in degrees. */
+function bearingBetween(a: LngLat, b: LngLat): number {
+  const dx = (b[0] - a[0]) * Math.cos((((a[1] + b[1]) / 2) * Math.PI) / 180);
+  const dy = b[1] - a[1];
+  return dx === 0 && dy === 0 ? 0 : (Math.atan2(dx, dy) * 180) / Math.PI;
+}
+
+/** The shortest turn from one bearing to another, in degrees, signed. */
+function turnTowards(from: number, to: number): number {
+  return ((((to - from) % 360) + 540) % 360) - 180;
+}
+
 /** The day map, except on a phone set to dark, which gets the night map. */
 const deviceBasemap = (): Basemap =>
   typeof window !== "undefined" && window.matchMedia?.(DARK).matches && window.matchMedia?.(PHONE).matches ? "night" : "day";
@@ -117,6 +136,16 @@ export default function MapView(props: MapViewProps) {
     apply();
   };
 
+  // Terrain and the pitched camera belong to the flyover only: a landing puts
+  // the map level and the terrain away.
+  const flying = useRef(false);
+  const landFlight = (m: maplibregl.Map) => {
+    if (!flying.current) return;
+    flying.current = false;
+    if (m.getTerrain()) m.setTerrain(null);
+    if (m.getPitch() !== 0 || m.getBearing() !== 0) m.jumpTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+  };
+
   // Cancel a running draw (no React state touched, so effects may call it).
   const cancelAnim = () => {
     if (anim.current) {
@@ -141,8 +170,11 @@ export default function MapView(props: MapViewProps) {
 
   // Draw the route in from start to finish, the way Strava plays an activity
   // back: the line grows at a steady pace along the course with a dot at its
-  // tip. About three seconds plus a bit per mile.
-  const startDraw = () => {
+  // tip. About three seconds plus a bit per mile. As a flyover (the Replay
+  // key on the satellite map) the camera flies the course too: pitched over
+  // real terrain, looking along the way the run goes, following the tip,
+  // slower; then it eases back to the overview.
+  const startDraw = (fly = false) => {
     pendingDraw.current = false;
     const m = map.current;
     const r = latest.current.route;
@@ -151,6 +183,7 @@ export default function MapView(props: MapViewProps) {
       return;
     }
     stopDraw();
+    landFlight(m);
     const routeSrc = m.getSource("route") as maplibregl.GeoJSONSource | undefined;
     const headSrc = m.getSource("head") as maplibregl.GeoJSONSource | undefined;
     if (!routeSrc || !headSrc) {
@@ -166,18 +199,37 @@ export default function MapView(props: MapViewProps) {
       setDecor(m, true);
       return;
     }
-    const duration = Math.min(7000, 2600 + 550 * (total / 1609.344));
+    const miles = total / 1609.344;
+    const duration = fly ? Math.min(28000, 6000 + 2800 * miles) : Math.min(7000, 2600 + 550 * miles);
     const token = Math.random();
-    const t0 = performance.now();
     setDrawing(true);
     setDecor(m, false);
     routeSrc.setData(lineFromLngLat([pts[0], pts[0]]));
     headSrc.setData(pointFeature(pts[0]));
+    // The course's heading at the tip; the camera turns towards it gradually,
+    // so corners are swept rather than snapped.
+    const headingAt = (i: number) => bearingBetween(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i)]);
+    let bearing = headingAt(1);
+    let lead = 0;   // the flight starts once the camera has swung down onto the start
+    if (fly) {
+      flying.current = true;
+      if (m.getSource("terrain") && !m.getTerrain()) m.setTerrain({ source: "terrain", exaggeration: 1.2 });
+      lead = 1400;
+      m.easeTo({ center: pts[0], zoom: FLY_ZOOM, pitch: FLY_PITCH, bearing, duration: lead, padding: flyPadding(m), essential: true });
+    }
+    const t0 = performance.now() + lead;
     let k = 1;
+    let last = t0;
     const frame = (now: number) => {
       if (!anim.current || anim.current.token !== token) return;
+      if (now < t0) {
+        anim.current = { raf: requestAnimationFrame(frame), token };
+        return;
+      }
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
       const u = Math.min(1, (now - t0) / duration);
-      const target = easeInOut(u) * total;
+      const target = (fly ? u : easeInOut(u)) * total;
       while (k < cum.length - 1 && cum[k] < target) k++;
       const a = pts[k - 1];
       const b = pts[k];
@@ -193,6 +245,10 @@ export default function MapView(props: MapViewProps) {
       }
       src.setData(lineFromLngLat([...pts.slice(0, k), tip]));
       head.setData(pointFeature(tip));
+      if (fly) {
+        bearing += turnTowards(bearing, headingAt(k)) * Math.min(1, dt * 2.2);
+        m.jumpTo({ center: tip, bearing, pitch: FLY_PITCH, zoom: FLY_ZOOM, padding: flyPadding(m) });
+      }
       if (u < 1) {
         anim.current = { raf: requestAnimationFrame(frame), token };
       } else {
@@ -201,6 +257,15 @@ export default function MapView(props: MapViewProps) {
         anim.current = null;
         setDecor(m, true);
         setDrawing(false);
+        if (fly) {
+          // A moment at the finish, then back up to the whole course; terrain
+          // goes off once the map is level again, so panning stays quick.
+          window.setTimeout(() => {
+            if (!map.current) return;
+            m.once("moveend", () => landFlight(m));
+            m.fitBounds(routeBounds(r), { padding: framePadding(m), duration: 1600, maxZoom: 16, pitch: 0, bearing: 0, essential: true });
+          }, 900);
+        }
       }
     };
     anim.current = { raf: requestAnimationFrame(frame), token };
@@ -217,6 +282,7 @@ export default function MapView(props: MapViewProps) {
       // A world view until the user searches, clicks, or shares their location.
       center: [10, 25],
       zoom: 1.4,
+      maxPitch: 72,   // the flyover looks along the course, well past the default 60
       attributionControl: false,
     });
     // Zoom keys are drawn by this component, in the same style as the others.
@@ -417,7 +483,7 @@ export default function MapView(props: MapViewProps) {
       </div>
       {hasRoute && (
         <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-          <button type="button" className="map-round" onClick={() => startDraw()} disabled={drawing} aria-label="Replay the route drawing" title="Replay">
+          <button type="button" className="map-round" onClick={() => startDraw(basemap === "satellite")} disabled={drawing} aria-label={basemap === "satellite" ? "Fly the route" : "Replay the route drawing"} title={basemap === "satellite" ? "Fly the route: first person, over the terrain" : "Replay"}>
             <Icon name="play" />
           </button>
         </div>

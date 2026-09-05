@@ -6,7 +6,8 @@ export const DAY_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.ope
 export const NIGHT_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE_NIGHT || "https://tiles.openfreemap.org/styles/dark";
 
 // Satellite view: Esri's World Imagery with its road and place-name
-// reference tiles on top. No key needed; attribution is required and shown.
+// reference tiles on top, and elevation ready for the flyover. No key
+// needed; attribution is required and shown.
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
 export const SATELLITE_STYLE: StyleSpecification = {
   version: 8,
@@ -20,6 +21,16 @@ export const SATELLITE_STYLE: StyleSpecification = {
     },
     roads: { type: "raster", tiles: [`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
     places: { type: "raster", tiles: [`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
+    // Elevation for the flyover (AWS Terrain Tiles, no key needed). No layer
+    // draws it, so nothing is fetched until the flight switches terrain on.
+    terrain: {
+      type: "raster-dem",
+      tiles: ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
+      encoding: "terrarium",
+      tileSize: 256,
+      maxzoom: 15,
+      attribution: "Elevation: Mapzen, AWS Terrain Tiles",
+    },
   },
   layers: [
     { id: "imagery", type: "raster", source: "imagery" },

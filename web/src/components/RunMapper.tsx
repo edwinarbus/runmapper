@@ -37,8 +37,6 @@ import Seg from "./Seg";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
 import Stopwatch from "./Stopwatch";
-import Deck3D from "./panel3d/Deck3D";
-import { useDeckMode } from "./panel3d/useDeckMode";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
@@ -86,7 +84,6 @@ export default function RunMapper() {
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
   const [gif, setGif] = useState({ busy: false, pct: 0 });
-  const { deck, onSlow: deckSlow } = useDeckMode();   // the WebGL panel, or the CSS deck it falls back to
   const gifCache = useRef<{ key: string; blob: Blob } | null>(null);   // the last GIF rendered, and for which answer
   const [readyKey, setReadyKey] = useState("");                         // the answer whose GIF is rendered and waiting for the tap that posts it
   const [note, setNote] = useState<string | null>(null);   // something worth knowing about the answer
@@ -517,76 +514,6 @@ export default function RunMapper() {
     }
   };
 
-  // The controls that stay real HTML whichever deck is shown: the address
-  // field with its menu, the draw pad, the image picker.
-  const addressField = (
-    <div className="relative">
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={async (e) => {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
-          if (list[0]) pickPlace(list[0]);
-        }}
-        placeholder={pin ? pinLabel : "Address or place"}
-        aria-label="Start address or place"
-        title={pin ? `Pinned at ${pinLabel}. Drag the pin or tap the map to move it.` : undefined}
-        className="field field-keyed"
-      />
-      <button type="button" onClick={useMyLocation} className="field-key" aria-label="My location" title="Start from where you are">
-        <Icon name="locate" />
-      </button>
-      {(places.length > 0 || searching) && query.trim().length >= 3 && (
-        <ul className="menu" aria-label="Places">
-          {searching && places.length === 0 && <li className="menu-note">Searching…</li>}
-          {places.map((p, i) => (
-            <li key={i}>
-              <button type="button" onClick={() => pickPlace(p)} className="menu-item">
-                {p.label}
-                {p.detail && <small>{p.detail}</small>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-  const drawPad = <DrawPad strokes={draw} onChange={setDraw} />;
-  const imagePicker = (
-    <>
-                <label className="well flex cursor-pointer items-center gap-3 p-3">
-                  {imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl} alt="" className="h-14 w-14 rounded bg-white object-contain" />
-                  ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded bg-[var(--panel-3)] text-[var(--ink-3)]">
-                      <Icon name="image" className="h-6 w-6" />
-                    </div>
-                  )}
-                  <div className="min-w-0 text-sm">
-                    <div className="truncate font-semibold">{image ? image.name : "Choose a logo or a simple drawing"}</div>
-                    <div className="text-xs text-[var(--ink-2)]">Bold, simple shapes work best.</div>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*,.svg,.heic,.heif"
-                    className="hidden"
-                    onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
-                  />
-                </label>
-                {image && (
-                  <div className="mt-2 flex justify-end">
-                    <button type="button" onClick={() => void onImage(null)} className="btn btn-sm">
-                      <Icon name="eraser" />
-                      Remove
-                    </button>
-                  </div>
-                )}
-    </>
-  );
-
   const statusWord = engine === "offline" ? "Offline" : status === "planning" ? "Computing" : engine === "online" ? "Ready" : "Connecting";
   // The wordmark's period as a status light.
   const light = engine !== "online" ? "dim" : status === "planning" ? "busy" : status === "done" && result ? "ready" : "idle";
@@ -700,46 +627,6 @@ export default function RunMapper() {
           </div>
         ) : (
           <div key="setup" className="rise">
-            {deck === "3d" ? (
-              <>
-                <Deck3D
-                  mode={mode}
-                  onMode={setMode}
-                  text={text}
-                  onText={setText}
-                  maxChars={MAX_CHARS}
-                  onEnter={() => {
-                    if (canGo) void go();
-                  }}
-                  textNote={est?.message && (fits ? fitting.length === 0 : !est.ok) ? est.message : null}
-                  buckets={BUCKETS.map((b) => ({ key: b.key, label: TILE[b.key] ?? b.label, hint: `Up to ${fmtDist(b.cap_mi, units)}` }))}
-                  fits={fits}
-                  bucket={effective}
-                  onBucket={setBucket}
-                  loop={loop}
-                  onLoop={setLoop}
-                  units={units}
-                  onUnits={setUnits}
-                  styles={STYLES.map((st) => ({ key: st.key, label: st.label, hint: mode === "text" ? st.textHint : st.imageHint }))}
-                  style={style}
-                  onStyle={setStyle}
-                  hasPin={pin !== null}
-                  canGo={canGo}
-                  planning={status === "planning"}
-                  onGo={() => void go()}
-                  onStop={cancel}
-                  progress={progress ? { pct: progress.pct, msg: progress.msg } : null}
-                  hasRoute={Boolean(result && shown)}
-                  onBackToRoute={() => setEditing(false)}
-                  address={addressField}
-                  pad={drawPad}
-                  picker={imagePicker}
-                  onSlow={deckSlow}
-                />
-                {notices && <div className="px-6 pb-5">{notices}</div>}
-              </>
-            ) : (
-              <>
             {/* 01 Draw */}
             <section className="px-6 py-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -776,11 +663,38 @@ export default function RunMapper() {
                 </div>
               ) : mode === "draw" ? (
                 <div key="draw" className="rise">
-                  {drawPad}
+                  <DrawPad strokes={draw} onChange={setDraw} />
                 </div>
               ) : (
                 <div key="image" className="rise">
-                  {imagePicker}
+                  <label className="well flex cursor-pointer items-center gap-3 p-3">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="" className="h-14 w-14 rounded bg-white object-contain" />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded bg-[var(--panel-3)] text-[var(--ink-3)]">
+                        <Icon name="image" className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0 text-sm">
+                      <div className="truncate font-semibold">{image ? image.name : "Choose a logo or a simple drawing"}</div>
+                      <div className="text-xs text-[var(--ink-2)]">Bold, simple shapes work best.</div>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*,.svg,.heic,.heif"
+                      className="hidden"
+                      onChange={(e) => void onImage(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {image && (
+                    <div className="mt-2 flex justify-end">
+                      <button type="button" onClick={() => void onImage(null)} className="btn btn-sm">
+                        <Icon name="eraser" />
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -792,7 +706,38 @@ export default function RunMapper() {
                 <span className="num">02</span>
                 <span>Start</span>
               </div>
-              {addressField}
+              <div className="relative">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const list = places.length ? places : await searchPlaces(query, pin ?? undefined).catch(() => []);
+                    if (list[0]) pickPlace(list[0]);
+                  }}
+                  placeholder={pin ? pinLabel : "Address or place"}
+                  aria-label="Start address or place"
+                  title={pin ? `Pinned at ${pinLabel}. Drag the pin or tap the map to move it.` : undefined}
+                  className="field field-keyed"
+                />
+                <button type="button" onClick={useMyLocation} className="field-key" aria-label="My location" title="Start from where you are">
+                  <Icon name="locate" />
+                </button>
+                {(places.length > 0 || searching) && query.trim().length >= 3 && (
+                  <ul className="menu" aria-label="Places">
+                    {searching && places.length === 0 && <li className="menu-note">Searching…</li>}
+                    {places.map((p, i) => (
+                      <li key={i}>
+                        <button type="button" onClick={() => pickPlace(p)} className="menu-item">
+                          {p.label}
+                          {p.detail && <small>{p.detail}</small>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </section>
             <div className="rule" />
 
@@ -890,8 +835,6 @@ export default function RunMapper() {
               )}
               {notices}
             </section>
-              </>
-            )}
           </div>
         )}
 

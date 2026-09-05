@@ -178,7 +178,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 40px;
   padding: 0 17px;
   border-radius: 7px;
@@ -208,14 +208,14 @@ body {
 .plate-rule {
   width: 1px;
   height: 22px;
-  margin: 0 1px;
+  margin: 0;
   background: rgba(0, 0, 0, 0.7);
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.07);
 }
 .uswitch {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 /* a legend engraved in the plate: cut, with a thread of light on its lower edge */
 .plate-lab {
@@ -688,91 +688,58 @@ span.plate-lab {
   transition: transform 0.05s ease-out;
 }
 
-/* Switch: a rocker, mounted through the plate. A dark bezel, and in it a
-   cap of dark plastic that tilts: one end pressed in, in its own shade,
-   the other standing proud and catching the light. Left is off (or the
-   left legend), right is on (or the right legend). Loop's rocker carries
-   a lamp on its right end that lights orange when it is on. */
+/* Switch: a rocker mounted through the plate. It is a real render (three.js;
+   web/tools/toggle3d/rocker3d.html): a bezel standing proud of the plate and a
+   paddle in it that tilts, one end pressed down into the housing and the other
+   standing clear of the rim, lit in the same studio as the start key and seen
+   from the same eye. Five frames of its lean are baked into a strip; left is off
+   (or the left legend), right is on (or the right legend), and the frames between
+   carry the snap. Loop's rocker is the strip with a lamp in the paddle's right
+   end, which lights orange as the contact passes centre. */
 .switch {
   position: relative;
   width: 46px;
   height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #030304, #0a0a0c);
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.08), inset 1px 0 1px rgba(0, 0, 0, 0.7), inset -1px 0 1px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.06);
-  perspective: 120px;
+  background: none;
   cursor: pointer;
 }
-.rocker-cap {
-  position: absolute;
-  inset: 3px;
-  border-radius: 4px;
-  background: var(--grain-key), linear-gradient(180deg, #4a4a55 0%, #37373f 55%, #2c2c34 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 -1px 0 rgba(0, 0, 0, 0.65), 0 1px 2px rgba(0, 0, 0, 0.8);
-  transform: rotateY(-18deg);
-  transition: transform 0.16s cubic-bezier(0.3, 1.3, 0.5, 1);
-}
-/* the two ends' light: the pressed end in shade, the raised end lit; one
-   layer for each lean, cross-faded */
-.rocker-cap::before,
-.rocker-cap::after {
+.switch::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: 4px;
-  transition: opacity 0.16s;
+  inset: -12px -10px -14px;    /* the render's margins for the shadow, painted clear of the box */
+  background-image: url("/rocker.png");
+  background-image: image-set(url("/rocker.webp") type("image/webp"), url("/rocker.png") type("image/png"));
+  background-repeat: no-repeat;
+  background-size: 500% 100%;
+  background-position: 0 0;
+  transition: background-position 0.13s steps(4, end);
 }
-.rocker-cap::before {
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.2) 40%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.14) 100%);
+.switch-lamp::before {
+  background-image: url("/rocker-lamp.png");
+  background-image: image-set(url("/rocker-lamp.webp") type("image/webp"), url("/rocker-lamp.png") type("image/png"));
 }
-.rocker-cap::after {
-  background: linear-gradient(270deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.2) 40%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.14) 100%);
-  opacity: 0;
+.switch[aria-checked="true"]::before,
+.switch[data-pos="r"]::before {
+  background-position: 100% 0;
 }
-.switch[aria-checked="true"] .rocker-cap,
-.switch[data-pos="r"] .rocker-cap {
-  transform: rotateY(18deg);
+/* a finger on the free end dips it towards the other side before it snaps */
+.switch:active::before {
+  background-position: 25% 0;
+  transition-duration: 0.055s;
 }
-.switch[aria-checked="true"] .rocker-cap::before,
-.switch[data-pos="r"] .rocker-cap::before {
-  opacity: 0;
+.switch[aria-checked="true"]:active::before,
+.switch[data-pos="r"]:active::before {
+  background-position: 75% 0;
 }
-.switch[aria-checked="true"] .rocker-cap::after,
-.switch[data-pos="r"] .rocker-cap::after {
-  opacity: 1;
+.switch:focus-visible {
+  outline: none;
 }
-/* a finger on it pushes it over a little further before it settles */
-.switch:active .rocker-cap,
-.switch[data-pressed] .rocker-cap {
-  transform: rotateY(-24deg);
-  transition-duration: 0.07s;
-}
-.switch[aria-checked="true"]:active .rocker-cap,
-.switch[aria-checked="true"][data-pressed] .rocker-cap,
-.switch[data-pos="r"]:active .rocker-cap,
-.switch[data-pos="r"][data-pressed] .rocker-cap {
-  transform: rotateY(24deg);
-}
-/* the lamp in Loop's rocker: a small window in the right end, dark until
-   the switch is on, then lit orange */
-.rocker-lamp {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  z-index: 1;
-  width: 4px;
-  height: 8px;
-  margin-top: -4px;
-  border-radius: 1.5px;
-  background: linear-gradient(180deg, #3a1608, #241009);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.8), 0 0 0 0.5px rgba(0, 0, 0, 0.6);
-  transition: background 0.16s, box-shadow 0.16s;
-}
-.switch[aria-checked="true"] .rocker-lamp {
-  background: linear-gradient(180deg, #ffb27a, #ff6a1a 45%, #f04e00);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 0 6px rgba(252, 82, 0, 0.9), 0 0 12px rgba(252, 82, 0, 0.45);
+.switch:focus-visible::before {
+  outline: 2px solid var(--orange);
+  outline-offset: 11px;
+  border-radius: 8px;
 }
 
 /* Keys. Every key stands on a lip and travels down onto it when pressed
@@ -1855,9 +1822,7 @@ summary:focus-visible {
   .btn,
   .pbtn,
   .go-cap,
-  .rocker-cap,
-  .rocker-cap::before,
-  .rocker-cap::after,
+  .switch::before,
   .tile,
   .map-btn,
   .map-round,

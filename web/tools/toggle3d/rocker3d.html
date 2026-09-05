@@ -1,0 +1,178 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from "three";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+// A panel rocker: a bezel mounted through the plate and a paddle in it that tilts,
+// one end pressed down into the housing and the other standing proud. Seen from
+// above with the view tipped thirty degrees, the same eye as the start key, so it
+// sits on the same deck. ?angle= the paddle's lean in degrees (negative: the left
+// end down), ?lamp=1 for the loop switch's window, ?lit=1 to light it.
+const q = new URLSearchParams(location.search);
+const ANGLE = parseFloat(q.get("angle") || "-16");
+const LAMP = q.get("lamp") === "1";
+const LIT = q.get("lit") === "1";
+
+const PX = 3;                       // device pixels to the CSS pixel
+const W = 46, H = 24;               // the switch on screen, in CSS pixels
+const TILT = Math.PI / 6;
+const DZ = 1 / Math.cos(TILT);      // a CSS pixel of screen height is this much depth
+const MARGIN = { top: 12, side: 10, bottom: 14 };
+const IMG_W = W + MARGIN.side * 2;
+const IMG_H = H + MARGIN.top + MARGIN.bottom;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(IMG_W, IMG_H);
+renderer.setPixelRatio(PX);
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.32;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];   // the deck cuts everything under it
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+function studio() {
+  const s = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(600, 400, 600), new THREE.MeshBasicMaterial({ color: 0x26262d, side: THREE.BackSide }));
+  room.position.y = 160; s.add(room);
+  const light = (w, h, x, y, z, k, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).multiplyScalar(k), side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.rotation.set(rx, ry, rz); s.add(m);
+  };
+  light(280, 120, -120, 300, 70, 5, Math.PI / 2 + 0.5);     // the soft box above, left and in front
+  light(120, 280, 240, 120, -60, 2.2, 0, -Math.PI / 2);      // a strip on the right
+  light(360, 90, 0, 90, -290, 1.0);                          // a low glow behind
+  light(600, 600, 0, -0.5, 0, 0.22, -Math.PI / 2);           // the deck, dark but not black
+  return s;
+}
+scene.environment = pmrem.fromScene(studio(), 0.02).texture;
+scene.environmentIntensity = 1.0;
+
+// Straight down, tipped thirty degrees forward: a height of 1 shows as sin(TILT) on
+// screen, a depth of 1 as cos(TILT). The deck's origin lands where the layout wants
+// the switch's middle.
+const camera = new THREE.OrthographicCamera(-IMG_W / 2, IMG_W / 2, 0, 0, -400, 400);
+camera.position.set(0, Math.cos(TILT) * 200, Math.sin(TILT) * 200);
+camera.up.set(0, 1, 0);
+camera.lookAt(0, 0, 0);
+camera.top = MARGIN.top + H / 2;
+camera.bottom = camera.top - IMG_H;
+camera.updateProjectionMatrix();
+
+const key = new THREE.DirectionalLight(0xfff3e8, 2.6);
+key.position.set(-90, 200, 120);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -60; key.shadow.camera.right = 60; key.shadow.camera.top = 60; key.shadow.camera.bottom = -60;
+key.shadow.camera.near = 40; key.shadow.camera.far = 460;
+key.shadow.radius = 4;
+key.shadow.bias = -0.0008;
+scene.add(key);
+scene.add(new THREE.AmbientLight(0xffffff, 0.1));
+
+const catcher = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.ShadowMaterial({ opacity: 0.55 }));
+catcher.rotation.x = -Math.PI / 2;
+catcher.position.y = 0.06;                 /* clear of the cut */
+catcher.receiveShadow = true;
+scene.add(catcher);
+
+function rr(w, d, r) {
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2 + r, -d / 2);
+  s.lineTo(w / 2 - r, -d / 2); s.absarc(w / 2 - r, -d / 2 + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(w / 2, d / 2 - r); s.absarc(w / 2 - r, d / 2 - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-w / 2 + r, d / 2); s.absarc(-w / 2 + r, d / 2 - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-w / 2, -d / 2 + r); s.absarc(-w / 2 + r, -d / 2 + r, r, Math.PI, Math.PI * 1.5, false);
+  return s;
+}
+function rrPath(w, d, r) {
+  const p = new THREE.Path();
+  p.moveTo(-w / 2 + r, -d / 2);
+  p.lineTo(w / 2 - r, -d / 2); p.absarc(w / 2 - r, -d / 2 + r, r, -Math.PI / 2, 0, false);
+  p.lineTo(w / 2, d / 2 - r); p.absarc(w / 2 - r, d / 2 - r, r, 0, Math.PI / 2, false);
+  p.lineTo(-w / 2 + r, d / 2); p.absarc(-w / 2 + r, d / 2 - r, r, Math.PI / 2, Math.PI, false);
+  p.lineTo(-w / 2, -d / 2 + r); p.absarc(-w / 2 + r, -d / 2 + r, r, Math.PI, Math.PI * 1.5, false);
+  return p;
+}
+
+const DEPTH = H * DZ;                 // the switch's depth on the deck
+const BEZEL_H = 6.4;
+const OPEN_W = 38, OPEN_D = 18.6 * DZ;
+const plastic = new THREE.MeshPhysicalMaterial({ color: 0x121217, roughness: 0.5, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.35 });
+const capMat = new THREE.MeshPhysicalMaterial({ color: 0x63636f, roughness: 0.36, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.28 });
+const wellMat = new THREE.MeshStandardMaterial({ color: 0x050507, roughness: 0.85, metalness: 0 });
+
+// the bezel: a frame standing proud of the plate, chamfered inside and out
+const frame = rr(W, DEPTH, 6);
+frame.holes.push(rrPath(OPEN_W, OPEN_D, 3.4));
+const bezelGeo = new THREE.ExtrudeGeometry(frame, { depth: BEZEL_H - 1.1, bevelEnabled: true, bevelThickness: 1.1, bevelSize: 1.1, bevelOffset: -1.1, bevelSegments: 5, curveSegments: 20 });
+bezelGeo.rotateX(-Math.PI / 2);
+const bezel = new THREE.Mesh(bezelGeo, plastic);
+bezel.castShadow = true; bezel.receiveShadow = true;
+scene.add(bezel);
+
+// the well under the opening, and its walls
+const well = new THREE.Mesh(new THREE.BoxGeometry(OPEN_W + 1, 4, OPEN_D + 1), wellMat);
+well.position.y = 1.6;
+well.receiveShadow = true;
+scene.add(well);
+
+// the paddle: a rounded plate, its top domed a little along its length
+let capGeo = new THREE.ExtrudeGeometry(rr(OPEN_W - 1.6, OPEN_D - 1.6, 3), { depth: 3.6, bevelEnabled: true, bevelThickness: 1.1, bevelSize: 1.1, bevelOffset: -1.1, bevelSegments: 6, curveSegments: 20 });
+capGeo.rotateX(-Math.PI / 2);
+{
+  const pos = capGeo.attributes.position;
+  const top = 3.6;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const t = Math.max(0, Math.min(1, (y - (top - 1.6)) / 1.6));
+    if (t > 0) {
+      const dz = Math.max(0, 1 - Math.pow((2 * z) / (OPEN_D - 1.6), 2));
+      const dx = Math.max(0, 1 - Math.pow((2 * x) / (OPEN_W - 1.6), 4));
+      pos.setY(i, y + 1.1 * dz * dx * t);
+    }
+  }
+  capGeo = mergeVertices(capGeo, 1e-4);
+  capGeo.computeVertexNormals();
+}
+const cap = new THREE.Mesh(capGeo, capMat);
+cap.castShadow = true; cap.receiveShadow = true;
+const paddle = new THREE.Group();
+paddle.add(cap);
+cap.position.y = -1.8;                   // the pivot runs through the paddle's middle
+paddle.position.y = 5.2;
+paddle.rotation.z = THREE.MathUtils.degToRad(ANGLE);
+scene.add(paddle);
+
+// the lamp: a window let into the right end of the paddle
+if (LAMP) {
+  const lens = new THREE.Mesh(
+    new THREE.BoxGeometry(5.2, 1.3, 9.4 * DZ),
+    new THREE.MeshStandardMaterial({
+      color: LIT ? 0xff7a2a : 0x2a1108,
+      emissive: LIT ? 0xff5a00 : 0x120704,
+      emissiveIntensity: LIT ? 5.5 : 0.6,
+      roughness: 0.35,
+    })
+  );
+  lens.position.set(OPEN_W / 2 - 6.2, 4.3, 0);
+  lens.castShadow = false;
+  cap.add(lens);
+  if (LIT) {
+    const glow = new THREE.PointLight(0xff6a20, 26, 26, 2);
+    glow.position.set(OPEN_W / 2 - 6.2, 5.6, 0);
+    cap.add(glow);
+  }
+}
+
+renderer.render(scene, camera);
+window.__ready = true;
+</script>
+</body></html>

@@ -360,7 +360,7 @@ span.plate-lab {
   line-height: 1;
   background: #050506;         /* the dark of the drum, seen in the seam between the leaves */
   border-radius: 6px;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.55)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.35));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 4px 4px rgba(0, 0, 0, 0.55), 0 10px 14px rgba(0, 0, 0, 0.35);
 }
 .flap-half,
 .flap-face {
@@ -456,13 +456,21 @@ span.plate-lab {
   from { transform: rotateX(0deg); }
   to { transform: rotateX(-180deg); }
 }
-/* the bottom half catching the light as the letter lands */
-.flap-landed {
+/* the bottom leaf catching the light as the letter lands */
+.flap-bot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.flap-landed::after {
   animation: flap-land 0.22s ease-out;
 }
 @keyframes flap-land {
-  from { filter: brightness(1.7); }
-  to { filter: brightness(1); }
+  from { opacity: 0.34; }
+  to { opacity: 0; }
 }
 /* the hinge pins at the seam: steel, standing a little proud of the leaves */
 .flap::before,
@@ -493,7 +501,6 @@ span.plate-lab {
   background: linear-gradient(180deg, #08080a, #101014);
   box-shadow: inset 0 0 0 2px var(--orange), inset 0 3px 6px rgba(0, 0, 0, 0.8);
   animation: pulse 1.2s ease-in-out infinite;
-  filter: none;
 }
 .flap-cursor::before,
 .flap-cursor::after {

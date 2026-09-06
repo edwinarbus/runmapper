@@ -95,6 +95,32 @@ function framePadding(m: maplibregl.Map) {
   return Math.max(28, Math.min(64, Math.round(Math.min(el.clientWidth, el.clientHeight) * 0.12)));
 }
 
+/** The camera that frames the whole route, level, on a map with no padding.
+ *  fitBounds frames inside whatever padding the map has at the time, which
+ *  during a flight is the top half, so the flight's own way back up works
+ *  the framing out here and eases the padding away as it goes. */
+function overview(m: maplibregl.Map, r: [number, number][]) {
+  const el = m.getContainer();
+  const pad = framePadding(m);
+  let x0 = 1;
+  let y0 = 1;
+  let x1 = 0;
+  let y1 = 0;
+  for (const [lat, lon] of r) {
+    const c = maplibregl.MercatorCoordinate.fromLngLat([lon, lat]);
+    x0 = Math.min(x0, c.x);
+    y0 = Math.min(y0, c.y);
+    x1 = Math.max(x1, c.x);
+    y1 = Math.max(y1, c.y);
+  }
+  const w = Math.max(1, el.clientWidth - 2 * pad);
+  const h = Math.max(1, el.clientHeight - 2 * pad);
+  const zoom = Math.min(16, Math.log2(Math.min(w / Math.max(1e-9, (x1 - x0) * 512), h / Math.max(1e-9, (y1 - y0) * 512))));
+  const center = new maplibregl.MercatorCoordinate((x0 + x1) / 2, (y0 + y1) / 2).toLngLat();
+  return { center, zoom };
+}
+const NO_PADDING = { top: 0, bottom: 0, left: 0, right: 0 };
+
 /** Whole route inside the current view? */
 function inView(m: maplibregl.Map, r: [number, number][]) {
   const v = m.getBounds();
@@ -117,6 +143,7 @@ export default function MapView(props: MapViewProps) {
   const [drawing, setDrawing] = useState(false);
   const [showIdeal, setShowIdeal] = useState(false);
   const startDrawRef = useRef<() => void>(() => undefined);
+  const fitRef = useRef<(duration?: number) => void>(() => undefined);
   // The transport: the speed the run plays at, and handles into the running
   // draw for the fader (hold it, move it). The cap and the lit groove are
   // moved by hand each frame rather than through React, which need not
@@ -181,7 +208,10 @@ export default function MapView(props: MapViewProps) {
     scaleRoute(m, 1);
     if (m.getTerrain()) m.setTerrain(null);
     m.setCenterClampedToGround(true);
-    if (m.getPitch() !== 0 || m.getBearing() !== 0) m.jumpTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+    // Level, and the flight's padding gone: left on the map, it would sit
+    // under every framing after, and Recenter would put the route low.
+    const p = m.getPadding();
+    if (m.getPitch() !== 0 || m.getBearing() !== 0 || p.top || p.bottom || p.left || p.right) m.jumpTo({ pitch: 0, bearing: 0, padding: NO_PADDING });
   };
 
   // Cancel a running draw (no React state touched, so effects may call it).
@@ -199,10 +229,16 @@ export default function MapView(props: MapViewProps) {
     setDrawing(false);
   };
 
-  // Frame the whole route.
+  // Frame the whole route. A replay or flight under way ends here, the
+  // route put up whole.
   const fit = (duration = 700) => {
     const m = map.current;
     const r = latest.current.route;
+    if (m && anim.current) {
+      stopDraw();
+      landFlight(m);
+      apply();
+    }
     if (!m || !r || r.length < 2) return;
     m.fitBounds(routeBounds(r), { padding: framePadding(m), duration, maxZoom: 16 });
   };
@@ -328,7 +364,8 @@ export default function MapView(props: MapViewProps) {
           window.setTimeout(() => {
             if (!map.current) return;
             m.once("moveend", () => landFlight(m));
-            m.fitBounds(routeBounds(r), { padding: framePadding(m), duration: 1600, maxZoom: 16, pitch: 0, bearing: 0, essential: true });
+            const { center, zoom } = overview(m, r);
+            m.easeTo({ center, zoom, pitch: 0, bearing: 0, padding: NO_PADDING, duration: 1600, essential: true });
           }, 900);
         }
       }
@@ -366,6 +403,7 @@ export default function MapView(props: MapViewProps) {
   };
   useEffect(() => {
     startDrawRef.current = startDraw;
+    fitRef.current = fit;
   });
 
   useEffect(() => {
@@ -379,8 +417,6 @@ export default function MapView(props: MapViewProps) {
       maxPitch: 72,   // the flyover looks along the course, well past the default 60
       attributionControl: false,
     });
-    // a handle for the browser tests, in development only
-    if (process.env.NODE_ENV === "development") (window as unknown as { __map?: maplibregl.Map }).__map = m;
     // Zoom keys are drawn by this component, in the same style as the others.
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     // MapLibre opens the attribution by itself whenever a source with one
@@ -510,13 +546,13 @@ export default function MapView(props: MapViewProps) {
     if (seen.current.has(r)) {
       pendingDraw.current = false;
       apply();
-      if (!inView(m, r)) fit(450);
+      if (!inView(m, r)) fitRef.current(450);
       return () => clearTimeout(settle);
     }
     pendingDraw.current = true;
     apply();
     (m.getSource("route") as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY);
-    fit(900);
+    fitRef.current(900);
     const timer = setTimeout(() => {
       seen.current.add(r);
       startDrawRef.current();

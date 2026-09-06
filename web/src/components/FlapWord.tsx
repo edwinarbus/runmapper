@@ -12,21 +12,23 @@ import { play } from "@/lib/sound";
 
 const GHOST = "RUN";
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const SPIN = 2;            // letters a tile runs through on its way to the one typed
+const SPIN = 2;            // letters a typed tile runs through on its way to the one typed
+const SPIN_MAX = 4;        // a tile arriving with a row runs through one to this many
 const TILE_MAX = 64;       // px
 const TILE_MIN = 32;       // narrower than this and the word takes another row instead
 const GAP = 5;             // between the tiles of a word
 const WORD_GAP = 16;       // between words
-const STAGGER = 36;        // ms between neighbouring tiles when a whole word arrives at once
-const DRIFT = 4;           // ms per tile squared: the tiles down the row fall further and further behind
+const STAGGER = 50;        // ms between neighbouring tiles when a whole word arrives at once
+const DRIFT = 6;           // ms per tile squared: the tiles down the row fall further and further behind
+const WOBBLE = 34;         // ms of random wobble either way on each tile's wait
 const DRIFT_MAX = 10;      // tiles beyond this fall behind at the steady rate
 
-/** What a tile shows on its way to `ch`: blank, the letters before it, then `ch`. */
-function sequence(ch: string): string[] {
+/** What a tile shows on its way to `ch`: blank, the `spin` letters before it, then `ch`. */
+function sequence(ch: string, spin: number): string[] {
   const k = ALPHABET.indexOf(ch);
   if (k < 0) return ["", ch];
   const out = [""];
-  for (let j = SPIN; j >= 1; j--) out.push(ALPHABET[(k - j + ALPHABET.length) % ALPHABET.length]);
+  for (let j = spin; j >= 1; j--) out.push(ALPHABET[(k - j + ALPHABET.length) % ALPHABET.length]);
   out.push(ch);
   return out;
 }
@@ -36,23 +38,26 @@ function sequence(ch: string): string[] {
 // a real board's row goes: never in step. Each tile down the row waits a
 // little longer than the one before it (the gap grows, so the last letters
 // trail well behind), with a small random wobble, and each tile turns at
-// its own pace, so the row drifts further out of step as it runs. `order`
-// is the tile's rank among the tiles arriving with it; a letter typed on
-// its own is rank 0 and starts at once.
-function stagger(order: number): { delay: number; rate: number } {
+// its own pace and runs through its own number of letters before landing,
+// so the row drifts further out of step as it runs and lands in no
+// particular order. `order` is the tile's rank among the `batch` tiles
+// arriving with it; a letter typed on its own is a batch of one, starts at
+// once and runs through the usual few letters.
+function stagger(order: number, batch: number): { delay: number; rate: number; spin: number } {
+  if (batch <= 1) return { delay: 0, rate: 1, spin: SPIN };
   const d = Math.min(order, DRIFT_MAX);
-  const delay = order === 0 ? 0 : Math.max(0, Math.round(order * STAGGER + d * d * DRIFT + (Math.random() * 24 - 10)));
-  return { delay, rate: 0.92 + Math.random() * 0.28 };
+  const delay = Math.max(0, Math.round(order * STAGGER + d * d * DRIFT + (Math.random() * 2 - 1) * WOBBLE));
+  return { delay, rate: 0.85 + Math.random() * 0.5, spin: 1 + Math.floor(Math.random() * SPIN_MAX) };
 }
 
 /** One tile: the top and bottom halves of the letter it shows, and while
  *  it is still turning, a leaf on the hinge with the current top on its
  *  face and the next bottom on its back. */
-function Tile({ ch, still, order }: { ch: string; still?: boolean; order: number }) {
-  const seq = sequence(ch);
+function Tile({ ch, still, order, batch }: { ch: string; still?: boolean; order: number; batch: number }) {
+  const [{ delay, rate, spin }] = useState(() => (still ? { delay: 0, rate: 1, spin: SPIN } : stagger(order, batch)));
+  const seq = sequence(ch, spin);
   const last = seq.length - 1;
   const [step, setStep] = useState(() => (still ? last : 0));
-  const [{ delay, rate }] = useState(() => (still ? { delay: 0, rate: 1 } : stagger(order)));
   const done = step >= last;
   const cur = seq[Math.min(step, last)];
   const next = seq[Math.min(step + 1, last)];
@@ -197,6 +202,7 @@ export default function FlapWord({
             ch={it.ch}
             still={ghost}
             order={order.get(ghost ? `ghost-${it.index}` : `${it.index}-${it.ch}`) ?? 0}
+            batch={fresh.length}
           />
         ) : it.kind === "cursor" ? (
           <span key="cursor" className="flap flap-cursor" aria-hidden="true" />

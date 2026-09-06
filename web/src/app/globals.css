@@ -509,10 +509,10 @@ body {
   pointer-events: none;
 }
 .flap-landed::after {
-  animation: flap-land 0.22s ease-out;
+  animation: flap-land 0.16s ease-out;
 }
 @keyframes flap-land {
-  from { opacity: 0.34; }
+  from { opacity: 0.1; }
   to { opacity: 0; }
 }
 /* the hinge pins at the seam: steel, standing a little proud of the leaves */

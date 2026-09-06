@@ -147,8 +147,8 @@ body {
 .mute {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   flex: none;
   border: 0;
   border-radius: 7px;
@@ -168,8 +168,8 @@ body {
   transition-duration: 0.06s;
 }
 .mute svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   filter: var(--cut-dark-icon);
 }
 

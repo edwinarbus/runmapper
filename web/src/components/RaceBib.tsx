@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState, useId } from "react";
 import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
 import { isDrawing } from "@/lib/drawing";
@@ -48,14 +48,51 @@ function awayLabel(o: PlanOption, units: Units) {
   return o.route.starts_at_pin || o.route.from_pin_mi <= 0.04 ? "at your pin" : `${fmtDist(o.route.from_pin_mi, units)} away`;
 }
 
+/** A safety pin, seen from above: the coil spring at one end, two turns of
+ *  wire; the pin itself running along the top, its point tucked into the
+ *  clasp; the bar along the bottom, which dips through the paper twice (it
+ *  is hidden where it is behind the paper, with a small slit at each entry);
+ *  the clasp a cap of pressed steel at the other end. The wire is shaded as
+ *  round wire is, light along its top and dark beneath. */
 function SafetyPin({ corner }: { corner: "tl" | "tr" | "bl" | "br" }) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   return (
     <svg className={`pin pin-${corner}`} viewBox="0 0 48 20" aria-hidden="true">
-      <g fill="none" stroke="url(#bib-metal)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M11 6.5c-6 0-6 7.5 0 7.5" />
-        <path d="M11 6.5h29" />
-        <path d="M11 14h24" />
-        <path d="M35 11.5h5.5a2.6 2.6 0 0 0 0-5.2H37" />
+      <defs>
+        <linearGradient id={`wire-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f6f6f8" />
+          <stop offset="0.45" stopColor="#b9b9c2" />
+          <stop offset="1" stopColor="#5d5d67" />
+        </linearGradient>
+        <linearGradient id={`cap-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ececf0" />
+          <stop offset="0.5" stopColor="#a9a9b3" />
+          <stop offset="1" stopColor="#6a6a74" />
+        </linearGradient>
+      </defs>
+      {/* the slits where the bar goes through the paper */}
+      <ellipse cx="19.5" cy="14" rx="1" ry="2.2" fill="rgba(0,0,0,0.42)" />
+      <ellipse cx="31" cy="14" rx="1" ry="2.2" fill="rgba(0,0,0,0.42)" />
+      <g fill="none" stroke={`url(#wire-${id})`} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+        {/* the coil: two turns of the wire at the spring end */}
+        <path d="M12 6.6c-5.2 0-5.2 7.4 0 7.4c3.2 0 3.2-4.6 0-4.6c-2 0-2 2.9 0 2.9" />
+        {/* the pin along the top, into the clasp */}
+        <path d="M12 6.6h26.6" />
+        {/* the bar along the bottom: seen up to the paper, and again from it to the clasp */}
+        <path d="M12 14h6.6" />
+        <path d="M32 14h4.2c2.4 0 3.6-1.1 4-3.4" />
+      </g>
+      {/* the clasp: a small bullet of pressed steel on the end of the bar,
+          the point of the pin tucked in through the slot on its open side */}
+      <path d="M38.6 3.4h2.6a3.6 3.6 0 0 1 0 7.2h-2.6z" fill={`url(#cap-${id})`} stroke="#4c4c56" strokeWidth="0.6" strokeLinejoin="round" />
+      <ellipse cx="38.75" cy="6.7" rx="0.65" ry="1.55" fill="rgba(0,0,0,0.5)" />
+      <path d="M39.6 4.5h1.8" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M39.6 9.5h1.8" stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeLinecap="round" />
+      {/* the light along the top of the wire */}
+      <g fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.55" strokeLinecap="round">
+        <path d="M13 5.9h24.6" />
+        <path d="M12.5 13.3h5.6" />
+        <path d="M32.4 13.3h4" />
       </g>
     </svg>
   );

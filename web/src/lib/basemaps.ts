@@ -21,6 +21,10 @@ export const SATELLITE_STYLE: StyleSpecification = {
     },
     roads: { type: "raster", tiles: [`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
     places: { type: "raster", tiles: [`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`], tileSize: 256, maxzoom: 19 },
+    // The streets as data, for the search's light to run along (see
+    // lib/pulse.ts): the same vector tiles the day and night maps are drawn
+    // from, under a layer that draws nothing, so they load with the view.
+    openmaptiles: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
     // Elevation for the flyover (AWS Terrain Tiles, no key needed). No layer
     // draws it, so nothing is fetched until the flight switches terrain on.
     terrain: {
@@ -36,5 +40,6 @@ export const SATELLITE_STYLE: StyleSpecification = {
     { id: "imagery", type: "raster", source: "imagery" },
     { id: "roads", type: "raster", source: "roads", paint: { "raster-opacity": 0.85 } },
     { id: "places", type: "raster", source: "places" },
+    { id: "streets-data", type: "line", source: "openmaptiles", "source-layer": "transportation", paint: { "line-opacity": 0 } },
   ],
 };

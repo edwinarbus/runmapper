@@ -20,6 +20,7 @@ import {
 } from "@/lib/maplayers";
 import Icon from "./Icon";
 import Seg from "./Seg";
+import { StreetPulse } from "@/lib/pulse";
 
 // Used when the basemap style can't be fetched, so the route still shows.
 // The play mark's triangle, with its mass towards the flat side; see .map-round svg.
@@ -89,6 +90,8 @@ export interface MapViewProps {
   start: [number, number] | null;
   /** The last point of a one-way route; null for loops. */
   finish: [number, number] | null;
+  /** The engine is out looking: the search is shown running the streets out from the pin. */
+  searching?: boolean;
 }
 
 const reducedMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
@@ -133,6 +136,7 @@ function inView(m: maplibregl.Map, r: [number, number][]) {
 
 export default function MapView(props: MapViewProps) {
   const el = useRef<HTMLDivElement>(null);
+  const pulseEl = useRef<HTMLCanvasElement>(null);   // the search's light, laid over the map
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
   const ready = useRef(false);
@@ -569,6 +573,18 @@ export default function MapView(props: MapViewProps) {
     m.easeTo({ center: [props.focus.lon, props.focus.lat], zoom: props.focus.zoom ?? 13.5, duration: 900 });
   }, [props.focus]);
 
+  // While the engine searches, the search is shown: pulses running out from
+  // the pin along the streets (see lib/pulse.ts), until the first answer.
+  useEffect(() => {
+    const m = map.current;
+    const c = pulseEl.current;
+    if (!props.searching || !props.pin || !m || !c || reducedMotion()) return;
+    const pulse = new StreetPulse(m, c, props.pin, applied.current !== "day");
+    pulse.start();
+    (window as unknown as { __runmapperPulse?: StreetPulse }).__runmapperPulse = pulse;   // for the tests' eyes
+    return () => pulse.stop();
+  }, [props.searching, props.pin]);
+
   // A new route. Its first showing: frame it, then draw it in once the
   // camera has settled. Shown before (switching between answers): put it
   // up whole, and only move the camera if part of it is off screen.
@@ -612,6 +628,7 @@ export default function MapView(props: MapViewProps) {
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full" aria-label="Map" />
+      <canvas ref={pulseEl} className="pulse-glass" aria-hidden="true" />
       {/* Keys on the glass, all one height: the basemap in a slot, then the route keys; zoom at the right. */}
       <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2" style={{ right: "calc(0.75rem + 36px + 0.5rem)" }}>
         <Seg

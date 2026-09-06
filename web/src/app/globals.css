@@ -1930,6 +1930,18 @@ details[open] > .disclose svg {
 .map-round[data-down] svg {
   transform: none;               /* the pause mark is symmetrical; only the triangle sits right of centre */
 }
+/* The search's light: a sheet of glass over the map that the pulses are
+   drawn on (lib/pulse.ts), under the keys, taking no taps. */
+.pulse-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease-out;
+}
 .hint {
   max-width: min(90%, 420px);
   border-radius: 999px;

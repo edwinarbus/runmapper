@@ -942,6 +942,7 @@ export default function RunMapper() {
         <MapView
           pin={pin}
           picking={!showResult}
+          searching={status === "planning" && !showResult}
           onPick={onPick}
           focus={focus}
           route={routeCoords}

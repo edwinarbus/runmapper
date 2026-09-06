@@ -286,6 +286,10 @@ body {
 .field-keyed {
   padding-right: 2.4rem;
 }
+/* The My location key: a small key standing in the end of the field's slot,
+   the same part as the deck's keys at a quarter the size and kept quiet
+   (a dimmer face, two pixels of lit wall, its crosshair cut in), so it
+   reads as a key without shouting inside the field. */
 .field-key {
   position: absolute;
   top: 50%;
@@ -294,26 +298,33 @@ body {
   place-items: center;
   width: 26px;
   height: 26px;
-  transform: translateY(-50%);
+  margin-top: -14px;             /* on centre with its wall counted */
   border: 0;
   border-radius: 5px;
-  background: transparent;
-  color: var(--ink-3);
+  background: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #34343d 0%, #2b2b33 50%, #27272e 100%);
+  color: var(--ink-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.26), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.4), 0 1px 0 #35353e, 0 2px 0 #2a2a31, 0 3px 1px rgba(0, 0, 0, 0.7), 0 4px 5px rgba(0, 0, 0, 0.4);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, transform 0.14s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.14s, background 0.12s;
 }
 @media (hover: hover) {
   .field-key:hover {
     color: var(--ink);
-    background: rgba(255, 255, 255, 0.06);
+    background: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #3b3b45 0%, #31313a 50%, #2b2b33 100%);
   }
 }
-.field-key:active {
+.field-key:active,
+.field-key[data-pressed] {
   color: var(--orange);
+  transform: translateY(2px);
+  background: var(--key-down);
+  box-shadow: inset 0 3px 5px -1px rgba(0, 0, 0, 0.85), inset 1px 0 2px -1px rgba(0, 0, 0, 0.6), inset -1px 0 2px -1px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px #000;
+  transition-duration: 0.05s;
 }
 .field-key svg {
   width: 15px;
   height: 15px;
+  filter: var(--cut-dark-icon);
 }
 .well {
   border-radius: 8px;

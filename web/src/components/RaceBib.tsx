@@ -60,39 +60,38 @@ function SafetyPin({ corner }: { corner: "tl" | "tr" | "bl" | "br" }) {
     <svg className={`pin pin-${corner}`} viewBox="0 0 48 20" aria-hidden="true">
       <defs>
         <linearGradient id={`wire-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#f6f6f8" />
-          <stop offset="0.45" stopColor="#b9b9c2" />
-          <stop offset="1" stopColor="#5d5d67" />
+          <stop offset="0" stopColor="#f4f4f6" />
+          <stop offset="0.5" stopColor="#b6b6bf" />
+          <stop offset="1" stopColor="#62626c" />
         </linearGradient>
         <linearGradient id={`cap-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ececf0" />
-          <stop offset="0.5" stopColor="#a9a9b3" />
-          <stop offset="1" stopColor="#6a6a74" />
+          <stop offset="0" stopColor="#eeeef2" />
+          <stop offset="0.55" stopColor="#a6a6b0" />
+          <stop offset="1" stopColor="#66666f" />
         </linearGradient>
       </defs>
-      {/* the slits where the bar goes through the paper */}
-      <ellipse cx="19.5" cy="14" rx="1" ry="2.2" fill="rgba(0,0,0,0.42)" />
-      <ellipse cx="31" cy="14" rx="1" ry="2.2" fill="rgba(0,0,0,0.42)" />
-      <g fill="none" stroke={`url(#wire-${id})`} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-        {/* the coil: two turns of the wire at the spring end */}
-        <path d="M12 6.6c-5.2 0-5.2 7.4 0 7.4c3.2 0 3.2-4.6 0-4.6c-2 0-2 2.9 0 2.9" />
-        {/* the pin along the top, into the clasp */}
-        <path d="M12 6.6h26.6" />
-        {/* the bar along the bottom: seen up to the paper, and again from it to the clasp */}
-        <path d="M12 14h6.6" />
-        <path d="M32 14h4.2c2.4 0 3.6-1.1 4-3.4" />
+      {/* the slits where the pin goes into the paper and comes back out */}
+      <ellipse cx="19" cy="13.4" rx="0.9" ry="2.1" fill="rgba(0,0,0,0.45)" />
+      <ellipse cx="30.5" cy="12.6" rx="0.9" ry="2.1" fill="rgba(0,0,0,0.45)" />
+      <g fill="none" stroke={`url(#wire-${id})`} strokeWidth="2" strokeLinecap="round">
+        {/* the coil: one turn of the wire, the two arms leaving it top and bottom */}
+        <circle cx="8" cy="10" r="3.7" />
+        {/* the bar: coil to clasp, lying on the paper */}
+        <path d="M8 6.3H39.2" />
+        {/* the pin: coil to the paper, then out of it and into the clasp */}
+        <path d="M8 13.7L19 13.4" />
+        <path d="M30.5 12.6L39 12" />
       </g>
-      {/* the clasp: a small bullet of pressed steel on the end of the bar,
-          the point of the pin tucked in through the slot on its open side */}
-      <path d="M38.6 3.4h2.6a3.6 3.6 0 0 1 0 7.2h-2.6z" fill={`url(#cap-${id})`} stroke="#4c4c56" strokeWidth="0.6" strokeLinejoin="round" />
-      <ellipse cx="38.75" cy="6.7" rx="0.65" ry="1.55" fill="rgba(0,0,0,0.5)" />
-      <path d="M39.6 4.5h1.8" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" strokeLinecap="round" />
-      <path d="M39.6 9.5h1.8" stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeLinecap="round" />
+      {/* the clasp: a small cap on the end of the bar, the pin's point held inside it */}
+      <path d="M38.8 5h2.2a4.2 4.2 0 0 1 0 8.4h-2.2z" fill={`url(#cap-${id})`} stroke="#4a4a54" strokeWidth="0.6" strokeLinejoin="round" />
+      <path d="M39.6 6.2h1.4" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M39.6 12.2h1.4" stroke="rgba(0,0,0,0.35)" strokeWidth="0.6" strokeLinecap="round" />
       {/* the light along the top of the wire */}
-      <g fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.55" strokeLinecap="round">
-        <path d="M13 5.9h24.6" />
-        <path d="M12.5 13.3h5.6" />
-        <path d="M32.4 13.3h4" />
+      <g fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.5" strokeLinecap="round">
+        <path d="M9 5.7H38" />
+        <path d="M8.6 13.1L18.4 12.8" />
+        <path d="M31 12L38 11.5" />
+        <path d="M5.2 8.6a3.2 3.2 0 0 1 3.4-2.5" />
       </g>
     </svg>
   );
@@ -203,6 +202,7 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
               className="pbtn"
               disabled={actions.gif.busy}
               aria-busy={actions.gif.busy}
+              data-pressed={actions.gif.busy ? "" : undefined}
               title={
                 actions.canShare
                   ? actions.gifReady

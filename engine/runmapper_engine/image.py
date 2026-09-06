@@ -138,49 +138,115 @@ def _neighbors(sk):
     return ndimage.convolve(sk.astype(int), k, mode="constant")
 
 
+_RING = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1)]
+
+
+def _groups(present):
+    """How many separate groups the neighbours present round a pixel's ring
+    make among themselves, touching (8-connected) neighbours counting as
+    one: N and E touch through their shared corner, N and S do not."""
+    idx = [i for i, on in enumerate(present) if on]
+    parent = {i: i for i in idx}
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for a in idx:
+        for b in idx:
+            if a < b and max(abs(_RING[a][0] - _RING[b][0]), abs(_RING[a][1] - _RING[b][1])) <= 1:
+                parent[find(a)] = find(b)
+    return len({find(i) for i in idx})
+
+
+def _thin(sk):
+    """Take a Zhang-Suen skeleton down to a minimal 8-connected one. Thinning
+    leaves corners and two-by-two blocks along diagonals, and a walk along a
+    line meets them as forks and dead ends. A pixel with two or more
+    neighbours that all touch one another (one group round its ring) can go
+    without breaking anything, since its neighbours stay joined through each
+    other. Pixels go one at a time, each judged on the image as it then is,
+    so a line is never cut."""
+    sk = np.asarray(sk, bool).copy()
+    H, W = sk.shape
+    changed = True
+    while changed:
+        changed = False
+        ys, xs = np.nonzero(sk)
+        for y, x in zip(ys.tolist(), xs.tolist()):
+            if not sk[y, x]:
+                continue
+            present = [0 <= y + dy < H and 0 <= x + dx < W and bool(sk[y + dy, x + dx]) for dy, dx in _RING]
+            if sum(present) >= 2 and _groups(present) == 1:
+                sk[y, x] = False
+                changed = True
+    return sk
+
+
 def _branches(sk):
-    """Split a skeleton into pixel chains between junctions/endpoints."""
+    """Split a skeleton into pixel chains between junctions and ends.
+
+    The skeleton is thinned to a minimal one first, so that along a line
+    every pixel has two neighbours and no others: a junction is then simply
+    a pixel with three or more, an end one with one, and a walk from one end
+    of a chain reaches the other. Junctions may be small clusters of pixels;
+    each cluster is one node, and the chains that meet there are given its
+    centre as their end, so they join up."""
+    sk = _thin(sk)
     nb = _neighbors(sk) * sk
     junction = sk & (nb >= 3)
+    jlab, jn = ndimage.label(junction, structure=np.ones((3, 3)))
+    centres = {}
+    if jn:
+        for i, (cy, cx) in enumerate(ndimage.center_of_mass(junction, jlab, range(1, jn + 1)), start=1):
+            centres[i] = (int(round(cy)), int(round(cx)))
     body = sk & ~junction
     lab, n = ndimage.label(body, structure=np.ones((3, 3)))
+    H, W = sk.shape
     branches = []
     for i in range(1, n + 1):
         ys, xs = np.nonzero(lab == i)
-        px = set(zip(ys.tolist(), xs.tolist()))
-        # order the chain by walking from an end
-        deg = {p: sum(((p[0] + dy, p[1] + dx) in px) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
-                      if (dy or dx)) for p in px}
-        ends = [p for p, d in deg.items() if d <= 1]
-        start = ends[0] if ends else next(iter(px))
-        chain = [start]
-        seen = {start}
-        cur = start
-        while True:
-            nxt = None
-            for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
-                q = (cur[0] + dy, cur[1] + dx)
-                if q in px and q not in seen:
-                    nxt = q
+        left = set(zip(ys.tolist(), xs.tolist()))
+
+        def nbrs(p, px=left):
+            return [(p[0] + dy, p[1] + dx) for dy, dx in _RING if (p[0] + dy, p[1] + dx) in px]
+
+        # A component is one chain, or a cycle; anything the walk cannot take
+        # in (it should not happen after thinning) starts a chain of its own.
+        while left:
+            ends = [p for p in left if len(nbrs(p)) <= 1]
+            cur = min(ends) if ends else min(left)
+            chain = [cur]
+            left.discard(cur)
+            while True:
+                free = nbrs(cur)
+                if not free:
                     break
-            if nxt is None:
-                break
-            chain.append(nxt)
-            seen.add(nxt)
-            cur = nxt
-        # attach the junction pixels this branch touches, so chains meet
-        def touching(p):
-            return [(p[0] + dy, p[1] + dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)
-                    if (dy or dx) and 0 <= p[0] + dy < sk.shape[0] and 0 <= p[1] + dx < sk.shape[1]
-                    and junction[p[0] + dy, p[1] + dx]]
-        j0 = touching(chain[0])
-        j1 = touching(chain[-1])
+                cur = free[0]
+                chain.append(cur)
+                left.discard(cur)
+            branches.append(chain)
+
+    def junctions_at(p):
+        out = []
+        for dy, dx in _RING:
+            yy, xx = p[0] + dy, p[1] + dx
+            if 0 <= yy < H and 0 <= xx < W and junction[yy, xx]:
+                out.append(int(jlab[yy, xx]))
+        return out
+
+    out = []
+    for chain in branches:
+        j0 = junctions_at(chain[0])
+        j1 = junctions_at(chain[-1])
         if j0:
-            chain = [j0[0]] + chain
-        if j1:
-            chain = chain + [j1[0]]
-        branches.append(chain)
-    return branches, junction
+            chain = [centres[j0[0]]] + chain
+        if j1 and (len(chain) > 1 or not j0):
+            chain = chain + [centres[j1[0]]]
+        out.append(chain)
+    return out, junction
 
 
 def centerline_strokes(mask, simplify=0.006, spur_frac=0.10, rounds=3, min_frac=0.12):
@@ -189,7 +255,7 @@ def centerline_strokes(mask, simplify=0.006, spur_frac=0.10, rounds=3, min_frac=
     Short spurs (the forks a skeleton grows at rounded ends) are pruned, and
     what remains is kept only if it is at least `min_frac` of the longest line.
     """
-    sk = skeletonize(mask)
+    sk = _thin(skeletonize(mask))
     span = float(max(mask.shape))
     for _ in range(rounds):
         branches, junction = _branches(sk)
@@ -199,7 +265,9 @@ def centerline_strokes(mask, simplify=0.006, spur_frac=0.10, rounds=3, min_frac=
         removed = False
         for ch in branches:
             L = _chain_len(ch)
-            is_spur = any(nb[p] <= 1 for p in (ch[0], ch[-1])) and not all(nb[p] <= 1 for p in (ch[0], ch[-1]))
+            # a spur: free at one end (a single neighbour), a junction at the other
+            free = [bool(sk[p]) and nb[p] <= 1 for p in (ch[0], ch[-1])]
+            is_spur = any(free) and not all(free)
             if is_spur and L < spur_frac * span:
                 for p in ch:
                     if not junction[p]:
@@ -211,7 +279,7 @@ def centerline_strokes(mask, simplify=0.006, spur_frac=0.10, rounds=3, min_frac=
     if not branches:
         raise ImageError("Couldn't trace a line through that image.")
     chains = [np.array(ch, float) for ch in branches if len(ch) >= 2]
-    chains = _merge_collinear(chains)
+    chains = _merge_collinear(chains, look=max(8, int(round(0.05 * span))))
     polys = [np.c_[c[:, 1], -c[:, 0]] for c in chains]
     strokes = normalize([Stroke(p, name=f"line{i}", closed=False, kind="center") for i, p in enumerate(polys)])
     out = []
@@ -231,9 +299,13 @@ def _chain_len(ch):
     return sum(math.hypot(a[0] - b[0], a[1] - b[1]) for a, b in zip(ch[:-1], ch[1:]))
 
 
-def _merge_collinear(chains, max_angle=40.0):
-    """Join branches that meet end to end at a junction and continue straight,
-    so a crossing becomes two lines instead of four stubs."""
+def _merge_collinear(chains, max_angle=60.0, look=8):
+    """Join branches that meet end to end at a junction and carry on, so a
+    crossing becomes two lines instead of four stubs, and a ring with a bar
+    joined to it stays a ring. Each branch's heading is taken over its last
+    `look` pixels: near a junction in a thick shape the skeleton bends in
+    towards the meeting point, and a curve turns, so the straightest pair at
+    a junction can still meet at a fair angle. The best pair goes first."""
     chains = [c for c in chains if len(c) >= 2]
     merged = True
     while merged and len(chains) > 1:
@@ -246,8 +318,11 @@ def _merge_collinear(chains, max_angle=40.0):
                         a, b = chains[i], chains[j]
                         if np.hypot(*(a[ei] - b[ej])) > 1.5:
                             continue
-                        da = a[ei] - a[-2 if ei == -1 else 1]
-                        db = b[-2 if ej == -1 else 1] - b[ej]
+                        # the heading at each end, taken over the last `look` pixels
+                        ka = min(look, len(a) - 1)
+                        kb = min(look, len(b) - 1)
+                        da = a[ei] - a[-1 - ka if ei == -1 else ka]
+                        db = b[-1 - kb if ej == -1 else kb] - b[ej]
                         ang = _angle(da, db)
                         if ang < max_angle and (best is None or ang < best[0]):
                             best = (ang, i, j, ei, ej)

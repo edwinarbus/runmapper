@@ -51,3 +51,36 @@ def test_svg_line_art_stays_open():
     strokes, mask, line_art = svgin.svg_strokes(svg)
     assert line_art
     assert len(strokes) == 1 and not strokes[0].closed
+
+
+def _ring_with_chevron_png(size=400):
+    """A thick ring with a gap at the top and two thick legs from the centre
+    down to the ring, like a badge: a shape whose skeleton has junctions
+    where the legs meet the ring, and whose ring must survive them whole."""
+    im = Image.new("L", (size, size), 255)
+    d = ImageDraw.Draw(im)
+    c = size / 2
+    d.ellipse((c - 170, c - 170, c + 170, c + 170), fill=0)
+    d.ellipse((c - 120, c - 120, c + 120, c + 120), fill=255)
+    d.pieslice((c - 180, c - 180, c + 180, c + 180), start=250, end=290, fill=255)   # the gap at the top
+    for ang in (120, 60):                                                              # the legs, down to the ring
+        x = c + 150 * np.cos(np.radians(ang))
+        y = c + 150 * np.sin(np.radians(ang))
+        d.line([(c, c), (x, y)], fill=0, width=44)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_centreline_keeps_a_ring_whole_through_its_junctions():
+    """The ring's skeleton is cut where the legs join it; the arcs must be
+    walked whole and joined back through the junctions, not left as scraps."""
+    mask = img.load_mask(_ring_with_chevron_png())
+    cen = img.centerline_strokes(mask)
+    assert 2 <= len(cen) <= 5, [round(s.length, 2) for s in cen]
+    longest = max(s.length for s in cen)
+    # the ring's arc, all but the gap: most of a circle of diameter a little under 1
+    assert longest > 1.8, [round(s.length, 2) for s in cen]
+    # and nothing left in pieces
+    assert min(s.length for s in cen) > 0.12 * longest
+

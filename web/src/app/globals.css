@@ -1963,7 +1963,10 @@ details[open] > .disclose svg {
   height: 100%;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.5s ease-out;
+  transition: opacity 0.5s ease-out;   /* comes up gently ... */
+}
+.pulse-glass[data-off] {
+  transition-duration: 0.1s;           /* ... and is gone before the map moves to the answer */
 }
 .hint {
   max-width: min(90%, 420px);

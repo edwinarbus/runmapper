@@ -181,11 +181,13 @@ export class StreetPulse {
     window.clearTimeout(this.retry);
     this.map.off("idle", this.onIdle);
     this.map.off("moveend", this.onMove);
-    this.canvas.style.opacity = "0";
     const c = this.canvas;
+    c.setAttribute("data-off", "");
+    c.style.opacity = "0";
     window.setTimeout(() => {
       c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
-    }, 500);
+      c.removeAttribute("data-off");
+    }, 150);
   }
 
   private metresPerPixel() {

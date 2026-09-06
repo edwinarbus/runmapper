@@ -837,37 +837,15 @@ export default function RunMapper() {
             </section>
             <div className="rule" />
 
-            {/* 03 Distance, with the units and the loop switch in its corner */}
+            {/* 03 Distance, with the loop switch in its corner. Units follow the phone's locale; the bib shows both. */}
             <section className="px-6 py-4">
               <div className="mb-3 flex items-center justify-between">
                 <div className="step font-display">
                   <span className="num">03</span>
                   <span>How far</span>
                 </div>
-                {/* The switch plate: both toggles mounted through one plate screwed to the deck, their legends engraved in it and lit when live */}
-                <div className="plate" role="group" aria-label="Units and loop">
-                  <div className="uswitch" role="group" aria-label="Units">
-                    <button type="button" className="plate-lab" aria-pressed={units === "mi"} onClick={() => setUnits("mi")}>
-                      mi
-                    </button>
-                    <button
-                      type="button"
-                      className="switch uswitch-track"
-                      data-pos={units === "km" ? "r" : "l"}
-                      aria-label={units === "mi" ? "Switch to kilometres" : "Switch to miles"}
-                      title="Miles or kilometres"
-                      onClick={() => {
-                        play("snap");
-                        setUnits(units === "mi" ? "km" : "mi");
-                      }}
-                    >
-                      <span className="knob" aria-hidden="true" />
-                    </button>
-                    <button type="button" className="plate-lab" aria-pressed={units === "km"} onClick={() => setUnits("km")}>
-                      km
-                    </button>
-                  </div>
-                  <span className="plate-rule" aria-hidden="true" />
+                {/* The switch plate: the Loop toggle mounted through a plate screwed to the deck, its legend engraved in it and lit when on */}
+                <div className="plate" role="group" aria-label="Loop">
                   <div className="uswitch">
                     <span className={`plate-lab${loop ? " plate-lab-on" : ""}`}>Loop</span>
                     <button

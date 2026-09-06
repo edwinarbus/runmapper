@@ -27,11 +27,11 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
             <feFlood floodColor="#fff" floodOpacity="0.22" result="white" />
             <feComposite in="white" in2="lipA" operator="in" result="lip" />
             {/* the paint's own top edge in the wall's shadow, inside the cut */}
-            <feOffset in="SourceAlpha" dy="0.38" result="down2" />
+            <feOffset in="SourceAlpha" dy="0.2" result="down2" />
             <feComposite in="SourceAlpha" in2="down2" operator="out" result="shadeA" />
-            <feGaussianBlur in="shadeA" stdDeviation="0.1" result="shadeB" />
+            <feGaussianBlur in="shadeA" stdDeviation="0.06" result="shadeB" />
             <feComposite in="shadeB" in2="SourceAlpha" operator="in" result="shadeC" />
-            <feFlood floodColor="#000" floodOpacity="0.62" result="black2" />
+            <feFlood floodColor="#000" floodOpacity="0.42" result="black2" />
             <feComposite in="black2" in2="shadeC" operator="in" result="shade" />
             <feMerge>
               <feMergeNode in="wall" />
@@ -43,7 +43,7 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
         </defs>
       )}
       <g filter={etched ? `url(#${cut})` : undefined}>
-        <path d={WORDMARK_OUTLINE_D} fill={etched ? "#e84e02" : "#fc5200"} fillRule="evenodd" />
+        <path d={WORDMARK_OUTLINE_D} fill={etched ? "#fa5202" : "#fc5200"} fillRule="evenodd" />
         <circle cx={WORDMARK_DOT.x} cy={WORDMARK_DOT.y} r={WORDMARK_DOT.r} fill={etched ? "#11a97b" : "#12b886"} stroke={etched ? "#e6e2d8" : "#f6f3ec"} strokeWidth={0.22} />
       </g>
     </svg>

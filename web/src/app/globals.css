@@ -134,13 +134,13 @@ body {
 }
 .logo-mark {
   display: block;
-  height: 26px;                  /* the box holds the dot below the baseline, so 26 is the old 24 of letters */
+  height: 28px;                  /* the box holds the dot below the baseline: 20px of letters */
   width: auto;
   overflow: visible;
 }
 @media (min-width: 640px) {
   .logo-mark {
-    height: 30px;
+    height: 32px;
   }
 }
 /* The key that quiets the deck, in the header beside the wordmark. */

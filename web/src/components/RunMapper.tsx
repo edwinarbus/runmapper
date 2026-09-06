@@ -634,7 +634,7 @@ export default function RunMapper() {
         <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
           {/* The wordmark, and nothing else: drawmy.run as a run, one orange route through the letters, the green start dot at the foot of RUN's R for the period. */}
           <h1 className="logo">
-            <Wordmark height={26} className="logo-mark" etched />
+            <Wordmark height={28} className="logo-mark" etched />
           </h1>
           <span className="sr-only" role="status">{statusWord}</span>
           <button

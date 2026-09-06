@@ -20,6 +20,8 @@ type Shape = {
   to?: number;
   /** a second click this long after the first: the far end of a switch's travel */
   then?: Shape;
+  /** a second voice sounding with this one: a ring under a click */
+  ring?: Shape;
 };
 
 const VOICES: Record<string, Shape> = {
@@ -37,8 +39,9 @@ const VOICES: Record<string, Shape> = {
     decay: 0.018,
     then: { freq: 1900, q: 1.4, gain: 0.24, decay: 0.028, body: { freq: 170, gain: 0.12, decay: 0.05 } },
   },
-  // one leaf of the split-flap board falling
-  flap: { freq: 4300, q: 2.4, gain: 0.13, decay: 0.019, body: { freq: 900, gain: 0.05, decay: 0.014 } },
+  // one leaf of the split-flap board falling onto the next: metal on metal,
+  // a sharp bright click with a short high ring under it, and no thud
+  flap: { freq: 5800, q: 1.3, gain: 0.22, decay: 0.013, ring: { freq: 7900, q: 12, gain: 0.12, decay: 0.045 } },
   // a bib pulled out of the pile, or thrown aside
   paper: { freq: 900, q: 0.7, gain: 0.11, decay: 0.14, to: 2800 },
 };
@@ -104,6 +107,7 @@ export const soundOn = () => on;
 /** Turn them on or off, and remember which. */
 export function setSound(next: boolean) {
   on = next;
+  session(next ? "playback" : "auto");
   try {
     window.localStorage.setItem(STORE, next ? "on" : "off");
   } catch {
@@ -112,12 +116,26 @@ export function setSound(next: boolean) {
   if (next && touched) start();
 }
 
+/** On an iPhone, sounds are by default an "ambient" session, which the silent
+ *  switch mutes; the deck asks for a playback session, as a music app has,
+ *  so its keys are heard. Put back when the deck is quieted. */
+function session(kind: "playback" | "auto") {
+  const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { audioSession?: { type: string } }) : undefined;
+  if (!nav?.audioSession) return;
+  try {
+    nav.audioSession.type = kind;
+  } catch {
+    /* an older phone: the sounds still play when the switch allows */
+  }
+}
+
 function start(): AudioContext | null {
   if (ctx) return ctx;
   if (typeof window === "undefined") return null;
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
   try {
+    session("playback");
     ctx = new Ctor();
     master = ctx.createGain();
     master.gain.value = 0.75;
@@ -163,6 +181,7 @@ function fire(s: Shape, at: number) {
     o.start(at);
     o.stop(at + s.body.decay + 0.02);
   }
+  if (s.ring) fire(s.ring, at);
   if (s.then) fire(s.then, at + GAP);
 }
 

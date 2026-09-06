@@ -126,8 +126,8 @@ body {
 }
 
 /* The wordmark: drawmy.run as a run, one orange route line through block
-   letters with the green start dot at the foot of RUN's R, on a lip of
-   shadow. See lib/wordmark.ts. */
+   letters with the green start dot at the foot of RUN's R, etched into the
+   deck (the Wordmark component cuts it; see lib/wordmark.ts). */
 .logo {
   display: inline-block;
   line-height: 0;
@@ -137,7 +137,6 @@ body {
   height: 26px;                  /* the box holds the dot below the baseline, so 26 is the old 24 of letters */
   width: auto;
   overflow: visible;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }
 @media (min-width: 640px) {
   .logo-mark {
@@ -174,7 +173,9 @@ body {
   filter: var(--cut-dark-icon);
 }
 
-/* Step headings and small labels. */
+/* Step headings and small labels: engraved in the deck, the paint lying in
+   the cut a shade under its colour, the cut's upper wall a line of shade
+   along the top of each letter and its lower lip a thread of light below. */
 .step {
   display: flex;
   align-items: baseline;
@@ -183,10 +184,11 @@ body {
   line-height: 1;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 2px 3px rgba(0, 0, 0, 0.5);
+  color: #e4e1d9;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .step .num {
-  color: var(--orange);
+  color: #ef4f02;
 }
 .eyebrow {
   font-size: 11px;
@@ -194,7 +196,7 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-3);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 @keyframes pulse {

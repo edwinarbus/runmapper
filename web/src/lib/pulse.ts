@@ -1,29 +1,46 @@
-// The search, shown on the map: pulses that set out from the pin and run
-// along the streets, the way the engine's search does, until the first
-// answer arrives. The streets come from the basemap's own vector tiles
-// (querySourceFeatures on the transportation layer), joined into a graph,
-// and every point of it is given its distance from the pin by road; a
-// pulse is then a distance that grows with time, and a piece of street is
-// lit by how far behind the pulse's head it lies. Over that, a radar's
-// sweep turning about the pin and a faint ring at each pulse's reach as the
-// crow flies, which the street pulse can never pass. Drawn on a canvas laid
-// over the map, on the map's own projection, every frame.
+// The search, shown on the map: light that sets out from the pin and runs
+// the streets outwards, the way the engine's search does, until the first
+// answer arrives. Every second and a bit a wave of tracers leaves the pin,
+// each running along a street at road speed with a bright head and a trail
+// dying away behind it; at a junction a tracer keeps on along the way most
+// nearly straight ahead and, some of the time, sends another down a side
+// street, and none ever turns back towards the pin. So the light spreads
+// out through the actual streets as lines, thinning as it goes, with a
+// small ring at the pin as each wave sets off.
+//
+// The streets come from the basemap's own vector tiles (querySourceFeatures
+// on the transportation layer). Their crossings are found (a straight
+// street's junctions are simplified out of the tiles), the cuts and ends
+// snapped into nodes, and every node is given its distance from the pin by
+// road, which is how "outwards" is known. Drawn on a canvas laid over the
+// map, on the map's own projection, every frame.
 import type maplibregl from "maplibre-gl";
 
 const SOURCE = "openmaptiles";
 const LAYER = "transportation";
 // what a runner can run: not motorways, not rails
 const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk", "path", "track", "residential", "unclassified", "living_street", "pedestrian"];
-const PIECE = 36;        // m: a street is cut into pieces this long, lit one at a time
 const SNAP = 2;          // m: points this close are one node
-const SPEED = 640;       // m/s: how fast a pulse runs out along the streets
-const PERIOD = 1.5;      // s: between pulses
-const HEAD = 130;        // m: the bright head of a pulse
-const TAIL = 520;        // m: over which it dies away behind the head
-const TURN = 3.2;        // s: one turn of the sweep
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
+const SPEED = 560;       // m/s: how fast a tracer runs
+const WAVE = 1.6;        // s: between waves leaving the pin
+const HEAD = 90;         // m: the bright head of a tracer
+const TRAIL = 640;       // m: the trail dying away behind it, in four steps
+const BRANCH = 0.3;      // the chance a side street is taken at a junction, besides the way on
+const ALIVE = 90;        // tracers alive in one wave, at most
+const PING = 0.8;        // s: the ring at the pin as a wave sets off
 
-type Piece = { x0: number; y0: number; x1: number; y1: number; d: number; w: number };
+type Tracer = {
+  e: number;        // the edge it is on
+  from: number;     // the node it came from
+  to: number;       // the node it is running to
+  s: number;        // m along the edge
+  L: number;        // the edge's length
+  d: number;        // m run in all
+  trail: number[];  // the nodes passed: x, y, d triples, oldest first
+  dead: boolean;
+};
+type Wave = { t0: number; visited: Uint8Array; tracers: Tracer[] };
 
 /** A binary heap of (distance, node) for Dijkstra. */
 class Heap {
@@ -45,11 +62,11 @@ class Heap {
   pop(): [number, number] {
     const a = this.a;
     const top: [number, number] = [a[0], a[1]];
-    const ld = a.pop() as number;
-    const ln = a.pop() as number;
+    const lastN = a.pop() as number;
+    const lastD = a.pop() as number;
     if (a.length) {
-      a[0] = ln;
-      a[1] = ld;
+      a[0] = lastD;
+      a[1] = lastN;
       let i = 0;
       const n = a.length / 2;
       for (;;) {
@@ -77,23 +94,36 @@ class Heap {
 }
 
 export class StreetPulse {
-  pieces: Piece[] = [];   // read by the tests
-  stats = "";              // and this: the graph's size, for the tests
-  frameMs = 0;             // and the last frame's drawing time
+  // the graph: nodes, and edges between them, with every node's distance from the pin by road
+  private xs: number[] = [];
+  private ys: number[] = [];
+  private adj: number[][] = [];
+  private ea: number[] = [];
+  private eb: number[] = [];
+  private eL: number[] = [];
+  private ew: number[] = [];
+  private dist = new Float64Array(0);
+  private origin = -1;     // the node nearest the pin
+  private waves: Wave[] = [];
+  private nextWave = 0;
   private raf = 0;
   private t0 = 0;
+  private last = 0;
   private retry = 0;
   private stopped = false;
+  private moved = false;
   private readonly kx: number;
   private readonly ky: number;
-  private reach = 2400;    // m: how far the pulses run, set from the view
+  private reach = 2400;    // m: how far the light runs, set from the view
+  stats = "";              // the graph's size, for the tests
+  frameMs = 0;             // the last frame's drawing time, for the tests
+  alive = 0;               // tracers running now, for the tests
   private onIdle = () => {
     if (this.stopped) return;
     // more streets may have come in (tiles loading, the map moved): join them in
-    if (this.pieces.length === 0 || this.moved) this.build();
+    if (this.ea.length === 0 || this.moved) this.build();
     this.moved = false;
   };
-  private moved = false;
   private onMove = () => {
     this.moved = true;
   };
@@ -110,7 +140,7 @@ export class StreetPulse {
 
   start() {
     const el = this.map.getContainer();
-    // the pulses run to the edge of the view and a little past it
+    // the light runs to the edge of the view and a little past it
     const mpp = this.metresPerPixel();
     this.reach = Math.min(4200, Math.max(1500, Math.hypot(el.clientWidth, el.clientHeight) * 0.55 * mpp));
     // the graph is built a moment after the key press, so the press itself is not held up
@@ -118,6 +148,8 @@ export class StreetPulse {
     this.map.on("idle", this.onIdle);
     this.map.on("moveend", this.onMove);
     this.t0 = performance.now();
+    this.last = this.t0;
+    this.nextWave = 0;
     this.canvas.style.opacity = "1";
     const frame = (now: number) => {
       if (this.stopped) return;
@@ -146,7 +178,7 @@ export class StreetPulse {
     return (156543.03392 * Math.cos((this.pin.lat * Math.PI) / 180)) / Math.pow(2, this.map.getZoom());
   }
 
-  /** The streets in the loaded tiles, as a graph, with every piece's distance from the pin by road. */
+  /** The streets in the loaded tiles, as a graph, with every node's distance from the pin by road. */
   private build(): boolean {
     const m = this.map;
     if (!m.getSource(SOURCE)) return this.later();
@@ -178,7 +210,7 @@ export class StreetPulse {
       const g = f.geometry;
       const lines = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
       const cls = String(f.properties?.class ?? "");
-      const w = cls === "path" || cls === "track" ? 0.55 : cls === "service" ? 0.75 : 1;
+      const w = cls === "path" || cls === "track" ? 0.5 : cls === "service" ? 0.7 : 1;
       for (const line of lines) {
         let px = NaN;
         let py = NaN;
@@ -232,8 +264,8 @@ export class StreetPulse {
       (cuts[i] ??= []).push(t, x, y);
     };
     const TOUCH = 3;   // m: an end this close to another piece is on it
-    const touch = (i: number, j: number, x: number, y: number) => {
-      // the end (x, y) of piece j, against piece i
+    const touch = (i: number, x: number, y: number) => {
+      // an end (x, y) of some other piece, against piece i
       const rx = sx1[i] - sx0[i];
       const ry = sy1[i] - sy0[i];
       const L2 = rx * rx + ry * ry;
@@ -243,7 +275,6 @@ export class StreetPulse {
       const dx = sx0[i] + rx * t - x;
       const dy = sy0[i] + ry * t - y;
       if (dx * dx + dy * dy < TOUCH * TOUCH) cut(i, t, x, y);
-      void j;
     };
     const done = new Set<number>();
     for (const cell of grid.values()) {
@@ -272,10 +303,10 @@ export class StreetPulse {
               continue;
             }
           }
-          touch(i, j, sx0[j], sy0[j]);
-          touch(i, j, sx1[j], sy1[j]);
-          touch(j, i, sx0[i], sy0[i]);
-          touch(j, i, sx1[i], sy1[i]);
+          touch(i, sx0[j], sy0[j]);
+          touch(i, sx1[j], sy1[j]);
+          touch(j, sx0[i], sy0[i]);
+          touch(j, sx1[i], sy1[i]);
         }
       }
     }
@@ -345,7 +376,7 @@ export class StreetPulse {
     heap.push(best, s);
     while (heap.size) {
       const [d, n] = heap.pop();
-      if (d > dist[n] || d > this.reach + TAIL) continue;
+      if (d > dist[n] || d > limit) continue;
       for (const e of adj[n]) {
         const o = ea[e] === n ? eb[e] : ea[e];
         const nd = d + eL[e];
@@ -355,34 +386,16 @@ export class StreetPulse {
         }
       }
     }
-    // the pieces to draw: each edge cut short, with the distance at its
-    // middle (the nearer of its two ends' distances plus the way along)
-    const pieces: Piece[] = [];
-    for (let e = 0; e < ea.length; e++) {
-      const a = ea[e];
-      const b = eb[e];
-      const da = dist[a];
-      const db = dist[b];
-      if (da === Infinity && db === Infinity) continue;
-      const L = eL[e];
-      const n = Math.max(1, Math.ceil(L / PIECE));
-      for (let i = 0; i < n; i++) {
-        const s0 = i / n;
-        const s1 = (i + 1) / n;
-        const sm = ((s0 + s1) / 2) * L;
-        const d = Math.min(da + sm, db + (L - sm));
-        if (d > this.reach + TAIL) continue;
-        pieces.push({
-          x0: xs[a] + (xs[b] - xs[a]) * s0,
-          y0: ys[a] + (ys[b] - ys[a]) * s0,
-          x1: xs[a] + (xs[b] - xs[a]) * s1,
-          y1: ys[a] + (ys[b] - ys[a]) * s1,
-          d,
-          w: ew[e],
-        });
-      }
-    }
-    this.pieces = pieces;
+    this.xs = xs;
+    this.ys = ys;
+    this.adj = adj;
+    this.ea = ea;
+    this.eb = eb;
+    this.eL = eL;
+    this.ew = ew;
+    this.dist = dist;
+    this.origin = s;
+    this.waves = [];   // the old graph's tracers are on edges that no longer exist
     let reached = 0;
     for (let i = 0; i < xs.length; i++) if (dist[i] < Infinity) reached++;
     this.stats = `features ${feats.length}, pieces ${S}, nodes ${xs.length}, edges ${ea.length}, start ${s} at ${best.toFixed(0)} m with ${adj[s].length} edges, reached ${reached}`;
@@ -394,6 +407,84 @@ export class StreetPulse {
     window.clearTimeout(this.retry);
     if (!this.stopped) this.retry = window.setTimeout(() => this.build(), 700);
     return false;
+  }
+
+  /** A wave sets off: a tracer down every street from the pin. */
+  private launch(t: number) {
+    const s = this.origin;
+    if (s < 0) return;
+    const wave: Wave = { t0: t, visited: new Uint8Array(this.ea.length), tracers: [] };
+    for (const e of this.adj[s]) {
+      const o = this.ea[e] === s ? this.eb[e] : this.ea[e];
+      if (!(this.dist[o] > this.dist[s])) continue;
+      wave.visited[e] = 1;
+      wave.tracers.push({ e, from: s, to: o, s: 0, L: this.eL[e], d: 0, trail: [this.xs[s], this.ys[s], 0], dead: false });
+    }
+    this.waves.push(wave);
+  }
+
+  /** Every tracer runs on; at a junction it keeps on, and may send others down the side streets. */
+  private run(wave: Wave, dt: number) {
+    const { xs, ys, adj, ea, eb, eL, ew, dist } = this;
+    const step = SPEED * dt;
+    const born: Tracer[] = [];
+    for (const tr of wave.tracers) {
+      if (tr.dead) continue;
+      tr.s += step;
+      tr.d += step;
+      while (tr.s >= tr.L) {
+        const over = tr.s - tr.L;
+        const n = tr.to;
+        const dn = tr.d - over;
+        tr.trail.push(xs[n], ys[n], dn);
+        // the ways on from here: outwards only, and never a street already lit in this wave
+        const hx = xs[n] - xs[tr.from];
+        const hy = ys[n] - ys[tr.from];
+        const hl = Math.hypot(hx, hy) || 1;
+        let on = -1;
+        let onCos = -2;
+        const sides: number[] = [];
+        for (const e of adj[n]) {
+          if (wave.visited[e]) continue;
+          const o = ea[e] === n ? eb[e] : ea[e];
+          if (!(dist[o] > dist[n]) || dist[o] > this.reach) continue;
+          const vx = xs[o] - xs[n];
+          const vy = ys[o] - ys[n];
+          const cos = (hx * vx + hy * vy) / (hl * (Math.hypot(vx, vy) || 1));
+          if (cos > onCos) {
+            if (on >= 0) sides.push(on);
+            onCos = cos;
+            on = e;
+          } else {
+            sides.push(e);
+          }
+        }
+        if (on < 0) {
+          tr.dead = true;
+          break;
+        }
+        wave.visited[on] = 1;
+        for (const e of sides) {
+          if (wave.tracers.length + born.length >= ALIVE) break;
+          if (Math.random() >= BRANCH * ew[e]) continue;
+          wave.visited[e] = 1;
+          const o = ea[e] === n ? eb[e] : ea[e];
+          born.push({ e, from: n, to: o, s: over, L: eL[e], d: tr.d, trail: [xs[n], ys[n], dn], dead: false });
+        }
+        tr.e = on;
+        tr.from = n;
+        tr.to = ea[on] === n ? eb[on] : ea[on];
+        tr.L = eL[on];
+        tr.s = over;
+      }
+      // the trail behind the light is let go
+      const keep = tr.d - HEAD - TRAIL;
+      let drop = 0;
+      while (drop + 3 < tr.trail.length && tr.trail[drop + 5] < keep) drop += 3;
+      if (drop) tr.trail.splice(0, drop);
+    }
+    if (born.length) wave.tracers.push(...born);
+    wave.tracers = wave.tracers.filter((tr) => !tr.dead);
   }
 
   private draw(now: number) {
@@ -412,119 +503,108 @@ export class StreetPulse {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     const t = (now - this.t0) / 1000;
-    const fade = Math.min(1, t / 0.6);   // the whole thing comes up over the first moment
+    const dt = Math.min(0.05, (now - this.last) / 1000);   // a stalled frame is not a leap
+    this.last = now;
+    const fade = Math.min(1, t / 0.5);
+    // the waves: a new one when it is time, and every tracer run on
+    if (this.origin >= 0 && t >= this.nextWave) {
+      this.launch(t);
+      this.nextWave = t + WAVE;
+    }
+    for (const w of this.waves) this.run(w, dt);
+    this.waves = this.waves.filter((w) => w.tracers.length > 0 || t - w.t0 < PING);
+    this.alive = this.waves.reduce((n, w) => n + w.tracers.length, 0);
+    // the map's projection: local metres (x east, y north) to the screen
     const p = m.project([this.pin.lon, this.pin.lat]);
     const s = 1 / this.metresPerPixel();   // px per metre
     const br = (-m.getBearing() * Math.PI) / 180;
     const cb = Math.cos(br);
     const sb = Math.sin(br);
-    // local metres (x east, y north) to the screen
     const X = (x: number, y: number) => p.x + (x * cb - y * sb) * s;
     const Y = (x: number, y: number) => p.y - (x * sb + y * cb) * s;
-    const reach = this.reach;
-    // the pulses alive now: how far each has run
-    const life = (reach + TAIL) / SPEED;
-    const heads: number[] = [];
-    for (let i = Math.floor(t / PERIOD); i >= 0; i--) {
-      const age = t - i * PERIOD;
-      if (age > life) break;
-      heads.push(age * SPEED);
-    }
     const orange = this.dark ? "255, 130, 50" : "252, 82, 0";
-    const hot = this.dark ? "255, 225, 200" : "255, 205, 165";
+    const hot = this.dark ? "255, 232, 210" : "255, 214, 180";
     ctx.globalCompositeOperation = this.dark ? "lighter" : "source-over";
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // the sweep: a wedge of light turning about the pin, its leading edge a thin line
-    const R = Math.min(reach * s, Math.hypot(W, H));
-    const theta = ((t / TURN) * Math.PI * 2) % (Math.PI * 2);
-    const conic = (ctx as CanvasRenderingContext2D & { createConicGradient?: (a: number, x: number, y: number) => CanvasGradient }).createConicGradient;
-    if (conic) {
-      const g = conic.call(ctx, theta, p.x, p.y);
-      g.addColorStop(0, `rgba(${orange}, ${(this.dark ? 0.2 : 0.13) * fade})`);
-      g.addColorStop(0.16, `rgba(${orange}, 0)`);
-      g.addColorStop(1, `rgba(${orange}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = `rgba(${orange}, ${0.45 * fade})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(p.x + Math.cos(theta) * R, p.y + Math.sin(theta) * R);
-    ctx.stroke();
-    // the rings: each pulse's reach as the crow flies, faint, fading as it goes
-    for (const h of heads) {
-      const a = 0.32 * (1 - h / (reach + TAIL)) * fade;
-      if (a <= 0.01) continue;
-      ctx.strokeStyle = `rgba(${orange}, ${a})`;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, h * s, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    // the streets: every piece lit by the pulse nearest behind it, drawn in
-    // batches by brightness (a glow under a bright core), the head whiter
-    const N = 8;
-    const core: Piece[][] = [];
-    const head: Piece[][] = [];
-    for (let i = 0; i < N; i++) {
-      core.push([]);
-      head.push([]);
-    }
-    const cull = 40;
-    for (const q of this.pieces) {
-      let v = 0;
-      let inHead = false;
-      for (const h of heads) {
-        const x = h - q.d;
-        if (x < 0) continue;
-        if (x <= HEAD) {
-          v = 1;
-          inHead = true;
-          break;
+    // the tracers: the head, the trail behind it in four steps of dying light, and the tips
+    const STEPS = 4;
+    const trail: Path2D[] = [];
+    for (let i = 0; i < STEPS; i++) trail.push(new Path2D());
+    const head = new Path2D();
+    const tips = new Path2D();
+    const { xs, ys } = this;
+    const part = (path: Path2D, pts: number[], lo: number, hi: number) => {
+      // the stretch of the trail run between lo and hi metres
+      let on = false;
+      for (let i = 3; i < pts.length; i += 3) {
+        const d0 = pts[i - 1];
+        const d1 = pts[i + 2];
+        if (d1 <= lo || d0 >= hi || d1 <= d0) continue;
+        const fa = (Math.max(lo, d0) - d0) / (d1 - d0);
+        const fb = (Math.min(hi, d1) - d0) / (d1 - d0);
+        const x0 = pts[i - 3];
+        const y0 = pts[i - 2];
+        const dx = pts[i] - x0;
+        const dy = pts[i + 1] - y0;
+        if (!on) {
+          path.moveTo(X(x0 + dx * fa, y0 + dy * fa), Y(x0 + dx * fa, y0 + dy * fa));
+          on = true;
         }
-        const u = 1 - (x - HEAD) / TAIL;
-        if (u > 0 && u * u > v) v = u * u;
+        path.lineTo(X(x0 + dx * fb, y0 + dy * fb), Y(x0 + dx * fb, y0 + dy * fb));
       }
-      if (v <= 0.02) continue;
-      const x0 = X(q.x0, q.y0);
-      const y0 = Y(q.x0, q.y0);
-      if (x0 < -cull || x0 > W + cull || y0 < -cull || y0 > H + cull) continue;
-      const b = Math.min(N - 1, Math.floor(v * q.w * N));
-      (inHead ? head : core)[b].push(q);
+    };
+    const margin = 120;
+    for (const w of this.waves) {
+      for (const tr of w.tracers) {
+        const f = tr.s / (tr.L || 1);
+        const hx = xs[tr.from] + (xs[tr.to] - xs[tr.from]) * f;
+        const hy = ys[tr.from] + (ys[tr.to] - ys[tr.from]) * f;
+        const sx = X(hx, hy);
+        const sy = Y(hx, hy);
+        if (sx < -margin || sx > W + margin || sy < -margin || sy > H + margin) continue;
+        const pts = tr.trail.concat(hx, hy, tr.d);
+        part(head, pts, tr.d - HEAD, tr.d);
+        for (let i = 0; i < STEPS; i++) {
+          const hi = tr.d - HEAD - (TRAIL * i) / STEPS;
+          part(trail[i], pts, hi - TRAIL / STEPS, hi);
+        }
+        tips.moveTo(sx + 1.7, sy);
+        tips.arc(sx, sy, 1.7, 0, Math.PI * 2);
+      }
     }
-    const strokeAll = (batch: Piece[], width: number, style: string) => {
+    const stroke = (path: Path2D, width: number, style: string) => {
       ctx.lineWidth = width;
       ctx.strokeStyle = style;
-      ctx.beginPath();
-      for (const q of batch) {
-        ctx.moveTo(X(q.x0, q.y0), Y(q.x0, q.y0));
-        ctx.lineTo(X(q.x1, q.y1), Y(q.x1, q.y1));
-      }
-      ctx.stroke();
+      ctx.stroke(path);
     };
-    for (let b = 0; b < N; b++) {
-      const a = ((b + 1) / N) * fade;
-      if (core[b].length) {
-        strokeAll(core[b], 7, `rgba(${orange}, ${a * 0.24})`);
-        strokeAll(core[b], 2.4, `rgba(${orange}, ${a * 0.85})`);
-      }
-      if (head[b].length) {
-        strokeAll(head[b], 9, `rgba(${orange}, ${a * 0.4})`);
-        strokeAll(head[b], 2.8, `rgba(${hot}, ${a})`);
-      }
+    for (let i = STEPS - 1; i >= 0; i--) {
+      const a = (0.62 * (STEPS - i)) / STEPS;   // the light dying away down the trail
+      stroke(trail[i], 5, `rgba(${orange}, ${a * 0.2 * fade})`);
+      stroke(trail[i], 2, `rgba(${orange}, ${a * fade})`);
     }
-    // the pin's own light: a small bloom that beats with the pulses
-    const beat = 1 - ((t % PERIOD) / PERIOD);
-    const g2 = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 18 + 22 * (1 - beat));
-    g2.addColorStop(0, `rgba(${orange}, ${0.35 * beat * fade})`);
-    g2.addColorStop(1, `rgba(${orange}, 0)`);
-    ctx.fillStyle = g2;
+    stroke(head, 8, `rgba(${orange}, ${0.38 * fade})`);
+    stroke(head, 2.6, `rgba(${hot}, ${0.95 * fade})`);
+    ctx.fillStyle = `rgba(${hot}, ${fade})`;
+    ctx.fill(tips);
+    // the pin: a ring going out as each wave sets off, and a small glow that beats with them
+    for (const w of this.waves) {
+      const age = t - w.t0;
+      if (age > PING) continue;
+      const u = age / PING;
+      ctx.strokeStyle = `rgba(${orange}, ${0.55 * (1 - u) * fade})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4 + 150 * s * u, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    const beat = 1 - ((t % WAVE) / WAVE);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 14 + 16 * (1 - beat));
+    g.addColorStop(0, `rgba(${orange}, ${0.4 * beat * fade})`);
+    g.addColorStop(1, `rgba(${orange}, 0)`);
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 44, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 34, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = "source-over";
   }

@@ -73,19 +73,19 @@ if (typeof window !== "undefined") {
   // lets it go on the events it counts as a touch: the finger lifting, the
   // click, a key. (A finger landing is not one of them, so the sound asked
   // for on the way down could not open it by itself, and a phone stayed
-  // silent.) So every one of those events wakes it, until it is running.
+  // silent.) So every one of those events wakes it. They keep doing so for
+  // the life of the page: an iPhone puts the context to sleep again when
+  // the phone is locked, a call comes in or another app plays, and the
+  // sound asked for on the way down cannot wake it, only the finger
+  // lifting can. And a context opened before any touch is not always let
+  // go by resume() alone: the first touch also plays a moment of silence
+  // through it, which is what unlocks it for good.
   const wake = () => {
     if (!on) return;
     const c = start();
-    if (!c) return;
-    if (c.state === "running") {
-      window.removeEventListener("touchend", wake, true);
-      window.removeEventListener("pointerup", wake, true);
-      window.removeEventListener("click", wake, true);
-      window.removeEventListener("keydown", wake, true);
-      return;
-    }
+    if (!c || c.state === "running") return;
     c.resume().catch(() => undefined);
+    unlock(c);
   };
   window.addEventListener("touchend", wake, true);
   window.addEventListener("pointerup", wake, true);
@@ -126,6 +126,20 @@ function session(kind: "playback" | "auto") {
     nav.audioSession.type = kind;
   } catch {
     /* an older phone: the sounds still play when the switch allows */
+  }
+}
+
+/** A moment of silence through the context, inside a touch: on an
+ *  iPhone this is what turns a context opened ahead of any touch into one
+ *  that plays. */
+function unlock(c: AudioContext) {
+  try {
+    const src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, c.sampleRate);
+    src.connect(c.destination);
+    src.start(0);
+  } catch {
+    /* a context that will not take it: resume() has to do */
   }
 }
 

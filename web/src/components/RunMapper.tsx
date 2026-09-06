@@ -852,7 +852,6 @@ export default function RunMapper() {
                 {/* The switch plate: the Loop toggle mounted through a plate screwed to the deck, its legend engraved in it and lit when on */}
                 <div className="plate" role="group" aria-label="Loop">
                   <div className="uswitch">
-                    <span className={`plate-lab${loop ? " plate-lab-on" : ""}`}>Loop</span>
                     <button
                       type="button"
                       role="switch"
@@ -869,6 +868,7 @@ export default function RunMapper() {
                         <i className="knob-led" />
                       </span>
                     </button>
+                    <span className={`plate-lab${loop ? " plate-lab-on" : ""}`}>Loop</span>
                   </div>
                 </div>
               </div>

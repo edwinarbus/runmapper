@@ -48,8 +48,11 @@ const PHONE = "(max-width: 767px)";
 const FLY_PITCH = 64;
 const FLY_ZOOM = 16.4;
 // From the flyover's low camera the line looked thin: the route is drawn this
-// many times as thick for the flight, and put back on landing.
+// many times as thick for the flight, and put back on landing. The dots at
+// the start, the finish and the tip are close to the camera and would loom:
+// they are drawn smaller than on the flat map.
 const FLY_THICK = 2;
+const FLY_DOTS = 0.85;
 // The speed key cycles through these, a press at a time.
 const SPEEDS = [1, 2, 2.5, 3];
 const CAP = 22;   // the fader's cap's width, in px: see .scrub-cap
@@ -402,14 +405,14 @@ export default function MapView(props: MapViewProps) {
         setDrawing(false);
         setPaused(false);
         if (fly) {
-          // A moment at the finish, then back up to the whole course; terrain
-          // goes off once the map is level again, so panning stays quick.
+          // A beat at the finish, then straight back up to the whole course;
+          // terrain goes off once the map is level again, so panning stays quick.
           window.setTimeout(() => {
             if (!map.current) return;
             m.once("moveend", () => landFlight(m));
             const { center, zoom } = overview(m, r);
-            m.easeTo({ center, zoom, pitch: 0, bearing: 0, padding: NO_PADDING, duration: 1600, essential: true });
-          }, 900);
+            m.easeTo({ center, zoom, pitch: 0, bearing: 0, padding: NO_PADDING, duration: 1100, essential: true });
+          }, 300);
         }
       }
     };
@@ -428,7 +431,7 @@ export default function MapView(props: MapViewProps) {
     // a fair moment to get it), the camera swings down onto the start; the
     // run sets off the moment it lands, and not before.
     flying.current = true;
-    scaleRoute(m, FLY_THICK);
+    scaleRoute(m, FLY_THICK, FLY_DOTS);
     m.setCenterClampedToGround(false);
     if (m.getSource("terrain") && !m.getTerrain()) m.setTerrain({ source: "terrain", exaggeration: 1.2 });
     let settled = false;

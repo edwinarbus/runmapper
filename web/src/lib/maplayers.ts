@@ -62,9 +62,10 @@ export function setDecor(m: maplibregl.Map, visible: boolean) {
   if (m.getLayer("route-arrows")) m.setLayoutProperty("route-arrows", "visibility", visible ? "visible" : "none");
 }
 
-/** The route and its markers `k` times as thick as on screen (a GIF is
- *  seen small on a phone). */
-export function scaleRoute(m: maplibregl.Map, k: number) {
+/** The route `k` times as thick as on screen (a GIF is seen small on a
+ *  phone), its markers `dots` times as big: the same by default, but a
+ *  flyover thickens the line while its dots stay small. */
+export function scaleRoute(m: maplibregl.Map, k: number, dots: number = k) {
   const paint = (id: string, prop: string, v: unknown) => {
     if (m.getLayer(id)) m.setPaintProperty(id, prop, v);
   };
@@ -77,8 +78,8 @@ export function scaleRoute(m: maplibregl.Map, k: number) {
   layout("route-arrows", "icon-size", 0.85 * k);
   layout("route-arrows", "symbol-spacing", 70 * k);
   for (const id of ["start", "finish", "head"]) {
-    paint(id, "circle-radius", (id === "start" ? 7 : 6) * k);
-    paint(id, "circle-stroke-width", 2.5 * k);
+    paint(id, "circle-radius", (id === "start" ? 7 : 6) * dots);
+    paint(id, "circle-stroke-width", 2.5 * dots);
   }
 }
 

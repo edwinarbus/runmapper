@@ -53,15 +53,26 @@ LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
 FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
 MAX_SNAPS = 5
 TIME_BUDGET_S = 190.0
-SEARCH_RADIUS_FT = 2.0 * FT_PER_MI   # the first search around the pin, on one fetch of streets
-FAR_RADIUS_FT = 4.0 * FT_PER_MI      # how far the "best fit" option may go, on a second, wider fetch
+# The three answers' reach. "Closest" is the best fit within a mile of the
+# pin (the pin itself first), "farther" the best from a mile out to three, and
+# "best fit" the best anywhere up to ten miles out. The first fetch of streets
+# reaches three miles and serves the first two; the third comes from a scan of
+# main roads out to ten miles, made in the background, whose most regular
+# spots are then fetched in full and tried.
+NEAR_RADIUS_FT = 1.0 * FT_PER_MI
+FARTHER_RADIUS_FT = 3.0 * FT_PER_MI
+FAR_RADIUS_FT = 10.0 * FT_PER_MI
+SEARCH_RADIUS_FT = FARTHER_RADIUS_FT  # the first fetch's reach
 WINDOW_STEP_FT = 1500.0              # spacing of the spots tried around the pin
-MAX_BOX_HALF_FT = 2.4 * FT_PER_MI    # the first fetch: never more than a 4.8 x 4.8 mile box of streets
-FAR_BOX_HALF_FT = 4.4 * FT_PER_MI    # the wider fetch: never more than an 8.8 x 8.8 mile box
-FAR_WAIT = 0.5                       # the wider streets are waited for until this much of the budget is spent
-MAX_SNAPPED_SPOTS = 19               # spots that get the full snap treatment (near band, 5 farther, 6 best fit)
-BAND_FT = 2400.0                     # width of the distance bands the options are drawn from
-FARTHER_BANDS = 3                    # the "farther" option comes from the bands before this one (to 1.35 mi)
+MAX_BOX_HALF_FT = 3.4 * FT_PER_MI    # the first fetch: never more than a 6.8 x 6.8 mile box of streets
+SCAN_CLASSES = "primary|secondary|tertiary"   # the wide scan: main roads, which follow a city's grids
+SCAN_STEP_FT = 3000.0                # spacing of the spots judged on the scan
+SCAN_MIN_EDGES = 15                  # main-road segments a scan window needs before it is judged
+FAR_MIN_REGULARITY = 0.8             # a far spot must be this regular to be worth the trip
+FOCUS_SPOTS = 3                      # far spots fetched in full and tried
+FAR_WAIT = 0.5                       # the far spots are waited for until this much of the budget is spent
+MAX_SNAPPED_SPOTS = 19               # spots that get the full snap treatment (near, 5 farther, the far spots)
+MID_SPOTS = 5                        # spots tried for the "farther" answer
 PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
 STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
 
@@ -552,6 +563,15 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     half_x = min(half_w + SEARCH_RADIUS_FT + 800.0, MAX_BOX_HALF_FT)
     half_y = min(half_h + SEARCH_RADIUS_FT + 800.0, MAX_BOX_HALF_FT)
     bbox = proj.bbox_around(half_x, half_y)
+    # The grid statistics of a spot come from a window about a mile across
+    # around it (the drawing plus a margin).
+    stat_half = max(0.62 * width_max + 1300.0, 2500.0)
+    # The far scan sets off now, in the background, and loads while the
+    # nearer answers are worked out: see far_scan below.
+    scan = dict(thread=None, spots=[], done=False)
+    scan["thread"] = threading.Thread(target=lambda: far_scan(scan, proj, cache_dir, log, stat_half, half_w, half_h, t_start),
+                                      daemon=True)
+    scan["thread"].start()
     els = fetch_bbox(bbox, cache_dir=cache_dir, log=log)
     g = StreetGraph.from_elements(els, proj)
     del els                        # the raw elements are the biggest thing in memory
@@ -574,10 +594,6 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     # clearly more regular grid, nearest first. The first spot that gives a
     # good fit wins, so the run starts as close to the pin as a good drawing
     # allows.
-    # The grid statistics of a spot come from a window about a mile across
-    # around it (the drawing plus a margin), the same neighbourhood a single
-    # fetch used to cover.
-    stat_half = max(0.62 * width_max + 1300.0, 2500.0)
     pin_w = _window_stats(g, 0.0, 0.0, stat_half)
     others = [w for w in _windows(g, stat_half, SEARCH_RADIUS_FT, WINDOW_STEP_FT,
                                   half_x - half_w - 300.0, half_y - half_h - 300.0)
@@ -585,94 +601,65 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     need_reg = max(0.6, min(0.85, pin_w["regularity"] + 0.08))
     eligible = [w for w in others
                 if w["regularity"] >= need_reg and w["length_ft"] >= 0.35 * max(pin_w["length_ft"], 1.0)]
-    for w in eligible:
-        w["band"] = int(w["dist_ft"] // BAND_FT)
-    eligible.sort(key=lambda w: (w["band"], -w["regularity"]))
+    eligible.sort(key=lambda w: (w["dist_ft"], -w["regularity"]))
     if log:
         log(f"  pin grid regularity={pin_w['regularity']:.2f} bearing={pin_w['bearing']:.1f}; "
             f"{len(eligible)} more regular spots within {SEARCH_RADIUS_FT / FT_PER_MI:.1f} mi")
 
-    # Three answers: the best fit close to the pin (the first band, 0.45 mi),
-    # the best a bit farther out (the most regular of the next two bands, to
-    # 1.35 mi), and the best fit anywhere the search reaches: the most regular
-    # grids farther out, up to FAR_RADIUS_FT away on a second, wider fetch of
-    # streets that loads while the nearer answers are worked out, or from the
-    # first fetch when the wider one is not there in time. Spots are tried
-    # nearest group first, as long as time allows.
-    pin_w["band"] = 0
-    near = [pin_w] + [w for w in eligible if w["band"] == 0]
-    mid = sorted([w for w in eligible if 1 <= w["band"] < FARTHER_BANDS],
-                 key=lambda w: (-w["regularity"], w["dist_ft"]))[:5]
-    far = _most_regular(eligible, FARTHER_BANDS, need_reg)
+    # Three answers: the best fit within a mile of the pin (the pin itself
+    # first), the best from a mile out to three (the most regular spots
+    # there), and the best fit anywhere up to ten miles out: the most regular
+    # grids the far scan found, fetched in full while the nearer answers were
+    # worked out, or the first fetch's farthest spots when the scan is not
+    # there in time. Spots are tried nearest group first, as long as time
+    # allows.
+    near = [pin_w] + [w for w in eligible if w["dist_ft"] <= NEAR_RADIUS_FT]
+    mid = sorted([w for w in eligible if NEAR_RADIUS_FT < w["dist_ft"] <= FARTHER_RADIUS_FT],
+                 key=lambda w: (-w["regularity"], w["dist_ft"]))[:MID_SPOTS]
+    far = _most_regular([w for w in eligible if w["dist_ft"] > FARTHER_RADIUS_FT], need_reg, limit=3)
     attempts, errors, finished = [], [], []
     k = 0
     stop = False
-    wide = dict(thread=None, els=None, half=None)
-
-    def fetch_wide():
-        try:
-            wide["els"] = fetch_bbox(proj.bbox_around(*wide["half"]), cache_dir=cache_dir, timeout=90, log=log)
-        except Exception as ex:          # the first fetch's streets still serve
-            if log:
-                log(f"  wider streets: {type(ex).__name__}: {ex}")
-
-    def start_wide():
-        """Fetch the wider box of streets in the background once the first
-        answer is out, so it loads while the next band is tried."""
-        if time.time() - t_start > FAR_WAIT * TIME_BUDGET_S:
-            return
-        wide["half"] = (min(half_w + FAR_RADIUS_FT + 800.0, FAR_BOX_HALF_FT),
-                        min(half_h + FAR_RADIUS_FT + 800.0, FAR_BOX_HALF_FT))
-        wide["thread"] = threading.Thread(target=fetch_wide, daemon=True)
-        wide["thread"].start()
 
     def far_group():
-        """The spots for the best-fit option and the context to try them in:
-        the wider streets when they arrived in time, else the first fetch's."""
-        th = wide["thread"]
-        if th is None:
-            return far, ctx
+        """The spots for the best-fit option, each with the streets to try it
+        on: the far scan's spots when they arrived in time, else the first
+        fetch's farthest. Returns (spot, context) pairs; a far spot's graph is
+        built when its turn comes, and the pair's context is filled in then."""
+        th = scan["thread"]
         wait = FAR_WAIT * TIME_BUDGET_S - (time.time() - t_start)
-        if th.is_alive() and wait > 0:
+        if th is not None and th.is_alive() and wait > 0 and not scan["spots"]:
             _progress(progress, "streets", 70, "Fetching streets farther out")
             th.join(timeout=wait)
-        if th.is_alive() or wide["els"] is None:
-            return far, ctx
+        spots = list(scan["spots"])
+        if not spots:
+            return [(w, ctx) for w in far]
         # The first streets have done their work: the nearer answers are
-        # finished. Let them go before the wider graph is built, so the two
-        # are never in memory together.
+        # finished. Let them go before the far graphs are built, so they are
+        # never in memory together.
         sn_streets = ctx["streets"][1] if ctx["streets"] else None
-        dijkstra_done = ctx.get("dijkstra_done", 0) + ctx["sn_full"].n_dijkstra + (sn_streets.n_dijkstra if sn_streets else 0)
+        ctx["dijkstra_done"] = ctx.get("dijkstra_done", 0) + ctx["sn_full"].n_dijkstra + (sn_streets.n_dijkstra if sn_streets else 0)
         ctx.update(g=None, tree=None, sn_full=None, streets=None)
         for r in attempts:
             r.pop("graph", None)
-        try:
-            g2 = StreetGraph.from_elements(wide["els"], proj)
-            wide["els"] = None
-            P2, tree2 = g2.densify(step=45.0, classes=PLACE_CLASSES)
-            if tree2 is None or len(P2) < 200:
-                P2, tree2 = g2.densify(step=45.0)
-            if tree2 is None:
-                return [], ctx
-        except Exception as ex:
-            if log:
-                log(f"  wider streets: {type(ex).__name__}: {ex}")
-            return [], ctx
-        hx, hy = wide["half"]
-        ws = [w for w in _windows(g2, stat_half, FAR_RADIUS_FT, WINDOW_STEP_FT, hx - half_w - 300.0, hy - half_h - 300.0)
-              if w["dist_ft"] > 1.0 and w["regularity"] >= need_reg
-              and w["length_ft"] >= 0.35 * max(pin_w["length_ft"], 1.0)]
-        for w in ws:
-            w["band"] = int(w["dist_ft"] // BAND_FT)
         if log:
-            log(f"  wider streets: {len(g2.ids):,} nodes; {len(ws)} regular spots within {FAR_RADIUS_FT / FT_PER_MI:.0f} mi")
-        ctx2 = dict(ctx, g=g2, tree=tree2, sn_full=Snapper(g2), streets=None, dijkstra_done=dijkstra_done)
-        # The most regular grids inside the first search's reach first (their
-        # blocks are the likeliest to suit the drawing's size), then the most
-        # regular farther out.
-        inside = _most_regular([w for w in ws if w["dist_ft"] <= SEARCH_RADIUS_FT], FARTHER_BANDS, need_reg, limit=3)
-        beyond = _most_regular([w for w in ws if w["dist_ft"] > SEARCH_RADIUS_FT], FARTHER_BANDS, need_reg, limit=3)
-        return inside + beyond, ctx2
+            log(f"  far scan: {len(spots)} spots fetched in full, "
+                + ", ".join(f"{w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} (reg {w['regularity']:.2f})" for w, _ in spots))
+        return [(w, dict(ctx, far_els=els_w)) for w, els_w in spots]
+
+    def far_context(ctx_w):
+        """Build a far spot's graph from its streets, once, when it is tried."""
+        els_w = ctx_w.pop("far_els", None)
+        if els_w is None:
+            return ctx_w
+        g2 = StreetGraph.from_elements(els_w, proj)
+        P2, tree2 = g2.densify(step=45.0, classes=PLACE_CLASSES)
+        if tree2 is None or len(P2) < 200:
+            P2, tree2 = g2.densify(step=45.0)
+        if tree2 is None:
+            raise PlanError("Not enough streets there.")
+        ctx_w.update(g=g2, tree=tree2, sn_full=Snapper(g2), streets=None)
+        return ctx_w
 
     def quality(r):
         return (_attempt_tier(r), r["iou"])
@@ -697,14 +684,16 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     def public(o, index, **extra):
         return dict({k_: v for k_, v in o.items() if not k_.startswith("_")}, index=index, **extra)
 
-    for label, group, (pct_lo, pct_hi) in (("closest", near, (28, 48)), ("farther", mid, (50, 68)),
+    for label, group, (pct_lo, pct_hi) in (("closest", [(w, ctx) for w in near], (28, 48)),
+                                            ("farther", [(w, ctx) for w in mid], (50, 68)),
                                             ("best fit", None, (70, 88))):
         if group is None:
-            group, ctx = far_group()
+            group = far_group()
         ctx["pct_lo"], ctx["pct_hi"] = pct_lo, pct_hi
         group_attempts = []
         first_look = None          # the pin's own fit, shown before the rest of the band is tried
-        for w in group:
+        best_far = None            # among far spots, only the best one's graph is kept
+        for w, ctx_w in group:
             if k > 0 and (ctx["spots_snapped"] >= MAX_SNAPPED_SPOTS or time.time() - t_start > 0.7 * TIME_BUDGET_S):
                 stop = True
                 break
@@ -714,16 +703,33 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
                 _progress(progress, "place", pct_lo,
                           f"Looking {w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} for better streets")
             try:
-                r = _attempt(ctx, w, progress, log, k)
+                ctx_w = far_context(ctx_w)
+                if ctx_w is not ctx:
+                    ctx_w["pct_lo"], ctx_w["pct_hi"] = pct_lo, pct_hi
+                    w = dict(_window_stats(ctx_w["g"], w["cx"], w["cy"], stat_half), scan=w)
+                r = _attempt(ctx_w, w, progress, log, k)
             except PlanError as ex:
                 errors.append(ex)
                 if log:
                     log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi): {ex}")
                 k += 1
                 continue
+            finally:
+                if ctx_w is not ctx:
+                    ctx["spots_snapped"] += ctx_w.get("spots_snapped", 0)
+                    ctx["dijkstra_done"] = ctx.get("dijkstra_done", 0) + (ctx_w["sn_full"].n_dijkstra if ctx_w.get("sn_full") else 0)
+                    ctx_w.update(g=None, tree=None, sn_full=None, streets=None)
             r["spot"] = w
             attempts.append(r)
             group_attempts.append(r)
+            if ctx_w is not ctx:
+                # far spots: keep the graph of the best so far, drop the rest
+                if best_far is None or quality(r) > quality(best_far):
+                    if best_far is not None:
+                        best_far.pop("graph", None)
+                    best_far = r
+                else:
+                    r.pop("graph", None)
             if log:
                 log(f"  spot {k} ({w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])}): "
                     f"{_capped_verdict(r)} iou={r['iou']:.2f} {r['dist_mi']:.2f} mi"
@@ -758,8 +764,6 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
                     on_option(public(o, len(finished) - 1))
         if stop:
             break
-        if label == "closest":
-            start_wide()
     if not finished:
         if errors:
             raise errors[0]
@@ -793,7 +797,7 @@ def _window_stats(g, cx, cy, half_ft):
                 length_ft=float(ln[m].sum()), n_edges=int(m.sum()))
 
 
-def _windows(g, half_ft, radius_ft, step_ft, limit_x, limit_y):
+def _windows(g, half_ft, radius_ft, step_ft, limit_x, limit_y, min_edges=40):
     """Candidate spots on a lattice around the pin (the origin), each with the
     grid statistics of a drawing-sized window centred there. Only spots whose
     window still lies inside the fetched streets are returned."""
@@ -805,17 +809,77 @@ def _windows(g, half_ft, radius_ft, step_ft, limit_x, limit_y):
             if math.hypot(cx, cy) > radius_ft or abs(cx) > limit_x or abs(cy) > limit_y:
                 continue
             w = _window_stats(g, cx, cy, half_ft)
-            if w["n_edges"] >= 40:
+            if w["n_edges"] >= min_edges:
                 out.append(w)
     out.sort(key=lambda w: w["dist_ft"])
     return out
 
 
-def _most_regular(eligible, from_band, need_reg, limit=6):
-    """The spots for the best-fit option: the most regular grids from
-    `from_band` out, nearest first among equals."""
-    return sorted([w for w in eligible if w["band"] >= from_band and w["regularity"] >= max(need_reg, 0.8)],
+def _most_regular(eligible, need_reg, limit=6):
+    """The spots for the best-fit option: the most regular grids, nearest
+    first among equals."""
+    return sorted([w for w in eligible if w["regularity"] >= max(need_reg, FAR_MIN_REGULARITY)],
                   key=lambda w: (-w["regularity"], w["dist_ft"]))[:limit]
+
+
+def _bbox_at(proj, cx, cy, half_x, half_y):
+    """(south, west, north, east) of a box centred at (cx, cy) feet from the pin."""
+    s, w = proj.to_ll(cx - half_x, cy - half_y)
+    n, e = proj.to_ll(cx + half_x, cy + half_y)
+    return (float(s), float(w), float(n), float(e))
+
+
+def far_scan(scan, proj, cache_dir, log, stat_half, half_w, half_h, t_start):
+    """The far reach, in the background: fetch the main roads for the whole
+    ten miles around the pin (they follow a city's grids and are a fraction
+    of its streets), judge the grid at spots from three miles out, and fetch
+    the streets in full around the most regular few. Each spot's streets are
+    put on `scan["spots"]` as they arrive, so the search can use whatever is
+    there when its turn comes. Anything that fails leaves the list short."""
+    try:
+        half = FAR_RADIUS_FT + half_w + 300.0
+        els = fetch_bbox(proj.bbox_around(half, half), cache_dir=cache_dir, timeout=75, log=log, highways=SCAN_CLASSES)
+        gs = StreetGraph.from_elements(els, proj)
+        del els
+        ws = [w for w in _windows(gs, stat_half, FAR_RADIUS_FT, SCAN_STEP_FT, half - half_w - 300.0, half - half_h - 300.0,
+                                  min_edges=SCAN_MIN_EDGES)
+              if w["dist_ft"] > FARTHER_RADIUS_FT and w["regularity"] >= FAR_MIN_REGULARITY
+              and w["length_ft"] >= 1.5 * FT_PER_MI]
+        gs = None
+        ws.sort(key=lambda w: (-w["regularity"], w["dist_ft"]))
+        picked = []
+        for w in ws:
+            # spread the picks out: no two within a window's width of each other
+            if all(math.hypot(w["cx"] - v["cx"], w["cy"] - v["cy"]) > 2.0 * stat_half for v in picked):
+                picked.append(w)
+            if len(picked) >= FOCUS_SPOTS:
+                break
+        if log:
+            log(f"  far scan: {len(ws)} regular spots beyond {FARTHER_RADIUS_FT / FT_PER_MI:.0f} mi; "
+                + ", ".join(f"{w['dist_ft'] / FT_PER_MI:.1f} mi {_compass(w['cx'], w['cy'])} (reg {w['regularity']:.2f})" for w in picked))
+        if time.time() - t_start > FAR_WAIT * TIME_BUDGET_S:
+            return
+        hx, hy = half_w + 800.0, half_h + 800.0
+
+        def fetch_one(w):
+            try:
+                els_w = fetch_bbox(_bbox_at(proj, w["cx"], w["cy"], max(hx, stat_half), max(hy, stat_half)),
+                                   cache_dir=cache_dir, timeout=60, log=log)
+                scan["spots"].append((w, els_w))
+            except Exception as ex:      # this spot is simply not offered
+                if log:
+                    log(f"  far spot {w['dist_ft'] / FT_PER_MI:.1f} mi: {type(ex).__name__}: {ex}")
+
+        threads = [threading.Thread(target=fetch_one, args=(w,), daemon=True) for w in picked]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+    except Exception as ex:              # the scan is a bonus; without it the first fetch's spots serve
+        if log:
+            log(f"  far scan: {type(ex).__name__}: {ex}")
+    finally:
+        scan["done"] = True
 
 
 def _attempt_tier(r):

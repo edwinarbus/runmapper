@@ -49,22 +49,22 @@ def round_bbox(bbox, step=0.005):
             math.ceil(n / step) * step, math.ceil(e / step) * step)
 
 
-def query_text(bbox, timeout=60):
+def query_text(bbox, timeout=60, highways=HIGHWAYS):
     s, w, n, e = bbox
     return (f'[out:json][timeout:{int(timeout)}];'
-            f'(way["highway"~"^({HIGHWAYS})$"]({s:.5f},{w:.5f},{n:.5f},{e:.5f}););'
+            f'(way["highway"~"^({highways})$"]({s:.5f},{w:.5f},{n:.5f},{e:.5f}););'
             f'out body;>;out skel qt;')
 
 
-def _cache_paths(cache_dir, bbox):
+def _cache_paths(cache_dir, bbox, tag=""):
     """The pickle written now, and the JSON older versions wrote."""
     s, w, n, e = bbox
-    stem = os.path.join(cache_dir, "osm", f"{s:.3f}_{w:.3f}_{n:.3f}_{e:.3f}")
+    stem = os.path.join(cache_dir, "osm", f"{s:.3f}_{w:.3f}_{n:.3f}_{e:.3f}{tag}")
     return stem + ".pkl.gz", stem + ".json.gz"
 
 
-def _load_cache(cache_dir, bbox, max_age_days):
-    for p in _cache_paths(cache_dir, bbox):
+def _load_cache(cache_dir, bbox, max_age_days, tag=""):
+    for p in _cache_paths(cache_dir, bbox, tag):
         if not os.path.exists(p) or (time.time() - os.path.getmtime(p)) >= max_age_days * 86400:
             continue
         try:
@@ -154,14 +154,17 @@ def _race(mirror_list, q, timeout, log, stagger):
             log(f"overpass {host} failed: {type(ex).__name__} ({dt:.0f}s)")
 
 
-def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
-    """Return the Overpass `elements` list (nodes + ways) for a (s, w, n, e) box."""
+def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30, highways=HIGHWAYS):
+    """Return the Overpass `elements` list (nodes + ways) for a (s, w, n, e)
+    box. `highways` narrows the classes fetched (main roads only, for a wide
+    scan); a narrowed fetch has a cache entry of its own."""
     bbox = round_bbox(bbox)
+    tag = "" if highways == HIGHWAYS else "-" + "".join(c for c in highways if c.isalpha())[:24]
     if cache_dir:
-        els = _load_cache(cache_dir, bbox, max_age_days)
+        els = _load_cache(cache_dir, bbox, max_age_days, tag)
         if els is not None:
             return els
-    q = query_text(bbox, timeout=timeout)
+    q = query_text(bbox, timeout=timeout, highways=highways)
     errors = []
     for attempt in range(2):
         d, errs = _race(mirrors(), q, timeout, log, STAGGER_S)
@@ -169,7 +172,7 @@ def fetch_bbox(bbox, cache_dir=None, timeout=60, log=None, max_age_days=30):
         if d is not None:
             els = d.get("elements", [])
             if cache_dir:
-                threading.Thread(target=_save_cache, args=(_cache_paths(cache_dir, bbox)[0], els), daemon=True).start()
+                threading.Thread(target=_save_cache, args=(_cache_paths(cache_dir, bbox, tag)[0], els), daemon=True).start()
             return els
         time.sleep(2.0)
     raise OverpassError("Could not fetch street data from any Overpass mirror: "

@@ -50,7 +50,7 @@ const FLY_ZOOM = 16.4;
 const FLY_THICK = 2;
 // The speed key cycles through these, a press at a time.
 const SPEEDS = [1, 2, 2.5, 3];
-const CAP = 26;   // the fader's cap, in px: see .scrub-cap
+const CAP = 22;   // the fader's cap's width, in px: see .scrub-cap
 const flyPadding = (m: maplibregl.Map) => ({ top: Math.round(m.getContainer().clientHeight * 0.44), bottom: 0, left: 0, right: 0 });
 
 /** The compass bearing from one point to the next, in degrees. */
@@ -617,7 +617,7 @@ export default function MapView(props: MapViewProps) {
           follows the run and can be dragged to any point of it. Holding the cap
           holds the run; letting go sets it off again from there. */}
       {hasRoute && drawing && (
-        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem + 4px + env(safe-area-inset-bottom))" }}>
+        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem + 2px + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-btn map-speed" onClick={nextSpeed} aria-label={`Speed: ${speedShown} times. Press for the next.`} title="Speed">
             {speedShown}×
           </button>

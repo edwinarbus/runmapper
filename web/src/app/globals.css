@@ -990,6 +990,22 @@ body {
 .go[data-held] {
   pointer-events: none;
 }
+/* The handover: the tray takes the slot, and the key, still down, fades into
+   the deck over it in the same place, so one thing becomes the other. */
+.go-slot {
+  position: relative;
+}
+.go-away {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+  animation: go-away 0.24s ease-out forwards;
+}
+@keyframes go-away {
+  to { opacity: 0; transform: translateY(3px); }
+}
 /* Not yet: the same key in dark plastic, its legend cut but unpainted. */
 .go:disabled::before {
   border-image-source: url("/key-dark.png");
@@ -1839,34 +1855,53 @@ details[open] > .disclose svg {
   background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #b93c00 0%, #d64a00 35%, #ef5f1c 100%);
   box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
 }
-/* The transport, beside the play key while a replay runs: a speed key and a
-   fader. The fader's slot is cut into the glass like the switches' slots, a
-   groove down its middle lit orange behind the cap as far as the run has
-   got; the cap is a block of the same grained metal as the switch knobs,
-   with a white line across it, moved by hand each frame. */
+/* The transport, beside the play key while a replay runs: one fitting, a
+   tray let into the glass, with a small speed key set into its left end and
+   a fader along the rest. Key and fader cap are the same height, and both
+   sit inside the tray, so the two read as parts of one thing. The fader's
+   groove lights orange behind the cap as far as the run has got; the cap
+   is a block of the same grained metal as the switch knobs, taller than it
+   is wide, with a white line across it. */
 .transport {
   position: absolute;
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 36px;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 10, 12, 0.94) 0%, rgba(16, 16, 19, 0.94) 60%, rgba(22, 22, 26, 0.94) 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 1px 0 #000, inset 1px 0 2px rgba(0, 0, 0, 0.6), inset -1px 0 2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.09), 0 1px 0 rgba(255, 255, 255, 0.06), 0 3px 8px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
 }
-.map-speed {
-  min-width: 46px;
-  padding: 0.1em 0.5rem 0;
+/* the speed key: a small key standing in the tray, its legend cut in */
+.map-btn.map-speed {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  min-width: 44px;
+  padding: 0.1em 0.45rem 0;
   justify-content: center;
+  border-radius: 5px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
+  background: var(--key);
+  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0a0a0c, 0 3px 1px rgba(0, 0, 0, 0.6), 0 4px 6px rgba(0, 0, 0, 0.4);
+  backdrop-filter: none;
+}
+.map-btn.map-speed:active:not(:disabled),
+.map-btn.map-speed[data-pressed]:not(:disabled) {
+  transform: translateY(2px);
+  background: var(--key-down);
+  box-shadow: var(--sunk);
 }
 .scrub {
   position: relative;
   flex: 1;
   min-width: 80px;
-  height: 36px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(10, 10, 12, 0.94) 0%, rgba(16, 16, 19, 0.94) 60%, rgba(22, 22, 26, 0.94) 100%);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 1px 0 #000, inset 1px 0 2px rgba(0, 0, 0, 0.6), inset -1px 0 2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.09), 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
+  height: 40px;
   touch-action: none;
   cursor: pointer;
   user-select: none;
@@ -1874,8 +1909,8 @@ details[open] > .disclose svg {
 .scrub-groove {
   position: absolute;
   top: 50%;
-  left: 13px;
-  right: 13px;
+  left: 11px;
+  right: 11px;
   height: 3px;
   margin-top: -1.5px;
   border-radius: 1.5px;
@@ -1894,13 +1929,13 @@ details[open] > .disclose svg {
 }
 .scrub-cap {
   position: absolute;
-  top: 5px;
+  top: 6px;
   left: 0;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 28px;
   border-radius: 4px;
   background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
     var(--grain-key),
     linear-gradient(180deg, #6f6f78 0%, #5c5c65 55%, #4a4a52 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 3px 0 6px -4px rgba(255, 255, 255, 0.2), inset -3px 0 6px -4px rgba(0, 0, 0, 0.6), 0 3px 6px rgba(0, 0, 0, 0.7);
@@ -1909,11 +1944,11 @@ details[open] > .disclose svg {
 .scrub-cap::after {
   content: "";
   position: absolute;
-  top: 5px;
-  bottom: 5px;
-  left: 50%;
-  width: 2px;
-  margin-left: -1px;
+  top: 50%;
+  right: 4px;
+  left: 4px;
+  height: 2px;
+  margin-top: -1px;
   border-radius: 1px;
   background: #f4f2ec;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
@@ -2013,6 +2048,7 @@ summary:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .go-away,
   .rise,
   .bib-front,
   .bib-back,

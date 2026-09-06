@@ -55,10 +55,11 @@ type Status = "idle" | "planning" | "done" | "error";
 // How long after starting a search the page keeps asking the engine for the
 // rest of it: the engine's own limit on a search (5 min) and a little over.
 const RESUME_LIMIT_MS = 330_000;
-// The start key, hit: it stays down this long after the press began, springs
-// back, and the stopwatch takes its place this long after that.
-const HOLD_MS = 560;
-const LIFT_MS = 200;
+// The start key, hit: it stays down this long after the press began, then
+// the stopwatch dissolves in over it, taking this long, while the key fades
+// into the deck. Two moves and one short hold: nothing else to wait through.
+const HOLD_MS = 380;
+const AWAY_MS = 260;
 
 export default function RunMapper() {
   const [mode, setMode] = useState<Mode>("text");
@@ -97,7 +98,7 @@ export default function RunMapper() {
   const cityFor = useRef("");                             // the start the city was looked up for
   const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
   const [startedAt, setStartedAt] = useState(0);
-  const [held, setHeld] = useState<"" | "down" | "up">("");   // the start key after a hit: held down, then back up, then gone for the stopwatch
+  const [held, setHeld] = useState<"" | "down" | "away">("");   // the start key after a hit: held down, then fading away under the stopwatch
   const hitAt = useRef(0);                                     // when the start key was last pressed
   const holdTimers = useRef<number[]>([]);
   const abort = useRef<AbortController | null>(null);
@@ -464,8 +465,8 @@ export default function RunMapper() {
 
   // A deliberate press. The key goes down under the finger and the search
   // starts the moment it is let go, but the key stays down for a moment
-  // longer, comes back up with its clack, and the stopwatch takes its place a
-  // beat after that, so hitting it is seen and heard rather than glimpsed.
+  // longer; then, with its clack, the stopwatch dissolves in over it as it
+  // fades into the deck, one handover rather than a spring back and a cut.
   const hit = () => {
     if (held) return;
     if (performance.now() - hitAt.current > 1000) hitAt.current = performance.now();   // by keyboard: no press to count from
@@ -476,10 +477,10 @@ export default function RunMapper() {
     const wait = Math.max(0, HOLD_MS - (performance.now() - hitAt.current));
     timers.push(
       window.setTimeout(() => {
-        setHeld("up");
+        setHeld("away");
         play("goUp");
       }, wait),
-      window.setTimeout(() => setHeld(""), wait + LIFT_MS),
+      window.setTimeout(() => setHeld(""), wait + AWAY_MS),
     );
     void go();
   };
@@ -910,14 +911,15 @@ export default function RunMapper() {
 
             {/* Go: pinned to the bottom of the column on wide screens */}
             <section className="space-y-3 px-6 pt-4 pb-10 md:sticky md:bottom-0 md:z-10 md:bg-[var(--panel)] md:shadow-[0_-16px_24px_rgba(18,18,21,0.9)]">
-              {status === "planning" && !held ? (
-                progressLane
-              ) : (
-                <div className="space-y-3">
+              {/* The slot: the key, or the stopwatch's tray; for a moment at the handover both, the key fading out over the tray rising in */}
+              <div className="go-slot">
+                {status === "planning" && held !== "down" && progressLane}
+                {(status !== "planning" || held) && (
+                <div className={`space-y-3${held === "away" ? " go-away" : ""}`}>
                   <button
                     type="button"
                     disabled={!canGo && !held}
-                    data-held={held || undefined}
+                    data-held={held ? "down" : undefined}
                     onPointerDown={() => {
                       hitAt.current = performance.now();
                     }}
@@ -937,6 +939,7 @@ export default function RunMapper() {
                   )}
                 </div>
               )}
+              </div>
               {notices}
             </section>
           </div>

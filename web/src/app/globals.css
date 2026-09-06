@@ -1948,7 +1948,7 @@ details[open] > .disclose svg {
 .pulse-glass {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 5;                    /* over the map, under the pin (below) and the keys */
   width: 100%;
   height: 100%;
   opacity: 0;
@@ -1971,6 +1971,10 @@ details[open] > .disclose svg {
 
 /* MapLibre's attribution, in the dark: a small pill in the bottom left
    corner that stays clear of the replay key. */
+/* The pin stands over the search's light. */
+.maplibregl-marker {
+  z-index: 6;
+}
 .maplibregl-ctrl-bottom-left {
   max-width: calc(100% - 96px);
 }

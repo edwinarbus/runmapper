@@ -6,7 +6,7 @@
 // keeps on along the way most nearly straight ahead and, now and then,
 // sends another down a side street, and none ever turns back towards the
 // pin. So the light spreads out through the actual streets as lines, a
-// few at a time, with a small ring at the pin as each wave sets off.
+// few at a time, far across the city.
 //
 // The streets come from the basemap's own vector tiles (querySourceFeatures
 // on the transportation layer). Their crossings are found (a straight
@@ -22,14 +22,14 @@ const LAYER = "transportation";
 const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk", "path", "track", "residential", "unclassified", "living_street", "pedestrian"];
 const SNAP = 2;          // m: points this close are one node
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
-const SPEED = 520;       // m/s: how fast a line runs, once under way
-const WAVE = 2.3;        // s: between waves leaving the pin
-const BRIGHT = 160;      // m: the front of a line, at full strength
-const TAIL = 760;        // m: over which it dies away behind that
-const STEPS = 24;        // the dying away is drawn in this many steps, fine enough to read as one fade
-const BRANCH = 0.2;      // the chance a side street is taken at a junction, besides the way on
-const ALIVE = 30;        // lines alive in one wave, at most
-const PING = 1.0;        // s: the rings at the pin as a wave sets off
+const SPEED = 600;       // m/s: how fast a line runs, once under way
+const WAVE = 1.6;        // s: between waves leaving the pin
+const BRIGHT = 260;      // m: the front of a line, at full strength
+const TAIL = 1100;       // m: over which it dies away behind that
+const STEPS = 28;        // the dying away is drawn in this many steps, fine enough to read as one fade
+const BRANCH = 0.25;     // the chance a side street is taken at a junction, besides the way on
+const ALIVE = 40;        // lines alive in one wave, at most
+const WIDTH = 3;         // px: a line at its front; it thins towards its tail
 const SPARK = 0.45;      // s: the small flash where a line branches
 
 type Tracer = {
@@ -145,9 +145,9 @@ export class StreetPulse {
 
   start() {
     const el = this.map.getContainer();
-    // the light runs to the edge of the view and a little past it
+    // the light runs out past the edge of the view, well across the city
     const mpp = this.metresPerPixel();
-    this.reach = Math.min(4200, Math.max(1500, Math.hypot(el.clientWidth, el.clientHeight) * 0.55 * mpp));
+    this.reach = Math.min(6500, Math.max(2500, Math.hypot(el.clientWidth, el.clientHeight) * 0.85 * mpp));
     // the graph is built a moment after the key press, so the press itself is not held up
     this.retry = window.setTimeout(() => this.build(), 40);
     this.map.on("idle", this.onIdle);
@@ -534,7 +534,7 @@ export class StreetPulse {
       this.nextWave = t + WAVE;
     }
     for (const w of this.waves) this.run(w, dt, t);
-    this.waves = this.waves.filter((w) => w.tracers.length > 0 || t - w.t0 < PING);
+    this.waves = this.waves.filter((w) => w.tracers.length > 0);
     while (this.sparks.length && t - this.sparks[2] > SPARK) this.sparks.splice(0, 3);
     this.alive = this.waves.reduce((n, w) => n + w.tracers.length, 0);
     // every point goes through the map's own projection, so the lines lie on the streets exactly
@@ -543,8 +543,6 @@ export class StreetPulse {
     const kx = this.kx;
     const ky = this.ky;
     const P = (x: number, y: number) => m.project([lon0 + x / kx, lat0 + y / ky]);
-    const p = m.project([lon0, lat0]);
-    const s = 1 / this.metresPerPixel();   // px per metre, for the ring
     const orange = this.dark ? "255, 130, 50" : "252, 82, 0";
     // the line's colour along its length: a touch lighter at the front, the deck's orange behind
     const front = this.dark ? [255, 158, 78] : [255, 118, 44];
@@ -598,8 +596,8 @@ export class StreetPulse {
           part(paths[k], pts, hi - stepLen, hi);
         }
         if (tr.stopD < 0) {
-          ends.moveTo(head.x + 1.2, head.y);
-          ends.arc(head.x, head.y, 1.2, 0, Math.PI * 2);
+          ends.moveTo(head.x + WIDTH / 2, head.y);
+          ends.arc(head.x, head.y, WIDTH / 2, 0, Math.PI * 2);
         }
       }
     }
@@ -607,7 +605,7 @@ export class StreetPulse {
       // the front at full strength; behind it the light dies away, easing out, and the line thins with it
       const u = k === 0 ? 0 : (k - 1) / (STEPS - 1);
       const a = (k === 0 ? 1 : 0.92 * Math.pow(1 - u, 1.6)) * fade;
-      const width = 2.4 - 1.3 * (k / (STEPS - 1));
+      const width = WIDTH - (WIDTH - 1.4) * (k / (STEPS - 1));
       const c = front.map((v, i) => Math.round(v + (back[i] - v) * u));
       ctx.lineWidth = width * 3;
       ctx.strokeStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a * 0.12})`;
@@ -632,32 +630,6 @@ export class StreetPulse {
       ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
       ctx.fill();
     }
-    // the pin: two rings going out as each wave sets off, easing as they go, and a glow that flares with them
-    let flare = 0;
-    for (const w of this.waves) {
-      const age = t - w.t0;
-      flare = Math.max(flare, age < 0.1 ? age / 0.1 : Math.exp(-(age - 0.1) / 0.5));
-      if (age > PING) continue;
-      const u = age / PING;
-      const out = 1 - Math.pow(1 - u, 3);
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = `rgba(${orange}, ${0.5 * (1 - u) * (1 - u) * fade})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4 + 170 * s * out, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = `rgba(${orange}, ${0.3 * (1 - u) * (1 - u) * fade})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4 + 95 * s * (1 - Math.pow(1 - u, 2)), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16 + 18 * (1 - flare));
-    g.addColorStop(0, `rgba(${orange}, ${0.45 * flare * fade})`);
-    g.addColorStop(1, `rgba(${orange}, 0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 36, 0, Math.PI * 2);
-    ctx.fill();
     ctx.globalCompositeOperation = "source-over";
   }
 }

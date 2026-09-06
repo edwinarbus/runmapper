@@ -100,6 +100,13 @@ export default function RunMapper() {
   const cityFor = useRef("");                             // the start the city was looked up for
   const [laps, setLaps] = useState(0);          // spots tried so far, on the stopwatch
   const [startedAt, setStartedAt] = useState(0);
+  // The search's light on the map waits for the starter's call: on your marks, set, go
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    const going = Boolean(startedAt) && status === "planning";
+    const t = window.setTimeout(() => setOff(going), going ? 2800 : 0);
+    return () => window.clearTimeout(t);
+  }, [startedAt, status]);
   const [held, setHeld] = useState<"" | "down" | "away">("");   // the start key after a hit: held down, then fading away under the stopwatch
   const hitAt = useRef(0);                                     // when the start key was last pressed
   const holdTimers = useRef<number[]>([]);
@@ -946,7 +953,7 @@ export default function RunMapper() {
         <MapView
           pin={pin}
           picking={!showResult}
-          searching={status === "planning" && !showResult}
+          searching={status === "planning" && off && !showResult}
           onPick={onPick}
           focus={focus}
           route={routeCoords}

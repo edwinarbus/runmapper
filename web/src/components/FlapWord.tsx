@@ -17,7 +17,9 @@ const TILE_MAX = 64;       // px
 const TILE_MIN = 32;       // narrower than this and the word takes another row instead
 const GAP = 5;             // between the tiles of a word
 const WORD_GAP = 16;       // between words
-const STAGGER = 24;        // ms between tiles when a whole word arrives at once
+const STAGGER = 36;        // ms between neighbouring tiles when a whole word arrives at once
+const DRIFT = 4;           // ms per tile squared: the tiles down the row fall further and further behind
+const DRIFT_MAX = 10;      // tiles beyond this fall behind at the steady rate
 
 /** What a tile shows on its way to `ch`: blank, the letters before it, then `ch`. */
 function sequence(ch: string): string[] {
@@ -29,27 +31,28 @@ function sequence(ch: string): string[] {
   return out;
 }
 
-// Tiles that mount together (a pasted or shared word) start one after
-// another, left to right; a letter typed on its own starts at once.
-let batchAt = 0;
-let batchN = 0;
-function stagger(): number {
-  const now = typeof performance !== "undefined" ? performance.now() : 0;
-  if (now - batchAt > 80) {
-    batchAt = now;
-    batchN = 0;
-  } else batchN++;
-  return batchN * STAGGER;
+// Tiles that arrive together (a pasted or shared word, the board coming
+// back with a word on it) start one after another, left to right, the way
+// a real board's row goes: never in step. Each tile down the row waits a
+// little longer than the one before it (the gap grows, so the last letters
+// trail well behind), with a small random wobble, and each tile turns at
+// its own pace, so the row drifts further out of step as it runs. `order`
+// is the tile's rank among the tiles arriving with it; a letter typed on
+// its own is rank 0 and starts at once.
+function stagger(order: number): { delay: number; rate: number } {
+  const d = Math.min(order, DRIFT_MAX);
+  const delay = order === 0 ? 0 : Math.max(0, Math.round(order * STAGGER + d * d * DRIFT + (Math.random() * 24 - 10)));
+  return { delay, rate: 0.92 + Math.random() * 0.28 };
 }
 
 /** One tile: the top and bottom halves of the letter it shows, and while
  *  it is still turning, a leaf on the hinge with the current top on its
  *  face and the next bottom on its back. */
-function Tile({ ch, still }: { ch: string; still?: boolean }) {
+function Tile({ ch, still, order }: { ch: string; still?: boolean; order: number }) {
   const seq = sequence(ch);
   const last = seq.length - 1;
   const [step, setStep] = useState(() => (still ? last : 0));
-  const [delay] = useState(() => (still ? 0 : stagger()));
+  const [{ delay, rate }] = useState(() => (still ? { delay: 0, rate: 1 } : stagger(order)));
   const done = step >= last;
   const cur = seq[Math.min(step, last)];
   const next = seq[Math.min(step + 1, last)];
@@ -65,7 +68,7 @@ function Tile({ ch, still }: { ch: string; still?: boolean }) {
         <span
           key={step}
           className={`flap-leaf${step === last - 1 ? " flap-leaf-last" : ""}`}
-          style={step === 0 && delay ? { animationDelay: `${delay}ms` } : undefined}
+          style={{ "--flap-rate": rate, ...(step === 0 && delay ? { "--flap-delay": `${delay}ms` } : {}) } as CSSProperties}
           onAnimationEnd={() => {
             play("flap");
             setStep((s) => s + 1);
@@ -118,6 +121,9 @@ export default function FlapWord({
 
   const chars = value.toUpperCase().split("");
   const ghost = chars.length === 0;
+  // Which tiles were on the board last time: the ones that are new this
+  // time arrived together, and take their turn in order.
+  const seen = useRef<Set<string>>(new Set());
   const shown = ghost ? GHOST.split("") : chars;
   const cursor = !ghost && chars.length < maxLength;
   // Words stay together: a phrase breaks between words onto more rows.
@@ -170,6 +176,13 @@ export default function FlapWord({
     }
   });
 
+  const keys = items.flatMap((it) => (it.kind === "tile" ? [ghost ? `ghost-${it.index}` : `${it.index}-${it.ch}`] : []));
+  const fresh = keys.filter((k) => !seen.current.has(k));
+  const order = new Map(fresh.map((k, i) => [k, i]));
+  useEffect(() => {
+    seen.current = new Set(keys);
+  });
+
   return (
     <div
       ref={board}
@@ -179,7 +192,12 @@ export default function FlapWord({
     >
       {items.map((it) =>
         it.kind === "tile" ? (
-          <Tile key={ghost ? `ghost-${it.index}` : `${it.index}-${it.ch}`} ch={it.ch} still={ghost} />
+          <Tile
+            key={ghost ? `ghost-${it.index}` : `${it.index}-${it.ch}`}
+            ch={it.ch}
+            still={ghost}
+            order={order.get(ghost ? `ghost-${it.index}` : `${it.index}-${it.ch}`) ?? 0}
+          />
         ) : it.kind === "cursor" ? (
           <span key="cursor" className="flap flap-cursor" aria-hidden="true" />
         ) : it.kind === "gap" ? (

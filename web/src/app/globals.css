@@ -475,11 +475,15 @@ body {
   transform-origin: 50% 100%;
   transform-style: preserve-3d;
   animation: flap-turn 45ms cubic-bezier(0.5, 0, 0.95, 0.6) both;
+  /* each tile turns at its own pace (--flap-rate) and, when a row arrives
+     together, waits its turn (--flap-delay) */
+  animation-duration: calc(45ms * var(--flap-rate, 1));
+  animation-delay: var(--flap-delay, 0ms);
 }
 /* The last turn falls like the others (no slow start, which read as a
    hesitation), just a touch longer so the landing registers. */
 .flap-leaf-last {
-  animation-duration: 56ms;
+  animation-duration: calc(56ms * var(--flap-rate, 1));
   animation-timing-function: cubic-bezier(0.55, 0, 1, 0.7);
 }
 .flap-face {
@@ -2050,6 +2054,7 @@ summary:focus-visible {
   }
   .flap-leaf {
     animation-duration: 1ms;   /* the letter lands at once; each turn still ends */
+    animation-delay: 0ms;
   }
   .seg-btn,
   .seg-thumb,

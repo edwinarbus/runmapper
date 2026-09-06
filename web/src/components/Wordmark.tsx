@@ -1,4 +1,4 @@
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { WORDMARK_DOT, WORDMARK_DOT_RUN, WORDMARK_OUTLINE_D, WORDMARK_VIEWBOX } from "@/lib/wordmark";
 
 /** The wordmark: DRAWMYRUN as a run, the route in orange and the green
@@ -18,6 +18,17 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
     const m = motion.current as (SVGAnimateMotionElement & { beginElement?: () => void }) | null;
     m?.beginElement?.();
   };
+  // The dot runs once of its own accord, half a second after the page
+  // opens, so the mark introduces itself; not for anyone who has asked
+  // for less motion.
+  useEffect(() => {
+    if (!run || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setTimeout(() => {
+      const m = motion.current as (SVGAnimateMotionElement & { beginElement?: () => void }) | null;
+      m?.beginElement?.();
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [run]);
   return (
     <svg
       className={className}

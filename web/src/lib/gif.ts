@@ -90,17 +90,19 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
 }
 
 /** A wash of paper down from the top with the distance, large, and the
- *  town beside it; the site top right. The bottom corners stay clear: X
- *  lays its GIF badge over the bottom left. Sized for 1280 wide and scaled
- *  with the frame. */
+ *  town beside it; the site top right. The wash ends where the band does,
+ *  and the route is framed below that, so the drawing's top is never
+ *  faded. The bottom corners stay clear: X lays its GIF badge over the
+ *  bottom left. Sized for 1280 wide and scaled with the frame. */
+const WASH = BAND + 16;   // the wash is gone by here; the route starts lower
 function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: GifJob["caption"], font: string) {
   const s = w / 1280;
-  const g = ctx.createLinearGradient(0, 0, 0, (BAND + 60) * s);
-  g.addColorStop(0, "rgba(247, 245, 240, 0.98)");
-  g.addColorStop(0.7, "rgba(247, 245, 240, 0.86)");
+  const g = ctx.createLinearGradient(0, 0, 0, WASH * s);
+  g.addColorStop(0, "rgba(247, 245, 240, 0.96)");
+  g.addColorStop(0.68, "rgba(247, 245, 240, 0.9)");
   g.addColorStop(1, "rgba(247, 245, 240, 0)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, (BAND + 60) * s);
+  ctx.fillRect(0, 0, w, WASH * s);
   const x = 56 * s;
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "left";
@@ -173,7 +175,7 @@ export async function renderGif(job: GifJob): Promise<Blob> {
     src("finish").setData(job.finish ? pointFeature([job.finish[1], job.finish[0]]) : EMPTY);
     src("route").setData(lineFeature(job.route));
     setDecor(m, false);   // no chevrons on the GIF: the line reads cleaner small
-    m.fitBounds(routeBounds(job.route), { padding: { top: BAND + 16, right: 36, bottom: 44, left: 36 }, duration: 0, maxZoom: 17 });
+    m.fitBounds(routeBounds(job.route), { padding: { top: WASH + 14, right: 36, bottom: 44, left: 36 }, duration: 0, maxZoom: 17 });
     await idle(m, 20000);   // tiles for the whole frame
     if (typeof document.fonts?.ready?.then === "function") await document.fonts.ready;
     const font = displayFont();

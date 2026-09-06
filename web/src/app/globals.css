@@ -30,9 +30,11 @@
   --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
   --skirt-3: 0 1px 0 #26262c, 0 2px 0 #151519, 0 3px 0 #07070a, 0 4px 1px rgba(0, 0, 0, 0.75), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
   --skirt-4: 0 1px 0 #26262c, 0 2px 0 #1a1a1f, 0 3px 0 #101013, 0 4px 0 #07070a, 0 5px 1px rgba(0, 0, 0, 0.75), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
+  --skirt-5: 0 1px 0 #26262c, 0 2px 0 #1d1d22, 0 3px 0 #151519, 0 4px 0 #0d0d10, 0 5px 0 #07070a, 0 6px 1px rgba(0, 0, 0, 0.75), 0 9px 11px rgba(0, 0, 0, 0.45), 0 18px 24px rgba(0, 0, 0, 0.35);
   --white-key: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #fbfaf6 0%, #ecebe5 55%, #dad7ce 100%);
   --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, 0.14), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
   --white-skirt-3: 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
+  --white-skirt-4: 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.65), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(0, 0, 0, 0.3);
   /* An orange face under the light: a soft flare towards the top left where
      the light lands, the edges falling into shade all round, a fine grain
      like moulded plastic, and no gloss line. */
@@ -40,6 +42,7 @@
   --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
   --orange-skirt-3: 0 1px 0 #cf4800, 0 2px 0 #a33900, 0 3px 0 #7a2b00, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
+  --orange-skirt-4: 0 1px 0 #cf4800, 0 2px 0 #b03d00, 0 3px 0 #923200, 0 4px 0 #7a2b00, 0 5px 1px rgba(0, 0, 0, 0.65), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(252, 82, 0, 0.22);
   /* A legend engraved in a key's face, as on the start key: a line of shade
      along the top of each letter, where the cut's upper wall shadows it, and
      a thread of light along the bottom, where its lower lip catches the
@@ -163,7 +166,7 @@ body {
   border-radius: 7px;
   background: var(--key);
   color: var(--ink-3);
-  box-shadow: var(--key-hi), 0 1px 0 #0d0d10, 0 2px 3px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   transition: color 0.15s, transform 0.12s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.12s;
 }
@@ -172,7 +175,7 @@ body {
 }
 .mute:active,
 .mute[data-pressed] {
-  transform: translateY(2px);
+  transform: translateY(3px);
   box-shadow: var(--sunk);
   transition-duration: 0.06s;
 }
@@ -613,7 +616,7 @@ body {
   color: var(--ink);
   text-shadow: var(--cut-dark);
   cursor: pointer;
-  box-shadow: var(--key-hi), var(--skirt-4);
+  box-shadow: var(--key-hi), var(--skirt-5);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
 @media (hover: hover) {
@@ -629,7 +632,7 @@ body {
 .tile:active:not(:disabled),
 .tile[data-pressed]:not(:disabled),
 .tile[aria-pressed="true"] {
-  transform: translateY(4px);
+  transform: translateY(5px);
   background: var(--key-down);
   box-shadow: var(--sunk);
 }
@@ -690,7 +693,7 @@ body {
   width: calc((100% - 4px) / var(--n, 3) - 2px);
   border-radius: 4px;
   background: var(--white-key);
-  box-shadow: var(--white-hi), 0 1px 0 #aaa79d, 0 2px 0 #7d7a72, 0 3px 3px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--white-hi), 0 1px 0 #aaa79d, 0 2px 0 #8f8c84, 0 3px 0 #6b685f, 0 4px 3px rgba(0, 0, 0, 0.65);
   transition: left 0.22s cubic-bezier(0.3, 0.9, 0.35, 1.18);
   pointer-events: none;
 }
@@ -825,7 +828,7 @@ body {
   text-shadow: var(--cut-dark);
   cursor: pointer;
   user-select: none;
-  box-shadow: var(--key-hi), var(--skirt-3);
+  box-shadow: var(--key-hi), var(--skirt-4);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s, color 0.12s;
 }
 @media (hover: hover) {
@@ -835,7 +838,7 @@ body {
 }
 .btn:active:not(:disabled),
 .btn[data-pressed]:not(:disabled) {
-  transform: translateY(3px);
+  transform: translateY(4px);
   background: var(--key-down);
   box-shadow: var(--sunk);
   transition-duration: 0.05s;
@@ -857,7 +860,7 @@ body {
   background: var(--white-key);
   color: var(--bg);
   text-shadow: var(--cut-light);
-  box-shadow: var(--white-hi), var(--white-skirt-3);
+  box-shadow: var(--white-hi), var(--white-skirt-4);
 }
 .btn-fill svg {
   filter: var(--cut-light-icon);
@@ -876,7 +879,7 @@ body {
   background: var(--orange-key);
   color: #fff3ea;
   text-shadow: var(--cut-orange);
-  box-shadow: var(--orange-hi), var(--orange-skirt-3);
+  box-shadow: var(--orange-hi), var(--orange-skirt-4);
 }
 .btn-orange svg {
   filter: var(--cut-orange-icon);
@@ -916,8 +919,8 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 77px;                  /* the face, 68, on its wall, 9 */
-  padding: 0 0 9px;
+  height: 75px;                  /* the face, 68, on its wall, 7 */
+  padding: 0 0 7px;
   border: 0;
   background: none;
   color: #f6e8dc;
@@ -937,7 +940,7 @@ body {
 }
 /* The picture of the key, behind the legend: the render, whose frame is only
    as wide as the key plus a little air (6 above and either side, 10 below for
-   the pressed cap), sliced 26px in from the top and sides and 39 from the
+   the pressed cap), sliced 26px in from the top and sides and 37 from the
    bottom so the corners, the fillet and the wall's ends stay whole while the
    middle stretches to any width. */
 .go::before {
@@ -948,8 +951,8 @@ body {
   border: 0 solid transparent;
   border-image-source: url("/key-up.png");
   border-image-source: image-set(url("/key-up.webp") type("image/webp"), url("/key-up.png") type("image/png"));
-  border-image-slice: 78 78 117 78 fill;
-  border-image-width: 26px 26px 39px 26px;
+  border-image-slice: 78 78 111 78 fill;
+  border-image-width: 26px 26px 37px 26px;
   border-image-repeat: stretch;
   pointer-events: none;
 }
@@ -983,7 +986,7 @@ body {
 .go:active:not(:disabled) .go-cap,
 .go[data-pressed]:not(:disabled) .go-cap,
 .go[data-held="down"] .go-cap {
-  transform: translateY(7px);
+  transform: translateY(5px);
   transition-duration: 0.11s;    /* down: pushed, settling on its seat */
   transition-timing-function: ease-out;
 }
@@ -1466,7 +1469,7 @@ details[open] > .disclose svg {
   white-space: nowrap;
   text-shadow: var(--cut-light);
   cursor: pointer;
-  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.26), 0 10px 14px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.26), 0 11px 14px rgba(0, 0, 0, 0.14);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
 @media (hover: hover) {
@@ -1476,7 +1479,7 @@ details[open] > .disclose svg {
 }
 .pbtn:active,
 .pbtn[data-pressed] {
-  transform: translateY(3px);
+  transform: translateY(4px);
   background: linear-gradient(180deg, #cfcbc0, #ebe8e0);
   box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.38), inset 2px 0 3px -2px rgba(0, 0, 0, 0.2), inset -2px 0 3px -2px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(23, 23, 26, 0.25), inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(23, 23, 26, 0.28);
   transition-duration: 0.05s;
@@ -1486,7 +1489,7 @@ details[open] > .disclose svg {
   cursor: default;
 }
 .pbtn[aria-pressed="true"] {
-  transform: translateY(3px);
+  transform: translateY(4px);
   background: linear-gradient(180deg, #0f0f12, #202024);
   color: var(--paper);
   text-shadow: var(--cut-dark);
@@ -1507,7 +1510,7 @@ details[open] > .disclose svg {
   background: var(--orange-key);
   color: #fff3ea;
   text-shadow: var(--cut-orange);
-  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #cf4800, 0 2px 0 #a33900, 0 3px 0 #7a2b00, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.26);
+  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #cf4800, 0 2px 0 #b03d00, 0 3px 0 #923200, 0 4px 0 #7a2b00, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.26);
 }
 .pbtn-orange svg {
   filter: var(--cut-orange-icon);
@@ -1526,7 +1529,7 @@ details[open] > .disclose svg {
   background: linear-gradient(180deg, #2a2a30 0%, #1a1a1e 55%, #121215 100%);
   color: var(--paper);
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #0d0d0f, 0 2px 0 #08080a, 0 3px 0 #000, 0 4px 1px rgba(0, 0, 0, 0.5), 0 6px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #101013, 0 2px 0 #0b0b0d, 0 3px 0 #060608, 0 4px 0 #000, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.3);
 }
 .pbtn-ink svg {
   filter: var(--cut-dark-icon);
@@ -1667,7 +1670,7 @@ details[open] > .disclose svg {
   line-height: 1;
   white-space: nowrap;
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.7), 0 5px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1d1d22, 0 2px 0 #131317, 0 3px 0 #0a0a0c, 0 4px 0 #050506, 0 5px 1px rgba(0, 0, 0, 0.7), 0 6px 10px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
@@ -1679,7 +1682,7 @@ details[open] > .disclose svg {
 }
 .map-btn:active:not(:disabled),
 .map-btn[data-pressed]:not(:disabled) {
-  transform: translateY(3px);
+  transform: translateY(4px);
   background: linear-gradient(180deg, rgba(14, 14, 17, 0.97), rgba(28, 28, 33, 0.97));
   box-shadow: var(--sunk);
   transition-duration: 0.05s;
@@ -1696,7 +1699,7 @@ details[open] > .disclose svg {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
   text-shadow: var(--cut-light);
-  box-shadow: inset 0 1px 0 #fff, 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.6), 0 6px 10px rgba(0, 0, 0, 0.45);
 }
 .map-btn[aria-pressed="true"] svg {
   filter: var(--cut-light-icon);
@@ -1888,12 +1891,12 @@ details[open] > .disclose svg {
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   background: var(--key);
-  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0a0a0c, 0 3px 1px rgba(0, 0, 0, 0.6), 0 4px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
   backdrop-filter: none;
 }
 .map-btn.map-speed:active:not(:disabled),
 .map-btn.map-speed[data-pressed]:not(:disabled) {
-  transform: translateY(2px);
+  transform: translateY(3px);
   background: var(--key-down);
   box-shadow: var(--sunk);
 }

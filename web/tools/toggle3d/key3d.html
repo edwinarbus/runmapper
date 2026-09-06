@@ -8,7 +8,8 @@ import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 // The start key as an object: a cap, a rounded rectangle in plan with a fillet all
 // round its top edge, standing 18 units on the deck, seen from above with the view
-// tipped 30 degrees forward so its front wall shows as a band 9px tall. Drawn at
+// tipped 23 degrees forward so its front wall shows as a band 7px tall, the same
+// angle the deck's small keys are drawn at (a wall a tenth of the height). Drawn at
 // 1 world unit = 1 CSS px, three device px to the unit, with room round it for the
 // shadow it throws. ?state=up|down (down: the cap dropped onto its seat) and
 // ?tone=orange|dark (the dark key is the one that is not yet ready).
@@ -16,11 +17,13 @@ const q = new URLSearchParams(location.search);
 const STATE = q.get("state") || "up";
 const TONE = q.get("tone") || "orange";
 const PX = 3;
-const CAP_W = 360, CAP_H = 68 / Math.cos(Math.PI / 6);   // the face, 68px tall once tipped
+const TILT = 23 * Math.PI / 180;
+const WALL = Math.round(18 * Math.sin(TILT));            // 7px of wall on screen
+const CAP_W = 360, CAP_H = 68 / Math.cos(TILT);         // the face, 68px tall once tipped
 const RADIUS = 11, FILLET = 3.2, DEPTH = 18;
 const MARGIN = { top: 6, side: 6, bottom: 10 };
 const IMG_W = CAP_W + MARGIN.side * 2;
-const IMG_H = 68 + 9 + MARGIN.top + MARGIN.bottom;
+const IMG_H = 68 + WALL + MARGIN.top + MARGIN.bottom;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setSize(IMG_W, IMG_H);
@@ -50,9 +53,8 @@ function studio() {
 scene.environment = pmrem.fromScene(studio(), 0.02).texture;
 scene.environmentIntensity = 1.1;
 
-// an orthographic view from above, tipped forward 30 degrees: y up out of the deck,
+// an orthographic view from above, tipped forward TILT: y up out of the deck,
 // z towards the viewer; the image's x is the world's x, the image's y climbs the tipped view
-const TILT = Math.PI / 6;
 const camera = new THREE.OrthographicCamera(-IMG_W / 2, IMG_W / 2, IMG_H / 2, -IMG_H / 2, -1000, 1000);
 camera.position.set(0, Math.cos(TILT) * 500, Math.sin(TILT) * 500);
 camera.up.set(0, 1, 0);
@@ -97,7 +99,7 @@ const plastic = TONE === "orange"
 const cap = new THREE.Mesh(geo, plastic);
 // the image is centred on the cap's face: put the face's centre at the image's centre
 // (the deck plane sits below by the cap's height)
-const DROP = STATE === "down" ? 14 : 0;   // 7px on screen: the cap on its seat, 2px of wall left
+const DROP = STATE === "down" ? 13 : 0;   // 5px on screen: the cap on its seat, 2px of wall left
 cap.position.y = -DROP;
 scene.add(cap);
 // The face's centre is the world's origin (the cap stands DEPTH below it on the deck).

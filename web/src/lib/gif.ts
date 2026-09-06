@@ -12,6 +12,7 @@ import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { metres } from "./geo";
 import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, scaleRoute, setDecor, setRouteOpacity } from "./maplayers";
+import { WORDMARK_D, WORDMARK_DOT, WORDMARK_H, WORDMARK_STROKE, WORDMARK_W } from "./wordmark";
 
 export interface GifJob {
   style: string | maplibregl.StyleSpecification;
@@ -33,7 +34,6 @@ const BAND = 132;        // caption band height at 1280 x 720, along the top: X 
 const THICK = 2;         // the route and its markers, this many times as thick as on screen
 const SIZE_LIMIT = 4.8 * 1024 * 1024;   // under the 5 MB X allows from a phone
 const TRANSPARENT = 255;                // the palette slot that means "as before"
-const SITE = { left: "DRAWMY", right: "RUN" };   // with the start dot as the period between
 /** Renders to try, in order: full size, then smaller and shorter if the file runs over the limit. */
 const PASSES: { scale: number; frames: number }[] = [
   { scale: 1, frames: MAX_FRAMES },
@@ -63,30 +63,26 @@ function displayFont(): string {
   return fam ? `${fam}, "Arial Narrow", Impact, sans-serif` : `"Arial Narrow", Impact, sans-serif`;
 }
 
-/** The site's address with its right edge at `right`: DRAWMY, the green
- *  period of a route that is ready, RUN in orange. */
-function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number, font: string) {
-  ctx.font = `${size}px ${font}`;
-  ctx.textAlign = "left";
-  // A round dot, 0.19em like the wordmark's, tucked a little under the Y's
-  // arm and a bearing clear of the R, standing on the baseline like a full
-  // stop.
-  const dot = size * 0.19;
-  const gapL = -size * 0.05;         // from the Y's advance to the dot
-  const gapR = size * 0.07;          // from the dot to the R's advance
-  const wl = ctx.measureText(SITE.left).width;
-  const wr = ctx.measureText(SITE.right).width;
-  let x = right - (wl + gapL + dot + gapR + wr);
-  ctx.fillStyle = "#6f6e68";
-  ctx.fillText(SITE.left, x, baseline);
-  x += wl + gapL;
+/** The wordmark with its right edge at `right` and its baseline at `baseline`,
+ *  `size` tall: the run in orange, the start dot green. */
+function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number, size: number) {
+  const k = size / WORDMARK_H;
+  ctx.save();
+  ctx.translate(right - WORDMARK_W * k, baseline - WORDMARK_H * k);
+  ctx.scale(k, k);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = WORDMARK_STROKE;
+  ctx.strokeStyle = "#fc5200";
+  ctx.stroke(new Path2D(WORDMARK_D));
   ctx.beginPath();
-  ctx.arc(x + dot / 2, baseline - dot / 2, dot / 2, 0, Math.PI * 2);
+  ctx.arc(WORDMARK_DOT.x, WORDMARK_DOT.y, WORDMARK_DOT.r, 0, Math.PI * 2);
   ctx.fillStyle = "#12b886";
   ctx.fill();
-  x += dot + gapR;
-  ctx.fillStyle = "#fc5200";
-  ctx.fillText(SITE.right, x, baseline);
+  ctx.lineWidth = 0.22;
+  ctx.strokeStyle = "#f6f3ec";
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** A wash of paper down from the top with the distance, large, and the
@@ -119,7 +115,7 @@ function drawBand(ctx: CanvasRenderingContext2D, w: number, h: number, caption: 
   }
   // the site, top right, in the band's wash
   void h;
-  drawSite(ctx, w - 56 * s, 78 * s, 36 * s, font);
+  drawSite(ctx, w - 56 * s, 84 * s, 30 * s);
 }
 
 export async function renderGif(job: GifJob): Promise<Blob> {

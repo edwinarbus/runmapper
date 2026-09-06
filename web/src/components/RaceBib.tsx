@@ -7,6 +7,7 @@ import { isDrawing } from "@/lib/drawing";
 import { TILE, compass, verdictOf } from "@/lib/labels";
 import { play } from "@/lib/sound";
 import Icon from "./Icon";
+import Wordmark from "./Wordmark";
 
 // The answers as race bibs pinned in a pile: the one on show in front, the
 // others behind it, peeking out above by their sponsor band. The distance is
@@ -195,12 +196,8 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
             </span>
           </>
         )}
-        <span className="bib-sponsor font-display" aria-hidden="true">
-          drawmy
-          <svg className="bib-dot" viewBox="0 0 10 10">
-            <circle cx="5" cy="5" r="5" />
-          </svg>
-          <span>run</span>
+        <span className="bib-sponsor" aria-hidden="true">
+          <Wordmark height={13} />
         </span>
       </div>
     </>

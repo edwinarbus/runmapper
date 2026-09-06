@@ -34,6 +34,7 @@ import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
 import { play, setSound, soundOn } from "@/lib/sound";
 import Icon from "./Icon";
+import Wordmark from "./Wordmark";
 import Seg from "./Seg";
 import type { LatLon } from "./MapView";
 import { BibStack } from "./RaceBib";
@@ -632,16 +633,9 @@ export default function RunMapper() {
       >
         <div className="checker" aria-hidden="true" />
         <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
-          {/* The wordmark, and nothing else: drawmy.run, the run in orange and the period
-              a round dot the green of the start dot, drawn as a circle on the baseline. */}
-          <h1 className="logo font-display" aria-label="drawmy.run">
-            <span className="logo-word" aria-hidden="true">
-              <span className="logo-draw">DRAWMY</span>
-              <svg className="logo-period" viewBox="0 0 10 10">
-                <circle cx="5" cy="5" r="5" />
-              </svg>
-              <span className="logo-run">RUN</span>
-            </span>
+          {/* The wordmark, and nothing else: drawmy.run as a run, one orange route through the letters, the green start dot at the foot of RUN's R for the period. */}
+          <h1 className="logo">
+            <Wordmark height={24} className="logo-mark" />
           </h1>
           <span className="sr-only" role="status">{statusWord}</span>
           <button
@@ -926,15 +920,11 @@ export default function RunMapper() {
                     onClick={hit}
                     className="go font-display"
                   >
-                    <span className="go-cap">
-                      Draw my run
-                      <Icon name="chevrons" />
-                    </span>
+                    <span className="go-cap">Draw my run</span>
                   </button>
                   {result && shown && (
                     <button type="button" onClick={() => setEditing(false)} className="btn btn-block">
                       Back to the route
-                      <Icon name="forward" />
                     </button>
                   )}
                 </div>

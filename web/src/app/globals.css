@@ -21,20 +21,24 @@
   --paper: #f6f3ec;
   --paper-ink: #17171a;
   --paper-ink-2: #6b6a64;
-  /* A keycap: a face lit from the top left with a chamfer all round (a
-     thread of light along the top and left edges, shade along the bottom
-     and right), standing on a skirt of graded steps, seated by a tight
-     contact shadow and a soft cast shadow below. */
-  --key: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #3b3b45 0%, #2b2b33 50%, #222229 100%);
-  --key-hover: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #43434e 0%, #31313a 50%, #27272e 100%);
-  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.1), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
-  --skirt-3: 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.7), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
-  --skirt-4: 0 1px 0 #25252c, 0 2px 0 #1f1f25, 0 3px 0 #19191e, 0 4px 0 #131317, 0 5px 1px rgba(0, 0, 0, 0.7), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
-  --skirt-5: 0 1px 0 #26262d, 0 2px 0 #212127, 0 3px 0 #1c1c21, 0 4px 0 #17171b, 0 5px 0 #121216, 0 6px 1px rgba(0, 0, 0, 0.7), 0 9px 11px rgba(0, 0, 0, 0.45), 0 18px 24px rgba(0, 0, 0, 0.35);
+  /* A keycap, seen as the rendered start key is (web/tools/toggle3d/key3d.html,
+     the dark cap): a face that stays one tone to its lower edge, a bright
+     fillet where the face turns over into the wall, and the wall itself
+     below, lit from the front so it is a shade lighter than the face's
+     edge and reads against the deck; then a tight contact shadow and a soft
+     cast shadow. The wall is about a tenth of the key's height, which is
+     the one angle every key is seen from. */
+  --key: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #3d3d47 0%, #33333c 50%, #2e2e36 100%);
+  --key-hover: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #45454f 0%, #3a3a43 50%, #33333b 100%);
+  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.34), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
+  --skirt-3: 0 1px 0 #3a3a43, 0 2px 0 #33333c, 0 3px 0 #2b2b33, 0 4px 1px rgba(0, 0, 0, 0.8), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
+  --skirt-4: 0 1px 0 #3b3b44, 0 2px 0 #36363f, 0 3px 0 #303038, 0 4px 0 #292930, 0 5px 1px rgba(0, 0, 0, 0.8), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
+  --skirt-5: 0 1px 0 #3c3c45, 0 2px 0 #383841, 0 3px 0 #33333c, 0 4px 0 #2d2d35, 0 5px 0 #27272e, 0 6px 1px rgba(0, 0, 0, 0.8), 0 9px 11px rgba(0, 0, 0, 0.45), 0 18px 24px rgba(0, 0, 0, 0.35);
   --white-key: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #fbfaf6 0%, #ecebe5 55%, #dad7ce 100%);
   --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
   --white-skirt-3: 0 1px 0 #cbc8bf, 0 2px 0 #bcb9b0, 0 3px 0 #aba89f, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
   --white-skirt-4: 0 1px 0 #cdcac1, 0 2px 0 #c1beb5, 0 3px 0 #b4b1a8, 0 4px 0 #a5a299, 0 5px 1px rgba(0, 0, 0, 0.55), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(0, 0, 0, 0.3);
+  --white-skirt-5: 0 1px 0 #cfccc3, 0 2px 0 #c5c2b9, 0 3px 0 #bab7ae, 0 4px 0 #aeaba2, 0 5px 0 #a19e95, 0 6px 1px rgba(0, 0, 0, 0.55), 0 9px 11px rgba(0, 0, 0, 0.4), 0 18px 24px rgba(0, 0, 0, 0.3);
   /* An orange face under the light: a soft flare towards the top left where
      the light lands, the edges falling into shade all round, a fine grain
      like moulded plastic, and no gloss line. */
@@ -115,45 +119,24 @@ body {
   background: linear-gradient(180deg, #000 0, #000 34%, #1c1c21 34%, #1c1c21 67%, rgba(255, 255, 255, 0.09) 67%);
 }
 
-/* The wordmark: drawmy.run in flat capitals on a lip of shadow, the run in
-   orange and the period green, the face's own full stop. No gloss on any of it. */
+/* The wordmark: drawmy.run as a run, one orange route line through block
+   letters with the green start dot at the foot of RUN's R, on a lip of
+   shadow. See lib/wordmark.ts. */
 .logo {
   display: inline-block;
-  font-size: 1.75rem;
-  line-height: 1;
-  letter-spacing: 0.05em;
+  line-height: 0;
+}
+.logo-mark {
+  display: block;
+  height: 26px;                  /* the box holds the dot below the baseline, so 26 is the old 24 of letters */
+  width: auto;
+  overflow: visible;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }
 @media (min-width: 640px) {
-  .logo {
-    font-size: 2.1rem;
+  .logo-mark {
+    height: 30px;
   }
-}
-.logo-word {
-  display: inline-flex;
-  align-items: baseline;
-}
-/* The period is a round dot, the green of the start dot, drawn as a circle
-   in its own right (a vector: neither the face's square full stop nor a box
-   that pixel rounding can squash). It stands on the baseline like a full
-   stop, tucked under the Y's arm and a bearing clear of the R, on the same
-   lip of shadow as the letters. */
-.logo-period {
-  flex: none;
-  align-self: baseline;
-  width: 0.19em;
-  height: 0.19em;
-  margin: 0 0.06em 0 -0.07em;
-  overflow: visible;
-  fill: #12b886;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
-}
-.logo-draw,
-.logo-run {
-  color: var(--ink);
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.9)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
-}
-.logo-run {
-  color: var(--orange);
 }
 /* The key that quiets the deck, in the header beside the wordmark. */
 .mute {
@@ -166,7 +149,7 @@ body {
   border-radius: 7px;
   background: var(--key);
   color: var(--ink-3);
-  box-shadow: var(--key-hi), 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--key-hi), var(--skirt-3);
   cursor: pointer;
   transition: color 0.15s, transform 0.12s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.12s;
 }
@@ -213,10 +196,11 @@ body {
   50% { opacity: 0.35; }
 }
 
-/* The switch plate: a strip of dark anodised metal let into the deck and
+/* The switch plate: a block of dark anodised metal standing on the deck,
    screwed down at each end, with the Loop toggle mounted through it (see
    .switch) and its legend engraved in the face, lit orange from behind
-   when the switch is on. */
+   when the switch is on. It stands on a wall like the keys, seen from the
+   same angle. */
 .plate {
   position: relative;
   display: inline-flex;
@@ -225,8 +209,8 @@ body {
   height: 40px;
   padding: 0 24px;               /* room past the screws at each end */
   border-radius: 7px;
-  background: var(--grain-key), linear-gradient(180deg, #2b2b32 0%, #212127 55%, #1c1c21 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(255, 255, 255, 0.08), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.45), 0 1px 0 #1c1c22, 0 2px 0 #17171c, 0 3px 0 #121216, 0 4px 1px rgba(0, 0, 0, 0.65), 0 7px 10px rgba(0, 0, 0, 0.4);
+  background: var(--grain-key), linear-gradient(180deg, #363640 0%, #2f2f38 55%, #2b2b33 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.3), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.45), var(--skirt-4);
 }
 /* the screws, a small slotted head each end, turned to different angles */
 .plate::before,
@@ -604,7 +588,8 @@ body {
   animation: rise-in 0.25s ease-out backwards;
 }
 
-/* Distance keys: raised, and the chosen one pressed down, in white. */
+/* Distance keys: raised, and the chosen one raised in white, the way the
+   selectors' key is; a press sinks it into its socket for the moment. */
 .tile {
   position: relative;
   height: 52px;
@@ -630,24 +615,25 @@ body {
   cursor: not-allowed;
 }
 .tile:active:not(:disabled),
-.tile[data-pressed]:not(:disabled),
-.tile[aria-pressed="true"] {
+.tile[data-pressed]:not(:disabled) {
   transform: translateY(5px);
   background: var(--key-down);
   box-shadow: var(--sunk);
-}
-.tile:active:not(:disabled),
-.tile[data-pressed]:not(:disabled) {
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
-/* The chosen key stays down in its socket, in white: the selectors' key
-   treatment, so orange is left to the one real action. */
+/* The chosen key stands in white: the selectors' key treatment, so orange
+   is left to the one real action. */
 .tile[aria-pressed="true"]:not(:disabled),
 .tile[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--white-down);
+  background: var(--white-key);
   color: var(--paper-ink);
   text-shadow: var(--cut-light);
+  box-shadow: var(--white-hi), var(--white-skirt-5);
+}
+.tile[aria-pressed="true"]:active:not(:disabled),
+.tile[aria-pressed="true"][data-pressed]:not(:disabled) {
+  background: var(--white-down);
   box-shadow: var(--sunk-white);
 }
 .tile .big-label {
@@ -987,8 +973,7 @@ body {
 .go[data-pressed]:not(:disabled) .go-cap,
 .go[data-held="down"] .go-cap {
   transform: translateY(5px);
-  transition-duration: 0.11s;    /* down: pushed, settling on its seat */
-  transition-timing-function: ease-out;
+  transition-duration: 0s;       /* down: with the key, which swaps to its pressed picture at once */
 }
 .go[data-held] {
   pointer-events: none;
@@ -1427,24 +1412,14 @@ details[open] > .disclose svg {
 }
 .bib-sponsor {
   margin-left: auto;
-  padding: 0.1em 0 0 4px;
-  font-size: 1.05rem;
-  line-height: 1;
-  letter-spacing: 0.1em;
-  color: var(--paper-ink-2);
+  padding: 0 0 0 4px;
+  line-height: 0;
 }
-.bib-sponsor span {
-  color: var(--orange);
-}
-/* The period in the sponsor's address: a round green dot like the wordmark's. */
-.bib-dot {
-  display: inline-block;
-  width: 0.19em;
-  height: 0.19em;
-  margin: 0 0.06em 0 -0.07em;
-  vertical-align: baseline;
+.bib-sponsor svg {
+  display: block;
+  height: 14px;
+  width: auto;
   overflow: visible;
-  fill: #12b886;
 }
 /* Keys on the paper: the same 3px wall and the same fall of shadow whatever
    their colour, so they stand at one height; the wall in shade, so a key
@@ -1526,10 +1501,10 @@ details[open] > .disclose svg {
   box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.15), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 0 0 1px rgba(23, 23, 26, 0.25);
 }
 .pbtn-ink {
-  background: linear-gradient(180deg, #2a2a30 0%, #1a1a1e 55%, #121215 100%);
+  background: linear-gradient(180deg, #34343d 0%, #2a2a32 55%, #26262e 100%);
   color: var(--paper);
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #1b1b20, 0 2px 0 #16161a, 0 3px 0 #111115, 0 4px 0 #0c0c0f, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.32), 0 1px 0 #33333c, 0 2px 0 #2e2e37, 0 3px 0 #292931, 0 4px 0 #23232a, 0 5px 1px rgba(0, 0, 0, 0.6), 0 7px 9px rgba(0, 0, 0, 0.3);
 }
 .pbtn-ink svg {
   filter: var(--cut-dark-icon);
@@ -1670,7 +1645,8 @@ details[open] > .disclose svg {
   line-height: 1;
   white-space: nowrap;
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1f1f25, 0 2px 0 #1a1a1f, 0 3px 0 #151519, 0 4px 0 #101013, 0 5px 1px rgba(0, 0, 0, 0.7), 0 6px 10px rgba(0, 0, 0, 0.45);
+  /* the same silhouette as the basemap selector's slot beside them: a 36px box on a 2px lip */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #050506, 0 4px 10px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
@@ -1682,7 +1658,7 @@ details[open] > .disclose svg {
 }
 .map-btn:active:not(:disabled),
 .map-btn[data-pressed]:not(:disabled) {
-  transform: translateY(4px);
+  transform: translateY(2px);
   background: linear-gradient(180deg, rgba(14, 14, 17, 0.97), rgba(28, 28, 33, 0.97));
   box-shadow: var(--sunk);
   transition-duration: 0.05s;
@@ -1699,7 +1675,7 @@ details[open] > .disclose svg {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
   text-shadow: var(--cut-light);
-  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 1px 0 #cdcac1, 0 2px 0 #c1beb5, 0 3px 0 #b4b1a8, 0 4px 0 #a5a299, 0 5px 1px rgba(0, 0, 0, 0.5), 0 6px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 2px 0 #8f8d86, 0 4px 10px rgba(0, 0, 0, 0.45);
 }
 .map-btn[aria-pressed="true"] svg {
   filter: var(--cut-light-icon);
@@ -1844,17 +1820,23 @@ details[open] > .disclose svg {
   transition-duration: 0.06s;
   transition-timing-function: ease-out;
 }
-/* While the run plays, the key stays down: held, its face in the socket's
-   shade, the mark dimmed. */
+/* While the run plays, the key stays down: latched, its face in the socket's
+   shade, the mark (a pause mark now) dimmed; a press lets it up and holds
+   the run, another press sends it down again. */
 .map-round:disabled {
-  transform: translateY(4px);
   cursor: default;
 }
-.map-round:disabled::before {
+.map-round:disabled,
+.map-round[data-down] {
+  transform: translateY(4px);
+}
+.map-round:disabled::before,
+.map-round[data-down]::before {
   bottom: -1px;
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
 }
-.map-round:disabled::after {
+.map-round:disabled::after,
+.map-round[data-down]::after {
   background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #b93c00 0%, #d64a00 35%, #ef5f1c 100%);
   box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
 }
@@ -1871,8 +1853,8 @@ details[open] > .disclose svg {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
-  padding: 0 6px;
+  height: 44px;                  /* the play key's height, and its bottom on the play key's */
+  padding: 0 7px;
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(10, 10, 12, 0.94) 0%, rgba(16, 16, 19, 0.94) 60%, rgba(22, 22, 26, 0.94) 100%);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 1px 0 #000, inset 1px 0 2px rgba(0, 0, 0, 0.6), inset -1px 0 2px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.09), 0 1px 0 rgba(255, 255, 255, 0.06), 0 3px 8px rgba(0, 0, 0, 0.35);
@@ -1880,9 +1862,9 @@ details[open] > .disclose svg {
 }
 /* the speed key: a small key standing in the tray, its legend cut in */
 .map-btn.map-speed {
-  height: 28px;
-  min-height: 28px;
-  max-height: 28px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
   min-width: 44px;
   padding: 0.1em 0.45rem 0;
   justify-content: center;
@@ -1891,7 +1873,7 @@ details[open] > .disclose svg {
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   background: var(--key);
-  box-shadow: var(--key-hi), 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--key-hi), var(--skirt-3);
   backdrop-filter: none;
 }
 .map-btn.map-speed:active:not(:disabled),
@@ -1904,7 +1886,7 @@ details[open] > .disclose svg {
   position: relative;
   flex: 1;
   min-width: 80px;
-  height: 40px;
+  height: 44px;
   touch-action: none;
   cursor: pointer;
   user-select: none;
@@ -1932,10 +1914,10 @@ details[open] > .disclose svg {
 }
 .scrub-cap {
   position: absolute;
-  top: 6px;
+  top: 7px;
   left: 0;
   width: 22px;
-  height: 28px;
+  height: 30px;
   border-radius: 4px;
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
@@ -1976,14 +1958,20 @@ details[open] > .disclose svg {
   fill: #c04400;
 }
 /* held down while the run plays: the whole key in the socket's shade */
-.map-round:disabled .play-lip {
+.map-round:disabled .play-lip,
+.map-round[data-down] .play-lip {
   fill: rgba(255, 236, 222, 0.32);
 }
-.map-round:disabled .play-shade {
+.map-round:disabled .play-shade,
+.map-round[data-down] .play-shade {
   fill: #4e1900;
 }
-.map-round:disabled .play-floor {
+.map-round:disabled .play-floor,
+.map-round[data-down] .play-floor {
   fill: #8f3200;
+}
+.map-round[data-down] svg {
+  transform: none;               /* the pause mark is symmetrical; only the triangle sits right of centre */
 }
 .hint {
   max-width: min(90%, 420px);

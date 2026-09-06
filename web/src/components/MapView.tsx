@@ -24,6 +24,7 @@ import Seg from "./Seg";
 // Used when the basemap style can't be fetched, so the route still shows.
 // The play mark's triangle, with its mass towards the flat side; see .map-round svg.
 const PLAY = "M8 5.5v13l11-6.5z";
+const PAUSE = "M6.5 5.5h4v13h-4zM13.5 5.5h4v13h-4z";
 
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -51,6 +52,9 @@ const FLY_THICK = 2;
 // The speed key cycles through these, a press at a time.
 const SPEEDS = [1, 2, 2.5, 3];
 const CAP = 22;   // the fader's cap's width, in px: see .scrub-cap
+// The flyover's camera looks towards a point this far ahead of the tip
+// along the course, so a corner is turned as it comes rather than at it.
+const LOOK_AHEAD = 45;   // metres
 const flyPadding = (m: maplibregl.Map) => ({ top: Math.round(m.getContainer().clientHeight * 0.44), bottom: 0, left: 0, right: 0 });
 
 /** The compass bearing from one point to the next, in degrees. */
@@ -141,6 +145,7 @@ export default function MapView(props: MapViewProps) {
   const idealOn = useRef(false);                // the target shape, shown or not
   const [basemap, setBasemap] = useState<Basemap>(deviceBasemap);
   const [drawing, setDrawing] = useState(false);
+  const [paused, setPaused] = useState(false);   // the play key let up mid-run
   const [showIdeal, setShowIdeal] = useState(false);
   const startDrawRef = useRef<() => void>(() => undefined);
   const fitRef = useRef<(duration?: number) => void>(() => undefined);
@@ -150,7 +155,7 @@ export default function MapView(props: MapViewProps) {
   // render sixty times a second for them.
   const speed = useRef(1);
   const [speedShown, setSpeedShown] = useState(1);
-  const control = useRef<{ seek: (u: number) => void; hold: (on: boolean) => void } | null>(null);
+  const control = useRef<{ seek: (u: number) => void; hold: (on: boolean) => void; pause: (on: boolean) => void } | null>(null);
   const scrubEl = useRef<HTMLDivElement>(null);
   const capEl = useRef<HTMLDivElement>(null);
   const fillEl = useRef<HTMLDivElement>(null);
@@ -227,6 +232,7 @@ export default function MapView(props: MapViewProps) {
     cancelAnim();
     control.current = null;
     setDrawing(false);
+    setPaused(false);
   };
 
   // Frame the whole route. A replay or flight under way ends here, the
@@ -278,13 +284,32 @@ export default function MapView(props: MapViewProps) {
     const duration = fly ? Math.min(28000, 6000 + 2800 * miles) : Math.min(7000, 2600 + 550 * miles);
     const token = Math.random();
     setDrawing(true);
+    setPaused(false);
     setDecor(m, false);
     routeSrc.setData(lineFromLngLat([pts[0], pts[0]]));
     headSrc.setData(pointFeature(pts[0]));
-    // The course's heading at the tip; the camera turns towards it gradually,
-    // so corners are swept rather than snapped.
+    // The course's heading at the tip; and the way the camera looks, which
+    // is towards a point a little way ahead along the course, so the view
+    // begins to turn into a corner as the tip comes up to it and is round
+    // by the time it is through, rather than swinging at the corner itself.
     const headingAt = (i: number) => bearingBetween(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i)]);
-    let bearing = headingAt(1);
+    const pointAlong = (target: number): LngLat => {
+      let j = 1;
+      while (j < cum.length - 1 && cum[j] < target) j++;
+      const seg = cum[j] - cum[j - 1];
+      const f = seg > 0 ? Math.min(1, Math.max(0, (target - cum[j - 1]) / seg)) : 1;
+      return [pts[j - 1][0] + (pts[j][0] - pts[j - 1][0]) * f, pts[j - 1][1] + (pts[j][1] - pts[j - 1][1]) * f];
+    };
+    const lookFrom = (d: number, tip: LngLat) => {
+      if (d + 5 >= total) return headingAt(pts.length - 1);
+      return bearingBetween(tip, pointAlong(Math.min(total, d + LOOK_AHEAD)));
+    };
+    let bearing = lookFrom(0, pts[0]);
+    // The camera's turn is sprung: it has a rate of turn that builds and
+    // dies away (critically damped), so the heading never jumps, and its
+    // change of heading never jumps either. That is what makes a turn
+    // smooth rather than merely gradual.
+    let turnRate = 0;   // degrees per second
     // The camera's height above the ground is set here, not left to the map:
     // with terrain, the map would otherwise lift or drop the camera the
     // moment a new elevation tile arrived under it, a jump mid-flight. The
@@ -295,7 +320,8 @@ export default function MapView(props: MapViewProps) {
     // speed key's rate, stands still while the fader is held, and is set
     // outright by a seek.
     let elapsed = 0;
-    let held = false;
+    let held = false;      // the fader's cap under a finger
+    let parked = false;    // the play key let up
     let last = 0;
     let k = 1;
     // Where along the course a distance falls: the segment, and the point.
@@ -314,12 +340,17 @@ export default function MapView(props: MapViewProps) {
       hold: (on) => {
         held = on;
       },
+      pause: (on) => {
+        parked = on;
+      },
       seek: (u) => {
         elapsed = u * duration;
         if (fly) {
           // The camera goes straight to the new spot, looking the way the run goes there.
-          const tip = indexAt(distanceAt(u));
-          bearing = headingAt(k);
+          const d = distanceAt(u);
+          const tip = indexAt(d);
+          bearing = lookFrom(d, tip);
+          turnRate = 0;
           elev = groundAt(tip);
         }
       },
@@ -328,10 +359,11 @@ export default function MapView(props: MapViewProps) {
     const frame = (now: number) => {
       if (!anim.current || anim.current.token !== token) return;
       const dt = Math.min(0.1, (now - last) / 1000);   // for the camera's smoothing: a stalled frame is not a lurch
-      if (!held) elapsed = Math.min(duration, elapsed + (now - last) * speed.current);   // the run keeps real time
+      if (!held && !parked) elapsed = Math.min(duration, elapsed + (now - last) * speed.current);   // the run keeps real time
       last = now;
       const u = Math.min(1, elapsed / duration);
-      const tip = indexAt(distanceAt(u));
+      const d = distanceAt(u);
+      const tip = indexAt(d);
       const src = m.getSource("route") as maplibregl.GeoJSONSource | undefined;
       const head = m.getSource("head") as maplibregl.GeoJSONSource | undefined;
       if (!src || !head) {
@@ -344,12 +376,18 @@ export default function MapView(props: MapViewProps) {
       head.setData(pointFeature(tip));
       paintScrub(u);
       if (fly) {
-        // corners are swept, at a rate that keeps up with the speed
-        bearing += turnTowards(bearing, headingAt(k)) * Math.min(1, dt * 2.2 * speed.current);
+        // the sprung turn towards the way ahead, quicker at speed; the spring
+        // is stepped in small pieces so a slow frame cannot make it overshoot
+        const w = 3.2 * Math.sqrt(speed.current);   // the spring's natural frequency, per second
+        for (let left = dt; left > 0; left -= 1 / 120) {
+          const step = Math.min(left, 1 / 120);
+          turnRate += (turnTowards(bearing, lookFrom(d, tip)) * w * w - 2 * w * turnRate) * step;
+          bearing += turnRate * step;
+        }
         elev += (groundAt(tip) - elev) * Math.min(1, dt * 3 * speed.current);
         m.jumpTo({ center: tip, elevation: elev, bearing, pitch: FLY_PITCH, zoom: FLY_ZOOM, padding: flyPadding(m) });
       }
-      if (u < 1 || held) {
+      if (u < 1 || held || parked) {
         anim.current = { raf: requestAnimationFrame(frame), token };
       } else {
         src.setData(lineFromLngLat(pts));
@@ -358,6 +396,7 @@ export default function MapView(props: MapViewProps) {
         control.current = null;
         setDecor(m, true);
         setDrawing(false);
+        setPaused(false);
         if (fly) {
           // A moment at the finish, then back up to the whole course; terrain
           // goes off once the map is level again, so panning stays quick.
@@ -617,7 +656,7 @@ export default function MapView(props: MapViewProps) {
           follows the run and can be dragged to any point of it. Holding the cap
           holds the run; letting go sets it off again from there. */}
       {hasRoute && drawing && (
-        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem + 2px + env(safe-area-inset-bottom))" }}>
+        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-btn map-speed" onClick={nextSpeed} aria-label={`Speed: ${speedShown} times. Press for the next.`} title="Speed">
             {speedShown}×
           </button>
@@ -657,21 +696,38 @@ export default function MapView(props: MapViewProps) {
       )}
       {hasRoute && (
         <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-          <button type="button" className="map-round" onClick={() => startDraw(basemap === "satellite")} disabled={drawing} aria-label={basemap === "satellite" ? "Fly the route" : "Replay the route drawing"} title={basemap === "satellite" ? "Fly the route: first person, over the terrain" : "Replay"}>
-            {/* The play mark, pressed into the face: the floor of the cut in shade, a
+          <button
+            type="button"
+            className="map-round"
+            data-down={drawing && !paused ? "" : undefined}
+            onClick={() => {
+              if (!drawing) {
+                startDraw(basemap === "satellite");
+                return;
+              }
+              // mid-run the key is a pause key: up holds the run where it is, down sets it off again
+              const on = !paused;
+              setPaused(on);
+              control.current?.pause(on);
+            }}
+            aria-label={drawing ? (paused ? "Carry on" : "Pause") : basemap === "satellite" ? "Fly the route" : "Replay the route drawing"}
+            title={drawing ? (paused ? "Carry on" : "Pause") : basemap === "satellite" ? "Fly the route: first person, over the terrain" : "Replay"}
+          >
+            {/* The mark, pressed into the face: the floor of the cut in shade, a
                 band of deeper shade along its upper edges where the cut's wall shadows
                 it, and a thread of light along its lower edges where the lip catches
-                the light. Three copies of one triangle: the lit lip a touch below, the
-                shade, and the floor shifted down and clipped to the cut. */}
+                the light. Three copies of one shape (a play triangle, or two bars for
+                pause while the run plays): the lit lip a touch below, the shade, and
+                the floor shifted down and clipped to the cut. */}
             <svg className="play-mark" viewBox="0 0 24 24" aria-hidden="true">
               <defs>
                 <clipPath id="play-cut">
-                  <path d={PLAY} />
+                  <path d={drawing && !paused ? PAUSE : PLAY} />
                 </clipPath>
               </defs>
-              <path className="play-lip" d={PLAY} transform="translate(0 1.1)" />
-              <path className="play-shade" d={PLAY} />
-              <path className="play-floor" d={PLAY} transform="translate(0 1.25)" clipPath="url(#play-cut)" />
+              <path className="play-lip" d={drawing && !paused ? PAUSE : PLAY} transform="translate(0 1.1)" />
+              <path className="play-shade" d={drawing && !paused ? PAUSE : PLAY} />
+              <path className="play-floor" d={drawing && !paused ? PAUSE : PLAY} transform="translate(0 1.25)" clipPath="url(#play-cut)" />
             </svg>
           </button>
         </div>

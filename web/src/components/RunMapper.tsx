@@ -906,8 +906,8 @@ export default function RunMapper() {
               </>
             )}
 
-            {/* Go: pinned to the foot of the panel, above the finish line, so the key is always in reach; the rest scrolls beneath it */}
-            <section className="sticky bottom-[6px] z-10 space-y-3 bg-[var(--panel)] px-6 pt-4 pb-5 shadow-[0_-16px_24px_rgba(18,18,21,0.9)] md:pb-8">
+            {/* Go: the last thing on the panel, reached by filling it in and scrolling down to it */}
+            <section className="space-y-3 px-6 pt-4 pb-8">
               {/* The slot: the key, or the stopwatch's tray; for a moment at the handover both, the key fading out over the tray rising in */}
               <div className="go-slot">
                 {status === "planning" && held !== "down" && progressLane}

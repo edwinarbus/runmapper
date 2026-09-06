@@ -1,12 +1,16 @@
 // The search, shown on the map: light that sets out from the pin and runs
 // the streets outwards, the way the engine's search does, until the first
-// answer arrives. Every couple of seconds a few lines leave the pin, each
-// running along a street at road speed, one width all along, brightest at
-// its front and dying away over the length behind it; at a junction a line
-// keeps on along the way most nearly straight ahead and, now and then,
-// sends another down a side street, and none ever turns back towards the
-// pin. So the light spreads out through the actual streets as lines, a
-// few at a time, far across the city.
+// answer arrives. Every second and a half a few lines leave the pin, each
+// running along a street at about road speed (no two quite alike), one
+// width all along, brightest at its front and dying away over the length
+// behind it; at a junction a line most often keeps on along the way most
+// nearly straight ahead, sometimes turns, and now and then sends another
+// down a side street (more so near the pin, less so far out), and none
+// ever turns back towards the pin. Each line runs out to a distance of
+// its own from the pin as the crow flies, so the light reaches a circle
+// round the pin rather than the diamond a road distance would make, then
+// stops and drains away; and every wave keeps off the streets the last
+// five waves took, so each pulse lights different streets.
 //
 // The streets come from the basemap's own vector tiles (querySourceFeatures
 // on the transportation layer). Their crossings are found (a straight
@@ -27,8 +31,9 @@ const WAVE = 1.6;        // s: between waves leaving the pin
 const BRIGHT = 260;      // m: the front of a line, at full strength
 const TAIL = 1100;       // m: over which it dies away behind that
 const STEPS = 28;        // the dying away is drawn in this many steps, fine enough to read as one fade
-const BRANCH = 0.25;     // the chance a side street is taken at a junction, besides the way on
-const ALIVE = 40;        // lines alive in one wave, at most
+const BRANCH = 0.3;      // the chance a side street is taken at a junction near the pin, besides the way on
+const FRESH = 5;         // waves: a street taken by one wave is kept off for this many after
+const ALIVE = 32;        // lines alive in one wave, at most
 const WIDTH = 3;         // px: a line at its front; it thins towards its tail
 const SPARK = 0.45;      // s: the small flash where a line branches
 
@@ -39,6 +44,8 @@ type Tracer = {
   s: number;        // m along the edge
   L: number;        // the edge's length
   d: number;        // m run in all; once the line has stopped, it keeps counting, and the light drains along it
+  rMax: number;     // m from the pin, as the crow flies, at which it stops
+  v: number;        // m/s: its own pace
   born: number;     // s: when it sets off
   trail: number[];  // the points passed: x, y, d triples, oldest first
   stopD: number;    // where the line stopped, in m run; -1 while it runs
@@ -111,6 +118,8 @@ export class StreetPulse {
   private waves: Wave[] = [];
   private sparks: number[] = [];   // where lines have branched: x, y, t triples
   private nextWave = 0;
+  private waveNo = 0;
+  private lastWave = new Int32Array(0);   // for each edge, the wave that last took it
   private raf = 0;
   private t0 = 0;
   private last = 0;
@@ -384,7 +393,7 @@ export class StreetPulse {
     heap.push(best, s);
     while (heap.size) {
       const [d, n] = heap.pop();
-      if (d > dist[n] || d > limit) continue;
+      if (d > dist[n] || d > limit * 2) continue;
       for (const e of adj[n]) {
         const o = ea[e] === n ? eb[e] : ea[e];
         const nd = d + eL[e];
@@ -404,6 +413,7 @@ export class StreetPulse {
     this.dist = dist;
     this.origin = s;
     this.waves = [];   // the old graph's tracers are on edges that no longer exist
+    this.lastWave = new Int32Array(ea.length).fill(-100);
     let reached = 0;
     for (let i = 0; i < xs.length; i++) if (dist[i] < Infinity) reached++;
     this.stats = `features ${feats.length}, pieces ${S}, nodes ${xs.length}, edges ${ea.length}, start ${s} at ${best.toFixed(0)} m with ${adj[s].length} edges, reached ${reached}`;
@@ -423,12 +433,27 @@ export class StreetPulse {
     const s = this.origin;
     if (s < 0) return;
     const wave: Wave = { t0: t, visited: new Uint8Array(this.ea.length), tracers: [] };
+    this.waveNo++;
     const stub = Math.hypot(this.xs[s], this.ys[s]);
     for (const e of this.adj[s]) {
       const o = this.ea[e] === s ? this.eb[e] : this.ea[e];
       if (!(this.dist[o] > this.dist[s])) continue;
       wave.visited[e] = 1;
-      wave.tracers.push({ e, from: s, to: o, s: 0, L: this.eL[e], d: stub, born: t + Math.random() * 0.25, trail: [0, 0, 0, this.xs[s], this.ys[s], stub], stopD: -1, gone: false });
+      this.lastWave[e] = this.waveNo;
+      wave.tracers.push({
+        e,
+        from: s,
+        to: o,
+        s: 0,
+        L: this.eL[e],
+        d: stub,
+        rMax: this.reach * (0.5 + Math.random() * 0.5),
+        v: SPEED * (0.85 + Math.random() * 0.3),
+        born: t + Math.random() * 0.25,
+        trail: [0, 0, 0, this.xs[s], this.ys[s], stub],
+        stopD: -1,
+        gone: false,
+      });
     }
     this.waves.push(wave);
   }
@@ -441,11 +466,14 @@ export class StreetPulse {
     const born: Tracer[] = [];
     for (const tr of wave.tracers) {
       if (tr.gone || t < tr.born) continue;
-      // out of the pin gently, then at full speed
-      const step = SPEED * (0.45 + 0.55 * Math.min(1, tr.d / 240)) * dt;
+      // out of the pin gently, then at its own pace
+      const step = tr.v * (0.45 + 0.55 * Math.min(1, tr.d / 240)) * dt;
       if (tr.stopD >= 0) {
         tr.d += step;
         if (tr.d - tr.stopD > BRIGHT + TAIL) tr.gone = true;
+      } else if (Math.hypot(xs[tr.from] + (xs[tr.to] - xs[tr.from]) * (tr.s / (tr.L || 1)), ys[tr.from] + (ys[tr.to] - ys[tr.from]) * (tr.s / (tr.L || 1))) >= tr.rMax) {
+        // it has run out to its distance from the pin: it stops where it is, and drains
+        tr.stopD = tr.d;
       } else {
         tr.s += step;
         tr.d += step;
@@ -454,42 +482,75 @@ export class StreetPulse {
           const n = tr.to;
           const dn = tr.d - over;
           tr.trail.push(xs[n], ys[n], dn);
-          // the ways on from here: outwards only, and never a street already lit in this wave
+          // the ways on from here: outwards only, and never a street already
+          // lit in this wave; the way most nearly straight ahead is the most
+          // likely, but not the only one, so no two waves run the same rays
           const hx = xs[n] - xs[tr.from];
           const hy = ys[n] - ys[tr.from];
           const hl = Math.hypot(hx, hy) || 1;
-          let on = -1;
-          let onCos = -2;
-          const sides: number[] = [];
+          // streets the last few waves took are kept off, unless nothing else leads on
+          const fresh: number[] = [];
+          const stale: number[] = [];
           for (const e of adj[n]) {
             if (wave.visited[e]) continue;
             const o = ea[e] === n ? eb[e] : ea[e];
-            if (!(dist[o] > dist[n]) || dist[o] > this.reach) continue;
+            if (!(dist[o] > dist[n])) continue;
+            (this.waveNo - this.lastWave[e] >= FRESH ? fresh : stale).push(e);
+          }
+          const ways = fresh.length ? fresh : stale;
+          const weights: number[] = [];
+          let total = 0;
+          for (const e of ways) {
+            const o = ea[e] === n ? eb[e] : ea[e];
             const vx = xs[o] - xs[n];
             const vy = ys[o] - ys[n];
             const cos = (hx * vx + hy * vy) / (hl * (Math.hypot(vx, vy) || 1));
-            if (cos > onCos) {
-              if (on >= 0) sides.push(on);
-              onCos = cos;
-              on = e;
-            } else {
-              sides.push(e);
-            }
+            const w = Math.exp(3 * cos) * ew[e];
+            weights.push(w);
+            total += w;
           }
-          if (on < 0) {
+          if (!ways.length) {
             // the end of the line: it stops here, and drains
             tr.stopD = dn;
             tr.d = dn;
             tr.s = tr.L;
             break;
           }
+          let pick = Math.random() * total;
+          let on = ways[ways.length - 1];
+          for (let i = 0; i < ways.length; i++) {
+            pick -= weights[i];
+            if (pick <= 0) {
+              on = ways[i];
+              break;
+            }
+          }
           wave.visited[on] = 1;
-          for (const e of sides) {
+          this.lastWave[on] = this.waveNo;
+          // the side streets: nearly always taken close to the pin, so a wave
+          // fans out all round before its lines run on; rarely far out
+          const chance = tr.d < 400 ? 0.9 : BRANCH * Math.max(0.25, 1 - (tr.d - 400) / (0.8 * this.reach));
+          for (const e of ways) {
+            if (e === on) continue;
             if (wave.tracers.length + born.length >= ALIVE) break;
-            if (Math.random() >= BRANCH * ew[e]) continue;
+            if (Math.random() >= chance * ew[e]) continue;
             wave.visited[e] = 1;
+            this.lastWave[e] = this.waveNo;
             const o = ea[e] === n ? eb[e] : ea[e];
-            born.push({ e, from: n, to: o, s: over, L: eL[e], d: tr.d, born: t, trail: [xs[n], ys[n], dn], stopD: -1, gone: false });
+            born.push({
+              e,
+              from: n,
+              to: o,
+              s: over,
+              L: eL[e],
+              d: tr.d,
+              rMax: this.reach * (0.4 + Math.random() * 0.5),
+              v: SPEED * (0.85 + Math.random() * 0.3),
+              born: t,
+              trail: [xs[n], ys[n], dn],
+              stopD: -1,
+              gone: false,
+            });
             this.sparks.push(xs[n], ys[n], t);
           }
           tr.e = on;

@@ -70,6 +70,7 @@ export default function RunMapper() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pin, setPin] = useState<LatLon | null>(null);
   const [pinLabel, setPinLabel] = useState<string>("");
+  const [located, setLocated] = useState(false);          // the pin is the visitor's own place: the location key is lit
   const [focus, setFocus] = useState<(LatLon & { zoom?: number; key: number }) | null>(null);
   const [bucket, setBucket] = useState<Bucket>("5k");
   const [loop, setLoop] = useState(false);
@@ -292,6 +293,7 @@ export default function RunMapper() {
 
   const pickPlace = (p: Place) => {
     touched.current = true;
+    setLocated(false);
     setPin({ lat: p.lat, lon: p.lon });
     setPinLabel([p.label, p.detail].filter(Boolean).join(", "));
     setFocus({ lat: p.lat, lon: p.lon, zoom: 13.5, key: ++focusKey.current });
@@ -302,6 +304,7 @@ export default function RunMapper() {
   const onPick = useCallback(
     (p: LatLon) => {
       touched.current = true;
+      setLocated(false);
       setPin(p);
       setPinLabel(`${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
       void namePin(p);
@@ -316,6 +319,7 @@ export default function RunMapper() {
         touched.current = true;
         const p = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setPin(p);
+        setLocated(true);
         setPinLabel("Your location");
         setFocus({ ...p, zoom: 13.5, key: ++focusKey.current });
       },
@@ -811,7 +815,7 @@ export default function RunMapper() {
                   title={pin ? `Pinned at ${pinLabel}. Drag the pin or tap the map to move it.` : undefined}
                   className="field field-keyed"
                 />
-                <button type="button" onClick={useMyLocation} className="field-key" aria-label="My location" title="Start from where you are">
+                <button type="button" onClick={useMyLocation} className="field-key" data-on={located ? "" : undefined} aria-pressed={located} aria-label="My location" title="Start from where you are">
                   <Icon name="locate" />
                 </button>
                 {(places.length > 0 || searching) && query.trim().length >= 3 && (

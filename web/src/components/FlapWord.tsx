@@ -103,6 +103,11 @@ export default function FlapWord({
   const input = useRef<HTMLInputElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  // On a desktop the board is ready to type into as the page opens. A phone
+  // is left alone: focus there would raise the keyboard over the deck.
+  useEffect(() => {
+    if (window.matchMedia?.("(hover: hover) and (pointer: fine)").matches) input.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     const el = board.current;
     if (!el) return;

@@ -22,14 +22,15 @@ const LAYER = "transportation";
 const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk", "path", "track", "residential", "unclassified", "living_street", "pedestrian"];
 const SNAP = 2;          // m: points this close are one node
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
-const SPEED = 520;       // m/s: how fast a line runs
+const SPEED = 520;       // m/s: how fast a line runs, once under way
 const WAVE = 2.3;        // s: between waves leaving the pin
 const BRIGHT = 160;      // m: the front of a line, at full strength
 const TAIL = 760;        // m: over which it dies away behind that
-const STEPS = 10;        // the dying away is drawn in this many steps
+const STEPS = 24;        // the dying away is drawn in this many steps, fine enough to read as one fade
 const BRANCH = 0.2;      // the chance a side street is taken at a junction, besides the way on
 const ALIVE = 30;        // lines alive in one wave, at most
-const PING = 0.8;        // s: the ring at the pin as a wave sets off
+const PING = 1.0;        // s: the rings at the pin as a wave sets off
+const SPARK = 0.45;      // s: the small flash where a line branches
 
 type Tracer = {
   e: number;        // the edge it is on
@@ -37,9 +38,11 @@ type Tracer = {
   to: number;       // the node it is running to
   s: number;        // m along the edge
   L: number;        // the edge's length
-  d: number;        // m run in all
-  trail: number[];  // the nodes passed: x, y, d triples, oldest first
-  dead: boolean;
+  d: number;        // m run in all; once the line has stopped, it keeps counting, and the light drains along it
+  born: number;     // s: when it sets off
+  trail: number[];  // the points passed: x, y, d triples, oldest first
+  stopD: number;    // where the line stopped, in m run; -1 while it runs
+  gone: boolean;    // drained away, nothing left to draw
 };
 type Wave = { t0: number; visited: Uint8Array; tracers: Tracer[] };
 
@@ -106,6 +109,7 @@ export class StreetPulse {
   private dist = new Float64Array(0);
   private origin = -1;     // the node nearest the pin
   private waves: Wave[] = [];
+  private sparks: number[] = [];   // where lines have branched: x, y, t triples
   private nextWave = 0;
   private raf = 0;
   private t0 = 0;
@@ -413,73 +417,87 @@ export class StreetPulse {
     return false;
   }
 
-  /** A wave sets off: a tracer down every street from the pin. */
+  /** A wave sets off: a line down every street from the pin, each leaving
+   *  the pin itself (a short stub to the nearest street) a moment apart. */
   private launch(t: number) {
     const s = this.origin;
     if (s < 0) return;
     const wave: Wave = { t0: t, visited: new Uint8Array(this.ea.length), tracers: [] };
+    const stub = Math.hypot(this.xs[s], this.ys[s]);
     for (const e of this.adj[s]) {
       const o = this.ea[e] === s ? this.eb[e] : this.ea[e];
       if (!(this.dist[o] > this.dist[s])) continue;
       wave.visited[e] = 1;
-      wave.tracers.push({ e, from: s, to: o, s: 0, L: this.eL[e], d: 0, trail: [this.xs[s], this.ys[s], 0], dead: false });
+      wave.tracers.push({ e, from: s, to: o, s: 0, L: this.eL[e], d: stub, born: t + Math.random() * 0.25, trail: [0, 0, 0, this.xs[s], this.ys[s], stub], stopD: -1, gone: false });
     }
     this.waves.push(wave);
   }
 
-  /** Every tracer runs on; at a junction it keeps on, and may send others down the side streets. */
-  private run(wave: Wave, dt: number) {
+  /** Every line runs on; at a junction it keeps on, and may send others down
+   *  the side streets. A line with no way on stops, and its light drains
+   *  away along it from the tail to the front. */
+  private run(wave: Wave, dt: number, t: number) {
     const { xs, ys, adj, ea, eb, eL, ew, dist } = this;
-    const step = SPEED * dt;
     const born: Tracer[] = [];
     for (const tr of wave.tracers) {
-      if (tr.dead) continue;
-      tr.s += step;
-      tr.d += step;
-      while (tr.s >= tr.L) {
-        const over = tr.s - tr.L;
-        const n = tr.to;
-        const dn = tr.d - over;
-        tr.trail.push(xs[n], ys[n], dn);
-        // the ways on from here: outwards only, and never a street already lit in this wave
-        const hx = xs[n] - xs[tr.from];
-        const hy = ys[n] - ys[tr.from];
-        const hl = Math.hypot(hx, hy) || 1;
-        let on = -1;
-        let onCos = -2;
-        const sides: number[] = [];
-        for (const e of adj[n]) {
-          if (wave.visited[e]) continue;
-          const o = ea[e] === n ? eb[e] : ea[e];
-          if (!(dist[o] > dist[n]) || dist[o] > this.reach) continue;
-          const vx = xs[o] - xs[n];
-          const vy = ys[o] - ys[n];
-          const cos = (hx * vx + hy * vy) / (hl * (Math.hypot(vx, vy) || 1));
-          if (cos > onCos) {
-            if (on >= 0) sides.push(on);
-            onCos = cos;
-            on = e;
-          } else {
-            sides.push(e);
+      if (tr.gone || t < tr.born) continue;
+      // out of the pin gently, then at full speed
+      const step = SPEED * (0.45 + 0.55 * Math.min(1, tr.d / 240)) * dt;
+      if (tr.stopD >= 0) {
+        tr.d += step;
+        if (tr.d - tr.stopD > BRIGHT + TAIL) tr.gone = true;
+      } else {
+        tr.s += step;
+        tr.d += step;
+        while (tr.s >= tr.L) {
+          const over = tr.s - tr.L;
+          const n = tr.to;
+          const dn = tr.d - over;
+          tr.trail.push(xs[n], ys[n], dn);
+          // the ways on from here: outwards only, and never a street already lit in this wave
+          const hx = xs[n] - xs[tr.from];
+          const hy = ys[n] - ys[tr.from];
+          const hl = Math.hypot(hx, hy) || 1;
+          let on = -1;
+          let onCos = -2;
+          const sides: number[] = [];
+          for (const e of adj[n]) {
+            if (wave.visited[e]) continue;
+            const o = ea[e] === n ? eb[e] : ea[e];
+            if (!(dist[o] > dist[n]) || dist[o] > this.reach) continue;
+            const vx = xs[o] - xs[n];
+            const vy = ys[o] - ys[n];
+            const cos = (hx * vx + hy * vy) / (hl * (Math.hypot(vx, vy) || 1));
+            if (cos > onCos) {
+              if (on >= 0) sides.push(on);
+              onCos = cos;
+              on = e;
+            } else {
+              sides.push(e);
+            }
           }
+          if (on < 0) {
+            // the end of the line: it stops here, and drains
+            tr.stopD = dn;
+            tr.d = dn;
+            tr.s = tr.L;
+            break;
+          }
+          wave.visited[on] = 1;
+          for (const e of sides) {
+            if (wave.tracers.length + born.length >= ALIVE) break;
+            if (Math.random() >= BRANCH * ew[e]) continue;
+            wave.visited[e] = 1;
+            const o = ea[e] === n ? eb[e] : ea[e];
+            born.push({ e, from: n, to: o, s: over, L: eL[e], d: tr.d, born: t, trail: [xs[n], ys[n], dn], stopD: -1, gone: false });
+            this.sparks.push(xs[n], ys[n], t);
+          }
+          tr.e = on;
+          tr.from = n;
+          tr.to = ea[on] === n ? eb[on] : ea[on];
+          tr.L = eL[on];
+          tr.s = over;
         }
-        if (on < 0) {
-          tr.dead = true;
-          break;
-        }
-        wave.visited[on] = 1;
-        for (const e of sides) {
-          if (wave.tracers.length + born.length >= ALIVE) break;
-          if (Math.random() >= BRANCH * ew[e]) continue;
-          wave.visited[e] = 1;
-          const o = ea[e] === n ? eb[e] : ea[e];
-          born.push({ e, from: n, to: o, s: over, L: eL[e], d: tr.d, trail: [xs[n], ys[n], dn], dead: false });
-        }
-        tr.e = on;
-        tr.from = n;
-        tr.to = ea[on] === n ? eb[on] : ea[on];
-        tr.L = eL[on];
-        tr.s = over;
       }
       // the trail behind the light is let go
       const keep = tr.d - BRIGHT - TAIL;
@@ -488,7 +506,7 @@ export class StreetPulse {
       if (drop) tr.trail.splice(0, drop);
     }
     if (born.length) wave.tracers.push(...born);
-    wave.tracers = wave.tracers.filter((tr) => !tr.dead);
+    wave.tracers = wave.tracers.filter((tr) => !tr.gone);
   }
 
   private draw(now: number) {
@@ -515,8 +533,9 @@ export class StreetPulse {
       this.launch(t);
       this.nextWave = t + WAVE;
     }
-    for (const w of this.waves) this.run(w, dt);
+    for (const w of this.waves) this.run(w, dt, t);
     this.waves = this.waves.filter((w) => w.tracers.length > 0 || t - w.t0 < PING);
+    while (this.sparks.length && t - this.sparks[2] > SPARK) this.sparks.splice(0, 3);
     this.alive = this.waves.reduce((n, w) => n + w.tracers.length, 0);
     // every point goes through the map's own projection, so the lines lie on the streets exactly
     const lon0 = this.pin.lon;
@@ -527,12 +546,16 @@ export class StreetPulse {
     const p = m.project([lon0, lat0]);
     const s = 1 / this.metresPerPixel();   // px per metre, for the ring
     const orange = this.dark ? "255, 130, 50" : "252, 82, 0";
+    // the line's colour along its length: a touch lighter at the front, the deck's orange behind
+    const front = this.dark ? [255, 158, 78] : [255, 118, 44];
+    const back = this.dark ? [255, 124, 44] : [246, 78, 0];
     ctx.globalCompositeOperation = this.dark ? "lighter" : "source-over";
-    ctx.lineCap = "round";
+    ctx.lineCap = "butt";   // the steps of the fade meet edge to edge, with nothing doubled where they meet
     ctx.lineJoin = "round";
     // each line in steps from its front back: the bright front, then the tail dying away
     const paths: Path2D[] = [];
     for (let k = 0; k < STEPS; k++) paths.push(new Path2D());
+    const ends = new Path2D();   // the fronts, rounded off at the line's own width
     const { xs, ys } = this;
     const part = (path: Path2D, pts: number[], lo: number, hi: number) => {
       // the stretch of the trail run between lo and hi metres
@@ -560,47 +583,80 @@ export class StreetPulse {
     const stepLen = TAIL / (STEPS - 1);
     for (const w of this.waves) {
       for (const tr of w.tracers) {
+        if (t < tr.born) continue;
         const f = tr.s / (tr.L || 1);
         const hx = xs[tr.from] + (xs[tr.to] - xs[tr.from]) * f;
         const hy = ys[tr.from] + (ys[tr.to] - ys[tr.from]) * f;
         const head = P(hx, hy);
         if (head.x < -margin || head.x > W + margin || head.y < -margin || head.y > H + margin) continue;
-        const pts = tr.trail.concat(hx, hy, tr.d);
+        // a stopped line's front stays put while the fade (measured by d) moves up to it
+        const headD = tr.stopD >= 0 ? tr.stopD : tr.d;
+        const pts = tr.trail.concat(hx, hy, headD);
         part(paths[0], pts, tr.d - BRIGHT, tr.d);
         for (let k = 1; k < STEPS; k++) {
           const hi = tr.d - BRIGHT - stepLen * (k - 1);
           part(paths[k], pts, hi - stepLen, hi);
         }
+        if (tr.stopD < 0) {
+          ends.moveTo(head.x + 1.2, head.y);
+          ends.arc(head.x, head.y, 1.2, 0, Math.PI * 2);
+        }
       }
     }
     for (let k = STEPS - 1; k >= 0; k--) {
-      // the front at full strength, each step behind it a little fainter, the last all but gone
-      const a = (k === 0 ? 1 : 0.85 * (1 - (k - 1) / (STEPS - 1))) * fade;
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = `rgba(${orange}, ${a * 0.14})`;
+      // the front at full strength; behind it the light dies away, easing out, and the line thins with it
+      const u = k === 0 ? 0 : (k - 1) / (STEPS - 1);
+      const a = (k === 0 ? 1 : 0.92 * Math.pow(1 - u, 1.6)) * fade;
+      const width = 2.4 - 1.3 * (k / (STEPS - 1));
+      const c = front.map((v, i) => Math.round(v + (back[i] - v) * u));
+      ctx.lineWidth = width * 3;
+      ctx.strokeStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a * 0.12})`;
       ctx.stroke(paths[k]);
-      ctx.lineWidth = 2.2;
-      ctx.strokeStyle = `rgba(${orange}, ${a * 0.92})`;
+      ctx.lineWidth = width;
+      ctx.strokeStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a * 0.9})`;
       ctx.stroke(paths[k]);
     }
-    // the pin: a ring going out as each wave sets off, and a small glow that beats with them
+    ctx.fillStyle = `rgba(${front[0]}, ${front[1]}, ${front[2]}, ${0.9 * fade})`;
+    ctx.fill(ends);
+    // where a line has branched, a small flash that goes as quickly as it came
+    for (let i = 0; i < this.sparks.length; i += 3) {
+      const u = (t - this.sparks[i + 2]) / SPARK;
+      if (u < 0 || u > 1) continue;
+      const q = P(this.sparks[i], this.sparks[i + 1]);
+      const r = 3 + 9 * u;
+      const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+      g.addColorStop(0, `rgba(${orange}, ${0.5 * (1 - u) * (1 - u) * fade})`);
+      g.addColorStop(1, `rgba(${orange}, 0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // the pin: two rings going out as each wave sets off, easing as they go, and a glow that flares with them
+    let flare = 0;
     for (const w of this.waves) {
       const age = t - w.t0;
+      flare = Math.max(flare, age < 0.1 ? age / 0.1 : Math.exp(-(age - 0.1) / 0.5));
       if (age > PING) continue;
       const u = age / PING;
-      ctx.strokeStyle = `rgba(${orange}, ${0.55 * (1 - u) * fade})`;
-      ctx.lineWidth = 2;
+      const out = 1 - Math.pow(1 - u, 3);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = `rgba(${orange}, ${0.5 * (1 - u) * (1 - u) * fade})`;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4 + 150 * s * u, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 4 + 170 * s * out, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${orange}, ${0.3 * (1 - u) * (1 - u) * fade})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4 + 95 * s * (1 - Math.pow(1 - u, 2)), 0, Math.PI * 2);
       ctx.stroke();
     }
-    const beat = 1 - ((t % WAVE) / WAVE);
-    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 14 + 16 * (1 - beat));
-    g.addColorStop(0, `rgba(${orange}, ${0.4 * beat * fade})`);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16 + 18 * (1 - flare));
+    g.addColorStop(0, `rgba(${orange}, ${0.45 * flare * fade})`);
     g.addColorStop(1, `rgba(${orange}, 0)`);
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 34, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 36, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = "source-over";
   }

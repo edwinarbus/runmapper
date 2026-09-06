@@ -125,7 +125,6 @@ export class StreetPulse {
   private last = 0;
   private retry = 0;
   private stopped = false;
-  private moved = false;
   private readonly kx: number;
   private readonly ky: number;
   private reach = 2400;    // m: how far the light runs, set from the view
@@ -134,12 +133,10 @@ export class StreetPulse {
   alive = 0;               // tracers running now, for the tests
   private onIdle = () => {
     if (this.stopped) return;
-    // more streets may have come in (tiles loading, the map moved): join them in
-    if (this.ea.length === 0 || this.moved) this.build();
-    this.moved = false;
-  };
-  private onMove = () => {
-    this.moved = true;
+    // the streets were not in yet (tiles still loading): try again now they are.
+    // Once the graph is built it is kept: a rebuild would drop every line
+    // running, and the lines sit on the map through any drag or zoom as it is.
+    if (this.ea.length === 0) this.build();
   };
 
   constructor(
@@ -160,7 +157,6 @@ export class StreetPulse {
     // the graph is built a moment after the key press, so the press itself is not held up
     this.retry = window.setTimeout(() => this.build(), 40);
     this.map.on("idle", this.onIdle);
-    this.map.on("moveend", this.onMove);
     this.t0 = performance.now();
     this.last = this.t0;
     this.nextWave = 0;
@@ -180,7 +176,6 @@ export class StreetPulse {
     cancelAnimationFrame(this.raf);
     window.clearTimeout(this.retry);
     this.map.off("idle", this.onIdle);
-    this.map.off("moveend", this.onMove);
     const c = this.canvas;
     c.setAttribute("data-off", "");
     c.style.opacity = "0";

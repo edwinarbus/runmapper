@@ -1,12 +1,12 @@
 // The search, shown on the map: light that sets out from the pin and runs
 // the streets outwards, the way the engine's search does, until the first
-// answer arrives. Every second and a bit a wave of tracers leaves the pin,
-// each running along a street at road speed with a bright head and a trail
-// dying away behind it; at a junction a tracer keeps on along the way most
-// nearly straight ahead and, some of the time, sends another down a side
-// street, and none ever turns back towards the pin. So the light spreads
-// out through the actual streets as lines, thinning as it goes, with a
-// small ring at the pin as each wave sets off.
+// answer arrives. Every couple of seconds a few lines leave the pin, each
+// running along a street at road speed, one width all along, brightest at
+// its front and dying away over the length behind it; at a junction a line
+// keeps on along the way most nearly straight ahead and, now and then,
+// sends another down a side street, and none ever turns back towards the
+// pin. So the light spreads out through the actual streets as lines, a
+// few at a time, with a small ring at the pin as each wave sets off.
 //
 // The streets come from the basemap's own vector tiles (querySourceFeatures
 // on the transportation layer). Their crossings are found (a straight
@@ -22,12 +22,13 @@ const LAYER = "transportation";
 const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk", "path", "track", "residential", "unclassified", "living_street", "pedestrian"];
 const SNAP = 2;          // m: points this close are one node
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
-const SPEED = 560;       // m/s: how fast a tracer runs
-const WAVE = 1.6;        // s: between waves leaving the pin
-const HEAD = 90;         // m: the bright head of a tracer
-const TRAIL = 640;       // m: the trail dying away behind it, in four steps
-const BRANCH = 0.3;      // the chance a side street is taken at a junction, besides the way on
-const ALIVE = 90;        // tracers alive in one wave, at most
+const SPEED = 520;       // m/s: how fast a line runs
+const WAVE = 2.3;        // s: between waves leaving the pin
+const BRIGHT = 160;      // m: the front of a line, at full strength
+const TAIL = 760;        // m: over which it dies away behind that
+const STEPS = 10;        // the dying away is drawn in this many steps
+const BRANCH = 0.2;      // the chance a side street is taken at a junction, besides the way on
+const ALIVE = 30;        // lines alive in one wave, at most
 const PING = 0.8;        // s: the ring at the pin as a wave sets off
 
 type Tracer = {
@@ -135,7 +136,7 @@ export class StreetPulse {
     private readonly dark: boolean,
   ) {
     this.kx = Math.cos((pin.lat * Math.PI) / 180) * 111320;
-    this.ky = 110540;
+    this.ky = 111320;   // the sphere the map is drawn on, both ways
   }
 
   start() {
@@ -175,7 +176,10 @@ export class StreetPulse {
   }
 
   private metresPerPixel() {
-    return (156543.03392 * Math.cos((this.pin.lat * Math.PI) / 180)) / Math.pow(2, this.map.getZoom());
+    // measured on the map itself: a hundred metres east of the pin, in pixels
+    const a = this.map.project([this.pin.lon, this.pin.lat]);
+    const b = this.map.project([this.pin.lon + 100 / this.kx, this.pin.lat]);
+    return 100 / Math.max(1e-6, Math.hypot(b.x - a.x, b.y - a.y));
   }
 
   /** The streets in the loaded tiles, as a graph, with every node's distance from the pin by road. */
@@ -478,7 +482,7 @@ export class StreetPulse {
         tr.s = over;
       }
       // the trail behind the light is let go
-      const keep = tr.d - HEAD - TRAIL;
+      const keep = tr.d - BRIGHT - TAIL;
       let drop = 0;
       while (drop + 3 < tr.trail.length && tr.trail[drop + 5] < keep) drop += 3;
       if (drop) tr.trail.splice(0, drop);
@@ -506,7 +510,7 @@ export class StreetPulse {
     const dt = Math.min(0.05, (now - this.last) / 1000);   // a stalled frame is not a leap
     this.last = now;
     const fade = Math.min(1, t / 0.5);
-    // the waves: a new one when it is time, and every tracer run on
+    // the waves: a new one when it is time, and every line run on
     if (this.origin >= 0 && t >= this.nextWave) {
       this.launch(t);
       this.nextWave = t + WAVE;
@@ -514,25 +518,21 @@ export class StreetPulse {
     for (const w of this.waves) this.run(w, dt);
     this.waves = this.waves.filter((w) => w.tracers.length > 0 || t - w.t0 < PING);
     this.alive = this.waves.reduce((n, w) => n + w.tracers.length, 0);
-    // the map's projection: local metres (x east, y north) to the screen
-    const p = m.project([this.pin.lon, this.pin.lat]);
-    const s = 1 / this.metresPerPixel();   // px per metre
-    const br = (-m.getBearing() * Math.PI) / 180;
-    const cb = Math.cos(br);
-    const sb = Math.sin(br);
-    const X = (x: number, y: number) => p.x + (x * cb - y * sb) * s;
-    const Y = (x: number, y: number) => p.y - (x * sb + y * cb) * s;
+    // every point goes through the map's own projection, so the lines lie on the streets exactly
+    const lon0 = this.pin.lon;
+    const lat0 = this.pin.lat;
+    const kx = this.kx;
+    const ky = this.ky;
+    const P = (x: number, y: number) => m.project([lon0 + x / kx, lat0 + y / ky]);
+    const p = m.project([lon0, lat0]);
+    const s = 1 / this.metresPerPixel();   // px per metre, for the ring
     const orange = this.dark ? "255, 130, 50" : "252, 82, 0";
-    const hot = this.dark ? "255, 232, 210" : "255, 214, 180";
     ctx.globalCompositeOperation = this.dark ? "lighter" : "source-over";
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // the tracers: the head, the trail behind it in four steps of dying light, and the tips
-    const STEPS = 4;
-    const trail: Path2D[] = [];
-    for (let i = 0; i < STEPS; i++) trail.push(new Path2D());
-    const head = new Path2D();
-    const tips = new Path2D();
+    // each line in steps from its front back: the bright front, then the tail dying away
+    const paths: Path2D[] = [];
+    for (let k = 0; k < STEPS; k++) paths.push(new Path2D());
     const { xs, ys } = this;
     const part = (path: Path2D, pts: number[], lo: number, hi: number) => {
       // the stretch of the trail run between lo and hi metres
@@ -548,45 +548,41 @@ export class StreetPulse {
         const dx = pts[i] - x0;
         const dy = pts[i + 1] - y0;
         if (!on) {
-          path.moveTo(X(x0 + dx * fa, y0 + dy * fa), Y(x0 + dx * fa, y0 + dy * fa));
+          const a = P(x0 + dx * fa, y0 + dy * fa);
+          path.moveTo(a.x, a.y);
           on = true;
         }
-        path.lineTo(X(x0 + dx * fb, y0 + dy * fb), Y(x0 + dx * fb, y0 + dy * fb));
+        const b = P(x0 + dx * fb, y0 + dy * fb);
+        path.lineTo(b.x, b.y);
       }
     };
-    const margin = 120;
+    const margin = 160;
+    const stepLen = TAIL / (STEPS - 1);
     for (const w of this.waves) {
       for (const tr of w.tracers) {
         const f = tr.s / (tr.L || 1);
         const hx = xs[tr.from] + (xs[tr.to] - xs[tr.from]) * f;
         const hy = ys[tr.from] + (ys[tr.to] - ys[tr.from]) * f;
-        const sx = X(hx, hy);
-        const sy = Y(hx, hy);
-        if (sx < -margin || sx > W + margin || sy < -margin || sy > H + margin) continue;
+        const head = P(hx, hy);
+        if (head.x < -margin || head.x > W + margin || head.y < -margin || head.y > H + margin) continue;
         const pts = tr.trail.concat(hx, hy, tr.d);
-        part(head, pts, tr.d - HEAD, tr.d);
-        for (let i = 0; i < STEPS; i++) {
-          const hi = tr.d - HEAD - (TRAIL * i) / STEPS;
-          part(trail[i], pts, hi - TRAIL / STEPS, hi);
+        part(paths[0], pts, tr.d - BRIGHT, tr.d);
+        for (let k = 1; k < STEPS; k++) {
+          const hi = tr.d - BRIGHT - stepLen * (k - 1);
+          part(paths[k], pts, hi - stepLen, hi);
         }
-        tips.moveTo(sx + 1.7, sy);
-        tips.arc(sx, sy, 1.7, 0, Math.PI * 2);
       }
     }
-    const stroke = (path: Path2D, width: number, style: string) => {
-      ctx.lineWidth = width;
-      ctx.strokeStyle = style;
-      ctx.stroke(path);
-    };
-    for (let i = STEPS - 1; i >= 0; i--) {
-      const a = (0.62 * (STEPS - i)) / STEPS;   // the light dying away down the trail
-      stroke(trail[i], 5, `rgba(${orange}, ${a * 0.2 * fade})`);
-      stroke(trail[i], 2, `rgba(${orange}, ${a * fade})`);
+    for (let k = STEPS - 1; k >= 0; k--) {
+      // the front at full strength, each step behind it a little fainter, the last all but gone
+      const a = (k === 0 ? 1 : 0.85 * (1 - (k - 1) / (STEPS - 1))) * fade;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = `rgba(${orange}, ${a * 0.14})`;
+      ctx.stroke(paths[k]);
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = `rgba(${orange}, ${a * 0.92})`;
+      ctx.stroke(paths[k]);
     }
-    stroke(head, 8, `rgba(${orange}, ${0.38 * fade})`);
-    stroke(head, 2.6, `rgba(${hot}, ${0.95 * fade})`);
-    ctx.fillStyle = `rgba(${hot}, ${fade})`;
-    ctx.fill(tips);
     // the pin: a ring going out as each wave sets off, and a small glow that beats with them
     for (const w of this.waves) {
       const age = t - w.t0;

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { WORDMARK_DOT, WORDMARK_DOT_RUN, WORDMARK_OUTLINE_D, WORDMARK_VIEWBOX } from "@/lib/wordmark";
 
 /** The wordmark: DRAWMYRUN as a run, the route in orange and the green
@@ -14,19 +14,37 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   const cut = `etch-${id}`;
   const motion = useRef<SVGAnimateMotionElement>(null);
+  // With the run on, the dot waits at the start of the route (the foot of
+  // the D) as the page opens, runs the route half a second later and stays
+  // where it ends, between Y and R; a pointer or a tap sends it round
+  // again. So the run's path is put in the frame of that start, and the
+  // dot's resting place is the start until the run has happened. Anyone
+  // who has asked their device for less motion gets the mark at rest.
+  const [still, setStill] = useState(false);
+  const running = run && !still;
+  const { sx, sy, path } = useMemo(() => {
+    const pts = Array.from(WORDMARK_DOT_RUN.matchAll(/[ML]\s*(-?[\d.]+)\s+(-?[\d.]+)/g), (m) => [Number(m[1]), Number(m[2])]);
+    const [sx, sy] = pts[0];
+    return { sx, sy, path: pts.map(([x, y], i) => `${i ? "L" : "M"}${(x - sx).toFixed(2)} ${(y - sy).toFixed(2)}`).join("") };
+  }, []);
   const go = () => {
     const m = motion.current as (SVGAnimateMotionElement & { beginElement?: () => void }) | null;
     m?.beginElement?.();
   };
-  // The dot runs once of its own accord, half a second after the page
-  // opens, so the mark introduces itself; not for anyone who has asked
-  // for less motion.
   useEffect(() => {
-    if (!run || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const t = window.setTimeout(() => {
-      const m = motion.current as (SVGAnimateMotionElement & { beginElement?: () => void }) | null;
-      m?.beginElement?.();
-    }, 500);
+    if (!run) return;
+    const less = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+    const t = window.setTimeout(
+      () => {
+        if (less) {
+          setStill(true);
+          return;
+        }
+        const m = motion.current as (SVGAnimateMotionElement & { beginElement?: () => void }) | null;
+        m?.beginElement?.();
+      },
+      less ? 0 : 500,
+    );
     return () => window.clearTimeout(t);
   }, [run]);
   return (
@@ -74,10 +92,18 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
         </defs>
       )}
       <path d={WORDMARK_OUTLINE_D} fill={etched ? "#fa5202" : "#fc5200"} fillRule="evenodd" filter={etched ? `url(#${cut})` : undefined} />
-      <circle cx={WORDMARK_DOT.x} cy={WORDMARK_DOT.y} r={WORDMARK_DOT.r} fill="#12b886" stroke="#f6f3ec" strokeWidth={0.22} filter={etched ? `url(#lamp-${id})` : undefined}>
-        {run && (
-          /* the run: along the route through DRAWMY (in the dot's own frame, so it ends where it stands), easing off the line and back onto it */
-          <animateMotion ref={motion} path={WORDMARK_DOT_RUN} begin="indefinite" dur="2.6s" calcMode="spline" keyTimes="0;1" keySplines="0.35 0 0.25 1" restart="whenNotActive" />
+      <circle
+        cx={WORDMARK_DOT.x + (running ? sx : 0)}
+        cy={WORDMARK_DOT.y + (running ? sy : 0)}
+        r={WORDMARK_DOT.r}
+        fill="#12b886"
+        stroke="#f6f3ec"
+        strokeWidth={0.22}
+        filter={etched ? `url(#lamp-${id})` : undefined}
+      >
+        {running && (
+          /* the run: along the route through DRAWMY from where the dot waits to its place, easing off the line and back onto it, and held there after */
+          <animateMotion ref={motion} path={path} begin="indefinite" dur="2.6s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.35 0 0.25 1" restart="whenNotActive" />
         )}
       </circle>
     </svg>

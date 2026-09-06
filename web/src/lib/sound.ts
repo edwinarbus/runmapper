@@ -24,23 +24,23 @@ type Shape = {
 
 const VOICES: Record<string, Shape> = {
   // a small key on the deck: the paper keys, the tiles, the map's keys
-  key: { freq: 2600, q: 1.1, gain: 0.16, decay: 0.032, body: { freq: 230, gain: 0.09, decay: 0.05 } },
+  key: { freq: 2600, q: 1.1, gain: 0.2, decay: 0.032, body: { freq: 230, gain: 0.11, decay: 0.05 } },
   // the start key: bigger, and it knocks
-  go: { freq: 1500, q: 0.9, gain: 0.24, decay: 0.05, body: { freq: 128, gain: 0.2, decay: 0.09 } },
+  go: { freq: 1500, q: 0.9, gain: 0.28, decay: 0.05, body: { freq: 128, gain: 0.24, decay: 0.09 } },
   // the start key coming back up, lighter than it went down
-  goUp: { freq: 3100, q: 1.4, gain: 0.1, decay: 0.022 },
+  goUp: { freq: 3100, q: 1.4, gain: 0.13, decay: 0.022 },
   // a switch: the click as it leaves, then the snap as it arrives
   snap: {
     freq: 3400,
     q: 2,
-    gain: 0.12,
+    gain: 0.15,
     decay: 0.018,
-    then: { freq: 1900, q: 1.4, gain: 0.2, decay: 0.028, body: { freq: 170, gain: 0.1, decay: 0.05 } },
+    then: { freq: 1900, q: 1.4, gain: 0.24, decay: 0.028, body: { freq: 170, gain: 0.12, decay: 0.05 } },
   },
   // one leaf of the split-flap board falling
-  flap: { freq: 4300, q: 2.4, gain: 0.05, decay: 0.017 },
+  flap: { freq: 4300, q: 2.4, gain: 0.13, decay: 0.019, body: { freq: 900, gain: 0.05, decay: 0.014 } },
   // a bib pulled out of the pile, or thrown aside
-  paper: { freq: 900, q: 0.7, gain: 0.09, decay: 0.14, to: 2800 },
+  paper: { freq: 900, q: 0.7, gain: 0.11, decay: 0.14, to: 2800 },
 };
 
 const STORE = "drawmyrun.sound";
@@ -98,7 +98,7 @@ function start(): AudioContext | null {
   try {
     ctx = new Ctor();
     master = ctx.createGain();
-    master.gain.value = 0.5;
+    master.gain.value = 0.75;
     master.connect(ctx.destination);
     const n = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.4), ctx.sampleRate);
     const d = n.getChannelData(0);

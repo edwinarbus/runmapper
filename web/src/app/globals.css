@@ -27,22 +27,22 @@
      contact shadow and a soft cast shadow below. */
   --key: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #3b3b45 0%, #2b2b33 50%, #222229 100%);
   --key-hover: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #43434e 0%, #31313a 50%, #27272e 100%);
-  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
-  --skirt-3: 0 1px 0 #26262c, 0 2px 0 #151519, 0 3px 0 #07070a, 0 4px 1px rgba(0, 0, 0, 0.75), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
-  --skirt-4: 0 1px 0 #26262c, 0 2px 0 #1a1a1f, 0 3px 0 #101013, 0 4px 0 #07070a, 0 5px 1px rgba(0, 0, 0, 0.75), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
-  --skirt-5: 0 1px 0 #26262c, 0 2px 0 #1d1d22, 0 3px 0 #151519, 0 4px 0 #0d0d10, 0 5px 0 #07070a, 0 6px 1px rgba(0, 0, 0, 0.75), 0 9px 11px rgba(0, 0, 0, 0.45), 0 18px 24px rgba(0, 0, 0, 0.35);
+  --key-hi: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.1), inset 1px 0 0 rgba(255, 255, 255, 0.07), inset -1px 0 0 rgba(0, 0, 0, 0.45);
+  --skirt-3: 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.7), 0 6px 8px rgba(0, 0, 0, 0.45), 0 12px 18px rgba(0, 0, 0, 0.35);
+  --skirt-4: 0 1px 0 #25252c, 0 2px 0 #1f1f25, 0 3px 0 #19191e, 0 4px 0 #131317, 0 5px 1px rgba(0, 0, 0, 0.7), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px rgba(0, 0, 0, 0.35);
+  --skirt-5: 0 1px 0 #26262d, 0 2px 0 #212127, 0 3px 0 #1c1c21, 0 4px 0 #17171b, 0 5px 0 #121216, 0 6px 1px rgba(0, 0, 0, 0.7), 0 9px 11px rgba(0, 0, 0, 0.45), 0 18px 24px rgba(0, 0, 0, 0.35);
   --white-key: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #fbfaf6 0%, #ecebe5 55%, #dad7ce 100%);
-  --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0, 0, 0, 0.14), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
-  --white-skirt-3: 0 1px 0 #b0ada3, 0 2px 0 #86837a, 0 3px 0 #5c5952, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
-  --white-skirt-4: 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.65), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(0, 0, 0, 0.3);
+  --white-hi: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.6), inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  --white-skirt-3: 0 1px 0 #cbc8bf, 0 2px 0 #bcb9b0, 0 3px 0 #aba89f, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(0, 0, 0, 0.3);
+  --white-skirt-4: 0 1px 0 #cdcac1, 0 2px 0 #c1beb5, 0 3px 0 #b4b1a8, 0 4px 0 #a5a299, 0 5px 1px rgba(0, 0, 0, 0.55), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(0, 0, 0, 0.3);
   /* An orange face under the light: a soft flare towards the top left where
      the light lands, the edges falling into shade all round, a fine grain
      like moulded plastic, and no gloss line. */
   --orange-key: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.16) 100%), linear-gradient(180deg, #ff7c38 0%, #fd5e12 60%, #f65104 100%);
   --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
-  --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.25), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
-  --orange-skirt-3: 0 1px 0 #cf4800, 0 2px 0 #a33900, 0 3px 0 #7a2b00, 0 4px 1px rgba(0, 0, 0, 0.65), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
-  --orange-skirt-4: 0 1px 0 #cf4800, 0 2px 0 #b03d00, 0 3px 0 #923200, 0 4px 0 #7a2b00, 0 5px 1px rgba(0, 0, 0, 0.65), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(252, 82, 0, 0.22);
+  --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.22), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
+  --orange-skirt-3: 0 1px 0 #e65a14, 0 2px 0 #d65210, 0 3px 0 #c64a0c, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
+  --orange-skirt-4: 0 1px 0 #e85c15, 0 2px 0 #db5511, 0 3px 0 #cd4d0d, 0 4px 0 #bf460a, 0 5px 1px rgba(0, 0, 0, 0.55), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(252, 82, 0, 0.22);
   /* A legend engraved in a key's face, as on the start key: a line of shade
      along the top of each letter, where the cut's upper wall shadows it, and
      a thread of light along the bottom, where its lower lip catches the
@@ -166,7 +166,7 @@ body {
   border-radius: 7px;
   background: var(--key);
   color: var(--ink-3);
-  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--key-hi), 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
   cursor: pointer;
   transition: color 0.15s, transform 0.12s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.12s;
 }
@@ -226,7 +226,7 @@ body {
   padding: 0 24px;               /* room past the screws at each end */
   border-radius: 7px;
   background: var(--grain-key), linear-gradient(180deg, #2b2b32 0%, #212127 55%, #1c1c21 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 3px rgba(0, 0, 0, 0.55), 0 6px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -1px 0 rgba(255, 255, 255, 0.08), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.45), 0 1px 0 #1c1c22, 0 2px 0 #17171c, 0 3px 0 #121216, 0 4px 1px rgba(0, 0, 0, 0.65), 0 7px 10px rgba(0, 0, 0, 0.4);
 }
 /* the screws, a small slotted head each end, turned to different angles */
 .plate::before,
@@ -693,7 +693,7 @@ body {
   width: calc((100% - 4px) / var(--n, 3) - 2px);
   border-radius: 4px;
   background: var(--white-key);
-  box-shadow: var(--white-hi), 0 1px 0 #aaa79d, 0 2px 0 #8f8c84, 0 3px 0 #6b685f, 0 4px 3px rgba(0, 0, 0, 0.65);
+  box-shadow: var(--white-hi), 0 1px 0 #cbc8bf, 0 2px 0 #bcb9b0, 0 3px 0 #aba89f, 0 4px 3px rgba(0, 0, 0, 0.6);
   transition: left 0.22s cubic-bezier(0.3, 0.9, 0.35, 1.18);
   pointer-events: none;
 }
@@ -762,7 +762,7 @@ body {
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
     var(--grain-key),
     linear-gradient(180deg, #6f6f78 0%, #5c5c65 55%, #4a4a52 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 6px 0 8px -5px rgba(0, 0, 0, 0.8), inset -6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 3px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 6px 0 8px -5px rgba(0, 0, 0, 0.8), inset -6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 1px 0 #45454d, 0 2px 0 #36363d, 0 3px 4px rgba(0, 0, 0, 0.65);
   transform: translateX(0);
   transition: transform 0.12s cubic-bezier(0.3, 1.4, 0.6, 1), box-shadow 0.12s ease-out;
 }
@@ -770,7 +770,7 @@ body {
    shade moving to the edge that is now down. */
 .switch[aria-checked="true"] .knob {
   transform: translateX(16px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -6px 0 8px -5px rgba(0, 0, 0, 0.8), inset 6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 3px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset -6px 0 8px -5px rgba(0, 0, 0, 0.8), inset 6px 0 8px -5px rgba(255, 255, 255, 0.22), 0 1px 0 #45454d, 0 2px 0 #36363d, 0 3px 4px rgba(0, 0, 0, 0.65);
 }
 /* A finger on it pushes the knob towards the other side, and it goes over
    from there when the finger lifts. The push is data-pressed rather than
@@ -1469,7 +1469,7 @@ details[open] > .disclose svg {
   white-space: nowrap;
   text-shadow: var(--cut-light);
   cursor: pointer;
-  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.26), 0 11px 14px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--white-hi), inset 0 0 0 1px rgba(23, 23, 26, 0.16), 0 1px 0 #cdcac1, 0 2px 0 #c1beb5, 0 3px 0 #b4b1a8, 0 4px 0 #a5a299, 0 5px 1px rgba(0, 0, 0, 0.45), 0 7px 9px rgba(0, 0, 0, 0.26), 0 11px 14px rgba(0, 0, 0, 0.14);
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
 @media (hover: hover) {
@@ -1510,7 +1510,7 @@ details[open] > .disclose svg {
   background: var(--orange-key);
   color: #fff3ea;
   text-shadow: var(--cut-orange);
-  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #cf4800, 0 2px 0 #b03d00, 0 3px 0 #923200, 0 4px 0 #7a2b00, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.26);
+  box-shadow: var(--orange-hi), inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 1px 0 #e85c15, 0 2px 0 #db5511, 0 3px 0 #cd4d0d, 0 4px 0 #bf460a, 0 5px 1px rgba(0, 0, 0, 0.45), 0 7px 9px rgba(0, 0, 0, 0.26);
 }
 .pbtn-orange svg {
   filter: var(--cut-orange-icon);
@@ -1529,7 +1529,7 @@ details[open] > .disclose svg {
   background: linear-gradient(180deg, #2a2a30 0%, #1a1a1e 55%, #121215 100%);
   color: var(--paper);
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #101013, 0 2px 0 #0b0b0d, 0 3px 0 #060608, 0 4px 0 #000, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.6), 0 1px 0 #1b1b20, 0 2px 0 #16161a, 0 3px 0 #111115, 0 4px 0 #0c0c0f, 0 5px 1px rgba(0, 0, 0, 0.5), 0 7px 9px rgba(0, 0, 0, 0.3);
 }
 .pbtn-ink svg {
   filter: var(--cut-dark-icon);
@@ -1670,7 +1670,7 @@ details[open] > .disclose svg {
   line-height: 1;
   white-space: nowrap;
   text-shadow: var(--cut-dark);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1d1d22, 0 2px 0 #131317, 0 3px 0 #0a0a0c, 0 4px 0 #050506, 0 5px 1px rgba(0, 0, 0, 0.7), 0 6px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #1f1f25, 0 2px 0 #1a1a1f, 0 3px 0 #151519, 0 4px 0 #101013, 0 5px 1px rgba(0, 0, 0, 0.7), 0 6px 10px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
@@ -1699,7 +1699,7 @@ details[open] > .disclose svg {
   background: linear-gradient(180deg, #ffffff, #e4e1d9);
   color: var(--bg);
   text-shadow: var(--cut-light);
-  box-shadow: inset 0 1px 0 #fff, 0 1px 0 #b0ada3, 0 2px 0 #96938a, 0 3px 0 #7a776f, 0 4px 0 #5c5952, 0 5px 1px rgba(0, 0, 0, 0.6), 0 6px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 1px 0 #cdcac1, 0 2px 0 #c1beb5, 0 3px 0 #b4b1a8, 0 4px 0 #a5a299, 0 5px 1px rgba(0, 0, 0, 0.5), 0 6px 10px rgba(0, 0, 0, 0.45);
 }
 .map-btn[aria-pressed="true"] svg {
   filter: var(--cut-light-icon);
@@ -1891,7 +1891,7 @@ details[open] > .disclose svg {
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   background: var(--key);
-  box-shadow: var(--key-hi), 0 1px 0 #1d1d22, 0 2px 0 #0f0f12, 0 3px 0 #050506, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--key-hi), 0 1px 0 #24242b, 0 2px 0 #1d1d23, 0 3px 0 #16161b, 0 4px 1px rgba(0, 0, 0, 0.6), 0 5px 6px rgba(0, 0, 0, 0.4);
   backdrop-filter: none;
 }
 .map-btn.map-speed:active:not(:disabled),
@@ -1941,7 +1941,7 @@ details[open] > .disclose svg {
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 0.5px, rgba(0, 0, 0, 0.04) 0.5px 2px),
     var(--grain-key),
     linear-gradient(180deg, #6f6f78 0%, #5c5c65 55%, #4a4a52 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 3px 0 6px -4px rgba(255, 255, 255, 0.2), inset -3px 0 6px -4px rgba(0, 0, 0, 0.6), 0 3px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 3px 0 6px -4px rgba(255, 255, 255, 0.2), inset -3px 0 6px -4px rgba(0, 0, 0, 0.6), 0 1px 0 #45454d, 0 2px 0 #36363d, 0 3px 4px rgba(0, 0, 0, 0.65);
   pointer-events: none;
 }
 .scrub-cap::after {

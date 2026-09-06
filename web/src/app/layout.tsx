@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     // everything else shows its first frame, which is the finished card. The
     // still comes second for anything that wants one.
     images: [
-      { url: "/og.gif", width: 1200, height: 630, type: "image/gif", alt: "drawmy.run: the word RUN drawn on the streets of San Francisco by a 6 mile run" },
-      { url: "/og.png", width: 1200, height: 630, type: "image/png", alt: "drawmy.run: the word RUN drawn on the streets of San Francisco by a 6 mile run" },
+      { url: "/og.gif", width: 1200, height: 630, type: "image/gif", alt: "drawmy.run: DRAWMY.RUN drawn on the streets of a town by a 6.21 mile run" },
+      { url: "/og.png", width: 1200, height: 630, type: "image/png", alt: "drawmy.run: DRAWMY.RUN drawn on the streets of a town by a 6.21 mile run" },
     ],
   },
   twitter: {

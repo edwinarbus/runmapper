@@ -103,7 +103,7 @@ export default function Wordmark({ height, className, title = "drawmy.run", etch
       >
         {running && (
           /* the run: along the route through DRAWMY from where the dot waits to its place, easing off the line and back onto it, and held there after */
-          <animateMotion ref={motion} path={path} begin="indefinite" dur="2.6s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.35 0 0.25 1" restart="whenNotActive" />
+          <animateMotion ref={motion} path={path} begin="indefinite" dur="3s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.35 0 0.25 1" restart="whenNotActive" />
         )}
       </circle>
     </svg>

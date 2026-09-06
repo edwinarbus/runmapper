@@ -1,6 +1,6 @@
 // The search, shown on the map: light that sets out from the pin and runs
 // the streets outwards, the way the engine's search does, until the first
-// answer arrives. Every second and a half a few lines leave the pin, each
+// answer arrives. Every few seconds a few lines leave the pin, each
 // running along a street at about road speed (no two quite alike), one
 // width all along, brightest at its front and dying away over the length
 // behind it; at a junction a line most often keeps on along the way most
@@ -27,7 +27,7 @@ const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk"
 const SNAP = 2;          // m: points this close are one node
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
 const SPEED = 600;       // m/s: how fast a line runs, once under way
-const WAVE = 1.6;        // s: between waves leaving the pin
+const WAVE = 3.2;        // s: between waves leaving the pin
 const BRIGHT = 260;      // m: the front of a line, at full strength
 const TAIL = 1100;       // m: over which it dies away behind that
 const STEPS = 28;        // the dying away is drawn in this many steps, fine enough to read as one fade

@@ -40,7 +40,8 @@ BUCKETS = {
 BUCKET_ORDER = ["5k", "10k", "long"]
 INFLATION = 1.22          # snapped length / ideal length, free placement
 INFLATION_ALIGNED = 1.08  # same, letters on the block lattice (paths are near exact)
-ALIGNED_OVER_CAP = 1.08   # lattice text may run this much over the bucket cap
+ALIGNED_OVER_CAP = 1.15   # lattice text may run this much over the bucket cap
+FREE_OVER_CAP = 1.08      # a free-floating drawing may run this much over it
 UNIT_MIN_FT = 230.0       # smallest font unit that still reads after GPS wobble
 OUTLINE_BLOCK_MIN_FT = 190.0   # block letters are one block thick; thinner than this they don't read
 OUTLINE_TYPICAL_BLOCK_FT = 300.0   # what the pre-flight estimate assumes a city block is
@@ -51,15 +52,15 @@ IRREGULAR_STREETS = 0.60        # grid regularity below this caps the verdict at
 VERY_IRREGULAR_STREETS = 0.50   # ...and below this at "rough"
 LATTICE_MIN_REGULARITY = 0.45   # below this there is no grid to lay letters on
 FREE_TEXT_MIN_BLOCKS = 1.6      # free-floating letters narrower than this many blocks are mush
-MAX_SNAPS = 5
+MAX_SNAPS = 6
 TIME_BUDGET_S = 190.0
-# The three answers' reach. "Closest" is the best fit within a mile of the
-# pin (the pin itself first), "farther" the best from a mile out to three, and
+# The three answers' reach. "Closest" is the best fit within a mile and a
+# half of the pin (the pin itself first), "farther" the best from there out to three, and
 # "best fit" the best anywhere up to ten miles out. The first fetch of streets
 # reaches three miles and serves the first two; the third comes from a scan of
 # main roads out to ten miles, made in the background, whose most regular
 # spots are then fetched in full and tried.
-NEAR_RADIUS_FT = 1.0 * FT_PER_MI
+NEAR_RADIUS_FT = 1.5 * FT_PER_MI
 FARTHER_RADIUS_FT = 3.0 * FT_PER_MI
 FAR_RADIUS_FT = 10.0 * FT_PER_MI
 SEARCH_RADIUS_FT = FARTHER_RADIUS_FT  # the first fetch's reach
@@ -71,8 +72,8 @@ SCAN_MIN_EDGES = 15                  # main-road segments a scan window needs be
 FAR_MIN_REGULARITY = 0.8             # a far spot must be this regular to be worth the trip
 FOCUS_SPOTS = 3                      # far spots fetched in full and tried
 FAR_WAIT = 0.5                       # the far spots are waited for until this much of the budget is spent
-MAX_SNAPPED_SPOTS = 19               # spots that get the full snap treatment (near, 5 farther, the far spots)
-MID_SPOTS = 5                        # spots tried for the "farther" answer
+MAX_SNAPPED_SPOTS = 23               # spots that get the full snap treatment (near, 7 farther, the far spots)
+MID_SPOTS = 7                        # spots tried for the "farther" answer
 PLACE_CLASSES = GRID_CLASSES | {"cycleway"}     # streets that count when judging a placement
 STREET_CLASSES = GRID_CLASSES | {"cycleway"}    # what lattice text is routed on
 
@@ -598,7 +599,9 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     others = [w for w in _windows(g, stat_half, SEARCH_RADIUS_FT, WINDOW_STEP_FT,
                                   half_x - half_w - 300.0, half_y - half_h - 300.0)
               if w["dist_ft"] > 1.0]
-    need_reg = max(0.6, min(0.85, pin_w["regularity"] + 0.08))
+    # A spot need only be a little more regular than the pin's own streets
+    # to be worth a look: the fit decides, not the grid statistics.
+    need_reg = max(0.55, min(0.80, pin_w["regularity"] + 0.04))
     eligible = [w for w in others
                 if w["regularity"] >= need_reg and w["length_ft"] >= 0.35 * max(pin_w["length_ft"], 1.0)]
     eligible.sort(key=lambda w: (w["dist_ft"], -w["regularity"]))
@@ -976,11 +979,11 @@ def _attempt(ctx, w, progress, log, k):
     def scan_size(sz):
         wd = sz["width_ft"]
         if sz["kind"] == "aligned":
-            radius = 1.3 * max(sz["ux"], sz["uy"]) + 200.0
+            radius = 2.0 * max(sz["ux"], sz["uy"]) + 400.0
             grid = max(40.0, sz["unit_ft"] / 8.0)
         else:
-            # look up to a third of a mile around the spot for better streets
-            radius = max(0.30 * wd, 1600.0)
+            # look up to half a mile around the spot for better streets
+            radius = max(0.45 * wd, 2400.0)
             grid = max(120.0, wd / 14.0)
         cands = scan(sz["strokes"], tree, center, [wd], sz["rots"], radius, grid_ft=grid,
                      aspect=sz["aspect"])
@@ -989,7 +992,7 @@ def _attempt(ctx, w, progress, log, k):
             c["size"] = sz
         cands.sort(key=lambda c: c["score"])
         cands = dedupe_places(cands, min_sep_ft=0.15 * wd)
-        take = 2 if sz["kind"] == "aligned" else 1
+        take = 3 if sz["kind"] == "aligned" else 2
         sz["scanned"] = True
         for c in cands[:take]:
             picks.append(c)
@@ -1275,7 +1278,7 @@ def _snap_one(sn, cand, choice, loop, cap_ft, bucket_key="long"):
     dist_ft = path_len_ft(g, full) * 1.003
     ideal = [s["ideal"] for s in snapped]
     v = vis_match(route_xy(g, full), ideal, tol_ft=match_tolerance(cand["width_ft"]))
-    fits = dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else 1.02)
+    fits = dist_ft <= cap_ft * (ALIGNED_OVER_CAP if cand["size"]["kind"] == "aligned" else FREE_OVER_CAP)
     # What the map shows as the target: the letters as designed (a Z with
     # its diagonal) where the size keeps that form; the scored ideal is the
     # staircase the streets can carry.

@@ -27,7 +27,7 @@ def test_hello_10k_is_a_clean_loop():
     assert res["verdict"] == "great"
     assert res["score"]["iou"] > 0.8
     assert r["loop"] and r["coords"][0] == r["coords"][-1]
-    assert r["distance_mi"] <= pipeline.BUCKETS["10k"]["cap_mi"] * 1.02
+    assert r["distance_mi"] <= pipeline.BUCKETS["10k"]["cap_mi"] * pipeline.FREE_OVER_CAP
     assert res["grid"]["size_kind"] == "aligned"
     assert res["gpx"].startswith("<?xml") and "<trkpt" in res["gpx"]
     assert len(res["cues"]) > 5

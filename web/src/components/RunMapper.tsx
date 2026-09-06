@@ -713,15 +713,15 @@ export default function RunMapper() {
                 <PaceBand cues={shown.cues} units={units} total={shown.route.distance_mi} />
               </details>
               <p className="text-[11px] leading-relaxed text-[var(--ink-3)]">
-                Load the GPX into{" "}
+                Save the GPX and open it in{" "}
                 <a href="https://support.strava.com/en-us/articles/15402061-uploading-route-files" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
                   Strava
                 </a>
-                , Garmin, or a smartwatch app like{" "}
+                , Garmin Connect or a watch app like{" "}
                 <a href="http://www.workoutdoors.net/Routes.html" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
                   WorkOutDoors
-                </a>{" "}
-                and follow the line.
+                </a>
+                . Run the line; the map in your activity is the drawing.
               </p>
             </section>
           </div>

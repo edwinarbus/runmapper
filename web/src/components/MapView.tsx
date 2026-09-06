@@ -15,6 +15,7 @@ import {
   lineFromLngLat,
   pointFeature,
   routeBounds,
+  scaleRoute,
   setDecor,
 } from "@/lib/maplayers";
 import Icon from "./Icon";
@@ -44,6 +45,12 @@ const PHONE = "(max-width: 767px)";
 // the way ahead (padding the top pushes the map's centre down).
 const FLY_PITCH = 64;
 const FLY_ZOOM = 16.4;
+// From the flyover's low camera the line looked thin: the route is drawn this
+// many times as thick for the flight, and put back on landing.
+const FLY_THICK = 2;
+// The speed key cycles through these, a press at a time.
+const SPEEDS = [1, 2, 2.5, 3];
+const CAP = 26;   // the fader's cap, in px: see .scrub-cap
 const flyPadding = (m: maplibregl.Map) => ({ top: Math.round(m.getContainer().clientHeight * 0.44), bottom: 0, left: 0, right: 0 });
 
 /** The compass bearing from one point to the next, in degrees. */
@@ -110,6 +117,32 @@ export default function MapView(props: MapViewProps) {
   const [drawing, setDrawing] = useState(false);
   const [showIdeal, setShowIdeal] = useState(false);
   const startDrawRef = useRef<() => void>(() => undefined);
+  // The transport: the speed the run plays at, and handles into the running
+  // draw for the fader (hold it, move it). The cap and the lit groove are
+  // moved by hand each frame rather than through React, which need not
+  // render sixty times a second for them.
+  const speed = useRef(1);
+  const [speedShown, setSpeedShown] = useState(1);
+  const control = useRef<{ seek: (u: number) => void; hold: (on: boolean) => void } | null>(null);
+  const scrubEl = useRef<HTMLDivElement>(null);
+  const capEl = useRef<HTMLDivElement>(null);
+  const fillEl = useRef<HTMLDivElement>(null);
+  const paintScrub = (u: number) => {
+    if (capEl.current) capEl.current.style.left = `calc(${(u * 100).toFixed(2)}% - ${(u * CAP).toFixed(2)}px)`;
+    if (fillEl.current) fillEl.current.style.width = `${(u * 100).toFixed(2)}%`;
+    scrubEl.current?.setAttribute("aria-valuenow", String(Math.round(u * 100)));
+  };
+  const scrubAt = (e: { clientX: number }) => {
+    const el = scrubEl.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left - CAP / 2) / Math.max(1, r.width - CAP)));
+  };
+  const nextSpeed = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed.current) + 1) % SPEEDS.length];
+    speed.current = next;
+    setSpeedShown(next);
+  };
   useEffect(() => {
     latest.current = props;
   });
@@ -145,6 +178,7 @@ export default function MapView(props: MapViewProps) {
   const landFlight = (m: maplibregl.Map) => {
     if (!flying.current) return;
     flying.current = false;
+    scaleRoute(m, 1);
     if (m.getTerrain()) m.setTerrain(null);
     m.setCenterClampedToGround(true);
     if (m.getPitch() !== 0 || m.getBearing() !== 0) m.jumpTo({ pitch: 0, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
@@ -161,6 +195,7 @@ export default function MapView(props: MapViewProps) {
 
   const stopDraw = () => {
     cancelAnim();
+    control.current = null;
     setDrawing(false);
   };
 
@@ -220,41 +255,71 @@ export default function MapView(props: MapViewProps) {
     // ground under the tip is asked for each frame and followed gradually.
     let elev = 0;
     const groundAt = (p: LngLat) => (m.getTerrain() ? m.queryTerrainElevation(p) ?? elev : 0);
-    let t0 = 0;
+    // Time along the run, in ms of the run's own clock: it advances at the
+    // speed key's rate, stands still while the fader is held, and is set
+    // outright by a seek.
+    let elapsed = 0;
+    let held = false;
     let last = 0;
     let k = 1;
-    const frame = (now: number) => {
-      if (!anim.current || anim.current.token !== token) return;
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      const u = Math.min(1, (now - t0) / duration);
-      const target = (fly ? u : easeInOut(u)) * total;
+    // Where along the course a distance falls: the segment, and the point.
+    const indexAt = (target: number) => {
+      if (target < cum[k - 1]) k = 1;
       while (k < cum.length - 1 && cum[k] < target) k++;
       const a = pts[k - 1];
       const b = pts[k];
       const seg = cum[k] - cum[k - 1];
       const f = seg > 0 ? Math.min(1, Math.max(0, (target - cum[k - 1]) / seg)) : 1;
       const tip: LngLat = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+      return tip;
+    };
+    const distanceAt = (u: number) => (fly ? u : easeInOut(u)) * total;
+    control.current = {
+      hold: (on) => {
+        held = on;
+      },
+      seek: (u) => {
+        elapsed = u * duration;
+        if (fly) {
+          // The camera goes straight to the new spot, looking the way the run goes there.
+          const tip = indexAt(distanceAt(u));
+          bearing = headingAt(k);
+          elev = groundAt(tip);
+        }
+      },
+    };
+    paintScrub(0);
+    const frame = (now: number) => {
+      if (!anim.current || anim.current.token !== token) return;
+      const dt = Math.min(0.1, (now - last) / 1000);   // for the camera's smoothing: a stalled frame is not a lurch
+      if (!held) elapsed = Math.min(duration, elapsed + (now - last) * speed.current);   // the run keeps real time
+      last = now;
+      const u = Math.min(1, elapsed / duration);
+      const tip = indexAt(distanceAt(u));
       const src = m.getSource("route") as maplibregl.GeoJSONSource | undefined;
       const head = m.getSource("head") as maplibregl.GeoJSONSource | undefined;
       if (!src || !head) {
         anim.current = null;
+        control.current = null;
         setDrawing(false);
         return;
       }
       src.setData(lineFromLngLat([...pts.slice(0, k), tip]));
       head.setData(pointFeature(tip));
+      paintScrub(u);
       if (fly) {
-        bearing += turnTowards(bearing, headingAt(k)) * Math.min(1, dt * 2.2);
-        elev += (groundAt(tip) - elev) * Math.min(1, dt * 3);
+        // corners are swept, at a rate that keeps up with the speed
+        bearing += turnTowards(bearing, headingAt(k)) * Math.min(1, dt * 2.2 * speed.current);
+        elev += (groundAt(tip) - elev) * Math.min(1, dt * 3 * speed.current);
         m.jumpTo({ center: tip, elevation: elev, bearing, pitch: FLY_PITCH, zoom: FLY_ZOOM, padding: flyPadding(m) });
       }
-      if (u < 1) {
+      if (u < 1 || held) {
         anim.current = { raf: requestAnimationFrame(frame), token };
       } else {
         src.setData(lineFromLngLat(pts));
         head.setData(EMPTY);
         anim.current = null;
+        control.current = null;
         setDecor(m, true);
         setDrawing(false);
         if (fly) {
@@ -270,8 +335,7 @@ export default function MapView(props: MapViewProps) {
     };
     const begin = () => {
       if (!anim.current || anim.current.token !== token) return;
-      t0 = performance.now();
-      last = t0;
+      last = performance.now();
       anim.current = { raf: requestAnimationFrame(frame), token };
     };
     // The draw is on record from here, so a stop cancels whatever stage it is at.
@@ -284,6 +348,7 @@ export default function MapView(props: MapViewProps) {
     // a fair moment to get it), the camera swings down onto the start; the
     // run sets off the moment it lands, and not before.
     flying.current = true;
+    scaleRoute(m, FLY_THICK);
     m.setCenterClampedToGround(false);
     if (m.getSource("terrain") && !m.getTerrain()) m.setTerrain({ source: "terrain", exaggeration: 1.2 });
     let settled = false;
@@ -314,6 +379,8 @@ export default function MapView(props: MapViewProps) {
       maxPitch: 72,   // the flyover looks along the course, well past the default 60
       attributionControl: false,
     });
+    // a handle for the browser tests, in development only
+    if (process.env.NODE_ENV === "development") (window as unknown as { __map?: maplibregl.Map }).__map = m;
     // Zoom keys are drawn by this component, in the same style as the others.
     m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     // MapLibre opens the attribution by itself whenever a source with one
@@ -510,6 +577,48 @@ export default function MapView(props: MapViewProps) {
           <Icon name="minus" />
         </button>
       </div>
+      {/* The transport, while a replay runs: a speed key, and a fader whose cap
+          follows the run and can be dragged to any point of it. Holding the cap
+          holds the run; letting go sets it off again from there. */}
+      {hasRoute && drawing && (
+        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem + 4px + env(safe-area-inset-bottom))" }}>
+          <button type="button" className="map-btn map-speed" onClick={nextSpeed} aria-label={`Speed: ${speedShown} times. Press for the next.`} title="Speed">
+            {speedShown}×
+          </button>
+          <div
+            ref={scrubEl}
+            className="scrub"
+            role="slider"
+            aria-label="Where along the run"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={0}
+            tabIndex={0}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              control.current?.hold(true);
+              control.current?.seek(scrubAt(e));
+            }}
+            onPointerMove={(e) => {
+              if (e.buttons) control.current?.seek(scrubAt(e));
+            }}
+            onPointerUp={() => control.current?.hold(false)}
+            onPointerCancel={() => control.current?.hold(false)}
+            onKeyDown={(e) => {
+              const now = Number(scrubEl.current?.getAttribute("aria-valuenow") ?? 0) / 100;
+              if (e.key === "ArrowRight" || e.key === "ArrowUp") control.current?.seek(Math.min(1, now + 0.02));
+              else if (e.key === "ArrowLeft" || e.key === "ArrowDown") control.current?.seek(Math.max(0, now - 0.02));
+              else return;
+              e.preventDefault();
+            }}
+          >
+            <div className="scrub-groove" aria-hidden="true">
+              <div ref={fillEl} className="scrub-fill" />
+            </div>
+            <div ref={capEl} className="scrub-cap" aria-hidden="true" />
+          </div>
+        </div>
+      )}
       {hasRoute && (
         <div className="absolute right-3 z-10" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-round" onClick={() => startDraw(basemap === "satellite")} disabled={drawing} aria-label={basemap === "satellite" ? "Fly the route" : "Replay the route drawing"} title={basemap === "satellite" ? "Fly the route: first person, over the terrain" : "Replay"}>

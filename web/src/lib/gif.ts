@@ -12,7 +12,7 @@ import maplibregl from "maplibre-gl";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import { metres } from "./geo";
 import { EMPTY, type LngLat, addRouteLayers, easeInOut, lineFeature, lineFromLngLat, pointFeature, routeBounds, scaleRoute, setDecor, setRouteOpacity } from "./maplayers";
-import { WORDMARK_D, WORDMARK_DOT, WORDMARK_H, WORDMARK_STROKE, WORDMARK_W } from "./wordmark";
+import { WORDMARK_DOT, WORDMARK_H, WORDMARK_OUTLINE_D, WORDMARK_W } from "./wordmark";
 
 export interface GifJob {
   style: string | maplibregl.StyleSpecification;
@@ -70,11 +70,8 @@ function drawSite(ctx: CanvasRenderingContext2D, right: number, baseline: number
   ctx.save();
   ctx.translate(right - WORDMARK_W * k, baseline - WORDMARK_H * k);
   ctx.scale(k, k);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = WORDMARK_STROKE;
-  ctx.strokeStyle = "#fc5200";
-  ctx.stroke(new Path2D(WORDMARK_D));
+  ctx.fillStyle = "#fc5200";
+  ctx.fill(new Path2D(WORDMARK_OUTLINE_D), "evenodd");
   ctx.beginPath();
   ctx.arc(WORDMARK_DOT.x, WORDMARK_DOT.y, WORDMARK_DOT.r, 0, Math.PI * 2);
   ctx.fillStyle = "#12b886";

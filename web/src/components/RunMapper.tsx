@@ -631,7 +631,6 @@ export default function RunMapper() {
         ref={aside}
         className={`tower panel-scroll overflow-x-hidden overflow-y-auto border-b border-[var(--line)] md:max-h-none md:border-r md:border-b-0 ${showResult ? "max-h-[56dvh]" : "max-h-[64dvh]"}`}
       >
-        <div className="checker" aria-hidden="true" />
         <header className="flex items-center justify-between gap-3 px-6 pt-3 pb-2.5">
           {/* The wordmark, and nothing else: drawmy.run as a run, one orange route through the letters, the green start dot at the foot of RUN's R for the period. */}
           <h1 className="logo">
@@ -935,6 +934,8 @@ export default function RunMapper() {
           </div>
         )}
 
+        {/* The finish line: a chequered strip along the foot of the panel, held at its bottom edge as it scrolls. */}
+        <div className="checker" aria-hidden="true" />
       </aside>
 
       <main className="map-bezel relative min-h-[36dvh] bg-[var(--bg)]">

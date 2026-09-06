@@ -66,6 +66,28 @@ if (typeof window !== "undefined") {
   };
   window.addEventListener("pointerdown", first, true);
   window.addEventListener("keydown", first, true);
+  // A context opened ahead of any touch starts suspended, and a phone only
+  // lets it go on the events it counts as a touch: the finger lifting, the
+  // click, a key. (A finger landing is not one of them, so the sound asked
+  // for on the way down could not open it by itself, and a phone stayed
+  // silent.) So every one of those events wakes it, until it is running.
+  const wake = () => {
+    if (!on) return;
+    const c = start();
+    if (!c) return;
+    if (c.state === "running") {
+      window.removeEventListener("touchend", wake, true);
+      window.removeEventListener("pointerup", wake, true);
+      window.removeEventListener("click", wake, true);
+      window.removeEventListener("keydown", wake, true);
+      return;
+    }
+    c.resume().catch(() => undefined);
+  };
+  window.addEventListener("touchend", wake, true);
+  window.addEventListener("pointerup", wake, true);
+  window.addEventListener("click", wake, true);
+  window.addEventListener("keydown", wake, true);
   // Opening the context takes the browser a moment, long enough to hold up
   // whatever the first tap was meant to do, so it is opened ahead of time,
   // once the page has settled, and simply waits, silent, for the first sound.
@@ -147,8 +169,14 @@ function fire(s: Shape, at: number) {
 /** Make one of the deck's noises, if the deck is making them. */
 export function play(voice: keyof typeof VOICES) {
   if (!on || !touched) return;
-  const c = start();
+  let c = start();
   if (!c) return;
+  if (c.state === "closed") {
+    // a context the browser has shut (a phone reclaiming it): a fresh one
+    ctx = null;
+    c = start();
+    if (!c) return;
+  }
   if (c.state !== "running") c.resume().catch(() => undefined);   // also "interrupted", on an iPhone after a call
   fire(VOICES[voice], c.currentTime + 0.001);
 }

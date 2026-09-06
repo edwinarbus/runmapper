@@ -46,6 +46,8 @@
   --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.22), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
   --orange-skirt-3: 0 1px 0 #e65a14, 0 2px 0 #d65210, 0 3px 0 #c64a0c, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
+  --orange-skirt-7: 0 1px 0 #e85c15, 0 2px 0 #e35912, 0 3px 0 #dd5510, 0 4px 0 #d6510e, 0 5px 0 #cf4d0c, 0 6px 0 #c7490b, 0 7px 0 #bf450a, 0 8px 1px rgba(0, 0, 0, 0.6), 0 11px 14px rgba(0, 0, 0, 0.45), 0 24px 40px -12px rgba(0, 0, 0, 0.5), 0 10px 34px rgba(252, 82, 0, 0.12);
+  --skirt-7: 0 1px 0 #3d3d46, 0 2px 0 #3a3a43, 0 3px 0 #36363f, 0 4px 0 #32323b, 0 5px 0 #2e2e36, 0 6px 0 #2a2a32, 0 7px 0 #26262d, 0 8px 1px rgba(0, 0, 0, 0.8), 0 11px 14px rgba(0, 0, 0, 0.45), 0 24px 40px -12px rgba(0, 0, 0, 0.5);
   --orange-skirt-4: 0 1px 0 #e85c15, 0 2px 0 #db5511, 0 3px 0 #cd4d0d, 0 4px 0 #bf460a, 0 5px 1px rgba(0, 0, 0, 0.55), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(252, 82, 0, 0.22);
   /* A legend engraved in a key's face, as on the start key: a line of shade
      along the top of each letter, where the cut's upper wall shadows it, and
@@ -109,9 +111,13 @@ body {
   background-image: var(--grain-dark), radial-gradient(140% 50% at 0% 0%, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #18181c, var(--panel) 180px);
 }
 .checker {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   height: 6px;
+  margin-top: auto;
   background: repeating-conic-gradient(var(--ink) 0 25%, var(--bg) 0 50%) 0 0 / 6px 6px;
-  box-shadow: 0 1px 0 #000, 0 2px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: 0 -1px 0 #000, 0 -2px 0 rgba(255, 255, 255, 0.07);
 }
 /* A groove cut between sections: a dark line, light catching its lower edge. */
 .rule {
@@ -206,11 +212,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 40px;
-  padding: 0 24px;               /* room past the screws at each end */
-  border-radius: 7px;
-  background: var(--grain-key), linear-gradient(180deg, #363640 0%, #2f2f38 55%, #2b2b33 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.3), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.45), var(--skirt-4);
+  height: 32px;                  /* a low plate: the switch's own height and four pixels each side */
+  padding: 0 20px;               /* room past the screws at each end */
+  border-radius: 6px;
+  background: var(--grain-key), linear-gradient(180deg, #202026 0%, #18181d 60%, #141419 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.5), 0 1px 0 #2a2a31, 0 2px 0 #24242b, 0 3px 0 #1e1e24, 0 4px 1px rgba(0, 0, 0, 0.8), 0 6px 8px rgba(0, 0, 0, 0.45);
 }
 /* the screws, a small slotted head each end, turned to different angles */
 .plate::before,
@@ -218,18 +224,18 @@ body {
   content: "";
   position: absolute;
   top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-top: -3.5px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
   border-radius: 50%;
   background: linear-gradient(71deg, rgba(0, 0, 0, 0) 42%, #26262b 42%, #26262b 58%, rgba(0, 0, 0, 0) 58%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
   box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.7), 0 1px 1px rgba(0, 0, 0, 0.6);
 }
 .plate::before {
-  left: 6px;
+  left: 5px;
 }
 .plate::after {
-  right: 6px;
+  right: 5px;
   background: linear-gradient(-19deg, rgba(0, 0, 0, 0) 42%, #26262b 42%, #26262b 58%, rgba(0, 0, 0, 0) 58%), radial-gradient(circle at 35% 30%, #dcdce1 0%, #9a9aa3 45%, #4e4e57 100%);
 }
 .uswitch {
@@ -425,8 +431,8 @@ body {
   background: var(--grain-key), linear-gradient(180deg, #1c1c22 0%, #26262e 45%, #2a2a33 100%);
 }
 .flap-bot {
-  box-shadow: inset 0 4px 4px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 0, 0, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09),
-    0 1px 0 #1f1f25, 0 2px 0 #0e0e11, 0 3px 0 #1b1b20, 0 4px 0 #0a0a0c;
+  box-shadow: inset 0 4px 4px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 0, 0, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 0 #3a3a43, 0 2px 0 #35353e, 0 3px 0 #303039, 0 4px 0 #2b2b33, 0 5px 0 #26262d, 0 6px 1px rgba(0, 0, 0, 0.8), 0 9px 11px rgba(0, 0, 0, 0.45);
 }
 .flap-face-back {
   box-shadow: inset 0 4px 4px -1px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 0, 0, 0.7), inset 1px 0 0 rgba(255, 255, 255, 0.04), inset -1px 0 0 rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09);
@@ -588,8 +594,8 @@ body {
   animation: rise-in 0.25s ease-out backwards;
 }
 
-/* Distance keys: raised, and the chosen one raised in white, the way the
-   selectors' key is; a press sinks it into its socket for the moment. */
+/* Distance keys: raised, and the chosen one pressed down into its socket,
+   in white: a key that stays in, the way a latching key does. */
 .tile {
   position: relative;
   height: 52px;
@@ -615,25 +621,25 @@ body {
   cursor: not-allowed;
 }
 .tile:active:not(:disabled),
-.tile[data-pressed]:not(:disabled) {
+.tile[data-pressed]:not(:disabled),
+.tile[aria-pressed="true"] {
   transform: translateY(5px);
   background: var(--key-down);
   box-shadow: var(--sunk);
+}
+.tile:active:not(:disabled),
+.tile[data-pressed]:not(:disabled) {
   transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
-/* The chosen key stands in white: the selectors' key treatment, so orange
-   is left to the one real action. */
+/* The chosen key stays down in its socket, in white, so orange is left to
+   the one real action: the face darker towards the top where the socket's
+   wall shadows it, a black rim where the deck ends, and no wall to see. */
 .tile[aria-pressed="true"]:not(:disabled),
 .tile[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--white-key);
+  background: var(--white-down);
   color: var(--paper-ink);
   text-shadow: var(--cut-light);
-  box-shadow: var(--white-hi), var(--white-skirt-5);
-}
-.tile[aria-pressed="true"]:active:not(:disabled),
-.tile[aria-pressed="true"][data-pressed]:not(:disabled) {
-  background: var(--white-down);
   box-shadow: var(--sunk-white);
 }
 .tile .big-label {
@@ -691,7 +697,7 @@ body {
   justify-content: center;
   height: 26px;                /* 32px with the slot: a selector, smaller than a key */
   border-radius: 4px;
-  padding: 0 0.45rem;
+  padding: 3px 0.45rem 0;      /* the sans face's capitals sit high in their line; this puts them on centre */
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -882,22 +888,20 @@ body {
 }
 .btn-sm {
   height: 36px;
-  padding: 0 0.75rem;
+  padding: 0.1em 0.75rem 0;    /* the same 0.1em on top as .btn: the capitals on centre */
   font-size: 1rem;
 }
 .btn-block {
   width: 100%;
 }
 
-/* The start key: big, orange, and it goes down when you hit it. It is a
-   real render (three.js; web/tools/toggle3d/key3d.html): a cap, rounded in
-   plan with a fillet round its top edge and a face that pillows up a touch,
-   standing on its wall on the deck, lit in the same studio as the switches
-   and throwing its own shadow; cut as a border image, so it stretches to
-   any width with its corners kept whole. Three looks: up; down, the cap on
-   its seat with two pixels of wall left; and dark, not yet ready. The
-   legend is engraved: paint in a recess, a line of shade along the top of
-   each letter and a thread of light along the bottom. */
+/* The start key: big, orange, and it goes down when you hit it. It is built
+   as every other key on the deck is (the same orange face under the same
+   light, the same fillet, a wall of the same steps, seven of them for its
+   height) so it is seen from the same angle as the rest. Three looks: up;
+   down, in its socket; and dark, not yet ready. The legend is engraved: a
+   line of shade along the top of each letter and a thread of light along
+   the bottom. */
 .go {
   position: relative;
   z-index: 0;
@@ -905,75 +909,43 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 75px;                  /* the face, 68, on its wall, 7 */
-  padding: 0 0 7px;
+  height: 68px;
+  padding: 0.1em 0 0;
   border: 0;
-  background: none;
-  color: #f6e8dc;
+  border-radius: 11px;
+  background: var(--orange-key);
+  color: #fff3ea;
   font-size: 2.1rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   line-height: 1;
-  text-shadow: 0 -1px 0 rgba(70, 20, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.42), 0 2px 2px rgba(0, 0, 0, 0.08);
-  /* The shadow the key throws on the deck is drawn here rather than baked into
-     the render: baked, its edge was nearly hard and it read as a dark rectangle
-     lying beside the key. It falls from the key's own outline, softening as it
-     goes, with a little of its orange thrown back on the deck. */
-  border-radius: 11px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 5px rgba(0, 0, 0, 0.5), 0 9px 16px rgba(0, 0, 0, 0.45), 0 22px 38px -12px rgba(0, 0, 0, 0.55), 0 10px 34px rgba(252, 82, 0, 0.12);
-  transition: box-shadow 0.12s ease-out;
+  text-shadow: var(--cut-orange), 0 2px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--orange-hi), var(--orange-skirt-7);
+  transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
   cursor: pointer;
-}
-/* The picture of the key, behind the legend: the render, whose frame is only
-   as wide as the key plus a little air (6 above and either side, 10 below for
-   the pressed cap), sliced 26px in from the top and sides and 37 from the
-   bottom so the corners, the fillet and the wall's ends stay whole while the
-   middle stretches to any width. */
-.go::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -6px -6px -10px;
-  border: 0 solid transparent;
-  border-image-source: url("/key-up.png");
-  border-image-source: image-set(url("/key-up.webp") type("image/webp"), url("/key-up.png") type("image/png"));
-  border-image-slice: 78 78 111 78 fill;
-  border-image-width: 26px 26px 37px 26px;
-  border-image-repeat: stretch;
-  pointer-events: none;
 }
 .go-cap {
   display: inline-flex;
   align-items: center;
   gap: 0.9rem;
-  padding-top: 0.1em;
-  transition: transform 0.24s cubic-bezier(0.2, 1.5, 0.4, 1);   /* back up: thrown by its spring */
 }
 @media (hover: hover) {
   .go:hover:not(:disabled) {
-    filter: brightness(1.06);
+    background: var(--orange-key-hover);
   }
 }
-/* Down: the cap on its seat, the legend travelling with it, the shadow tight.
-   Hit, the key is held down (data-held="down") for a deliberate moment after
-   the finger has gone, then let back up, and it takes no second press until
-   the stopwatch has taken its place. */
+/* Down: the key in its socket, the legend with it. Hit, the key is held
+   down (data-held="down") for a deliberate moment after the finger has
+   gone, then let back up, and it takes no second press until the stopwatch
+   has taken its place. */
 .go:active:not(:disabled),
 .go[data-pressed]:not(:disabled),
 .go[data-held="down"] {
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.45), 0 5px 10px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(252, 82, 0, 0.08);
-}
-.go:active:not(:disabled)::before,
-.go[data-pressed]:not(:disabled)::before,
-.go[data-held="down"]::before {
-  border-image-source: url("/key-down.png");
-  border-image-source: image-set(url("/key-down.webp") type("image/webp"), url("/key-down.png") type("image/png"));
-}
-.go:active:not(:disabled) .go-cap,
-.go[data-pressed]:not(:disabled) .go-cap,
-.go[data-held="down"] .go-cap {
-  transform: translateY(5px);
-  transition-duration: 0s;       /* down: with the key, which swaps to its pressed picture at once */
+  transform: translateY(6px);
+  background: var(--orange-down);
+  box-shadow: var(--sunk-orange);
+  transition-duration: 0.05s;
+  transition-timing-function: ease-out;
 }
 .go[data-held] {
   pointer-events: none;
@@ -992,30 +964,15 @@ body {
   animation: go-away 0.24s ease-out forwards;
 }
 @keyframes go-away {
-  to { opacity: 0; transform: translateY(3px); }
+  to { opacity: 0; }
 }
 /* Not yet: the same key in dark plastic, its legend cut but unpainted. */
-.go:disabled::before {
-  border-image-source: url("/key-dark.png");
-  border-image-source: image-set(url("/key-dark.webp") type("image/webp"), url("/key-dark.png") type("image/png"));
-}
 .go:disabled {
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 3px 5px rgba(0, 0, 0, 0.5), 0 9px 16px rgba(0, 0, 0, 0.45), 0 22px 38px -12px rgba(0, 0, 0, 0.55);
+  background: var(--key);
   color: #5b5a64;
-  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.09);
+  text-shadow: var(--cut-dark);
+  box-shadow: var(--key-hi), var(--skirt-7);
   cursor: not-allowed;
-}
-/* the chevrons, engraved like the letters */
-.go svg {
-  position: relative;
-  top: -0.05em;
-  width: 30px;
-  height: 22px;
-  filter: drop-shadow(0 -1px 0 rgba(70, 20, 0, 0.55)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.4));
-}
-.go:disabled svg {
-  opacity: 0.6;
-  filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.09));
 }
 
 /* The stopwatch that runs while the engine searches, mounted in a tray cut

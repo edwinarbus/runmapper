@@ -118,12 +118,15 @@ body {
   padding: 14px 24px 12px;
   text-align: center;
   font-size: 11px;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--ink-3);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  /* debossed like the step headings: the cut's upper wall a line of shade
+     along the top of each letter, its lower lip a thread of light below */
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .foot a {
-  color: var(--ink-2);
+  color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

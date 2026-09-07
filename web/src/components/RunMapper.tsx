@@ -108,6 +108,13 @@ export default function RunMapper() {
     const t = window.setTimeout(() => setOff(going), going ? 1900 : 0);
     return () => window.clearTimeout(t);
   }, [startedAt, status]);
+  // The call is heard as well as seen: the starter's pips on "on your marks"
+  // and "set", and the gun on "go", on the stopwatch's own clock.
+  useEffect(() => {
+    if (!startedAt || status !== "planning") return;
+    const ts = [window.setTimeout(() => play("marks"), 0), window.setTimeout(() => play("set"), 1000), window.setTimeout(() => play("gun"), 1900)];
+    return () => ts.forEach((t) => window.clearTimeout(t));
+  }, [startedAt, status]);
   const [held, setHeld] = useState<"" | "down" | "away">("");   // the start key after a hit: held down, then fading away under the stopwatch
   const hitAt = useRef(0);                                     // when the start key was last pressed
   const holdTimers = useRef<number[]>([]);

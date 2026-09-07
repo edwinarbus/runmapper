@@ -22,6 +22,17 @@ type Shape = {
   then?: Shape;
   /** a second voice sounding with this one: a ring under a click */
   ring?: Shape;
+  /** a held tone with it: a pip or a blast, flat while it holds, then let go */
+  tone?: Tone;
+};
+type Tone = {
+  freq: number;
+  /** the tone slides to this pitch over its hold, for a blast that rises */
+  to?: number;
+  gain: number;
+  hold: number;
+  release: number;
+  type?: OscillatorType;
 };
 
 const VOICES: Record<string, Shape> = {
@@ -44,6 +55,20 @@ const VOICES: Record<string, Shape> = {
   flap: { freq: 5800, q: 1.3, gain: 0.22, decay: 0.013, ring: { freq: 7900, q: 12, gain: 0.12, decay: 0.045 } },
   // a bib pulled out of the pile, or thrown aside
   paper: { freq: 900, q: 0.7, gain: 0.11, decay: 0.14, to: 2800 },
+  // The starter's call, as a track meet's electronic starter gives it: a low
+  // pip for "on your marks", a higher pip for "set", and for "go" the long
+  // high blast, rising a touch, with the bang of the gun under it. Each pip
+  // has the crack of the speaker at its front.
+  marks: { freq: 1800, q: 1.2, gain: 0.05, decay: 0.012, tone: { freq: 523, gain: 0.15, hold: 0.11, release: 0.05, type: "square" } },
+  set: { freq: 2200, q: 1.2, gain: 0.05, decay: 0.012, tone: { freq: 659, gain: 0.16, hold: 0.11, release: 0.05, type: "square" } },
+  gun: {
+    freq: 320,
+    q: 0.7,
+    gain: 0.3,
+    decay: 0.13,
+    body: { freq: 95, gain: 0.26, decay: 0.12 },
+    tone: { freq: 880, to: 932, gain: 0.19, hold: 0.5, release: 0.14, type: "square" },
+  },
   // a sliding selector (Words / Draw / Image, the style, the map): the thumb
   // brushing along its slot, lower and softer than a key, and a light
   // click as it seats at the far end
@@ -247,6 +272,26 @@ function fire(s: Shape, at: number) {
     o.connect(bg).connect(master);
     o.start(at);
     o.stop(at + s.body.decay + 0.02);
+  }
+  if (s.tone) {
+    const t = s.tone;
+    const o = ctx.createOscillator();
+    o.type = t.type ?? "square";
+    o.frequency.setValueAtTime(t.freq, at);
+    if (t.to) o.frequency.linearRampToValueAtTime(t.to, at + t.hold);
+    // a square's edge taken off, so it is a beeper's tone and not a buzz
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = t.freq * 3.2;
+    lp.Q.value = 0.7;
+    const tg = ctx.createGain();
+    tg.gain.setValueAtTime(0, at);
+    tg.gain.linearRampToValueAtTime(t.gain, at + 0.008);
+    tg.gain.setValueAtTime(t.gain, at + t.hold);
+    tg.gain.exponentialRampToValueAtTime(0.0001, at + t.hold + t.release);
+    o.connect(lp).connect(tg).connect(master);
+    o.start(at);
+    o.stop(at + t.hold + t.release + 0.02);
   }
   if (s.ring) fire(s.ring, at);
   if (s.then) fire(s.then, at + GAP);

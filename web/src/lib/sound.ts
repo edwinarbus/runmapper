@@ -27,9 +27,11 @@ type Shape = {
 };
 type Tone = {
   freq: number;
-  /** the tone slides to this pitch over its hold, for a blast that rises */
+  /** the tone slides to this pitch over its hold */
   to?: number;
   gain: number;
+  /** how softly it starts, in seconds: a bell is struck, a pip is breathed */
+  attack?: number;
   hold: number;
   release: number;
   type?: OscillatorType;
@@ -55,19 +57,34 @@ const VOICES: Record<string, Shape> = {
   flap: { freq: 5800, q: 1.3, gain: 0.22, decay: 0.013, ring: { freq: 7900, q: 12, gain: 0.12, decay: 0.045 } },
   // a bib pulled out of the pile, or thrown aside
   paper: { freq: 900, q: 0.7, gain: 0.11, decay: 0.14, to: 2800 },
-  // The starter's call, as a track meet's electronic starter gives it: a low
-  // pip for "on your marks", a higher pip for "set", and for "go" the long
-  // high blast, rising a touch, with the bang of the gun under it. Each pip
-  // has the crack of the speaker at its front.
-  marks: { freq: 1800, q: 1.2, gain: 0.05, decay: 0.012, tone: { freq: 523, gain: 0.15, hold: 0.11, release: 0.05, type: "square" } },
-  set: { freq: 2200, q: 1.2, gain: 0.05, decay: 0.012, tone: { freq: 659, gain: 0.16, hold: 0.11, release: 0.05, type: "square" } },
+  // The starter's call: two soft wood-block tocks for "on your marks" and
+  // "set", each with a low, warm note breathed under it (the second a
+  // little higher, the tension up a notch), and for "go" the crack of the
+  // starting pistol with a bright bell struck over it.
+  marks: {
+    freq: 1100,
+    q: 2.2,
+    gain: 0.16,
+    decay: 0.035,
+    body: { freq: 250, gain: 0.1, decay: 0.06 },
+    tone: { freq: 392, gain: 0.08, attack: 0.02, hold: 0.07, release: 0.16, type: "sine" },
+  },
+  set: {
+    freq: 1400,
+    q: 2.2,
+    gain: 0.17,
+    decay: 0.035,
+    body: { freq: 300, gain: 0.1, decay: 0.06 },
+    tone: { freq: 523, gain: 0.09, attack: 0.02, hold: 0.07, release: 0.16, type: "sine" },
+  },
   gun: {
-    freq: 320,
+    freq: 340,
     q: 0.7,
-    gain: 0.3,
-    decay: 0.13,
-    body: { freq: 95, gain: 0.26, decay: 0.12 },
-    tone: { freq: 880, to: 932, gain: 0.19, hold: 0.5, release: 0.14, type: "square" },
+    gain: 0.34,
+    decay: 0.16,
+    body: { freq: 90, gain: 0.3, decay: 0.14 },
+    tone: { freq: 784, gain: 0.13, attack: 0.004, hold: 0.04, release: 0.42, type: "triangle" },
+    ring: { freq: 6000, q: 1, gain: 0.05, decay: 0.03, tone: { freq: 1568, gain: 0.04, attack: 0.004, hold: 0.03, release: 0.25, type: "sine" } },
   },
   // a sliding selector (Words / Draw / Image, the style, the map): the thumb
   // brushing along its slot, lower and softer than a key, and a light
@@ -286,7 +303,7 @@ function fire(s: Shape, at: number) {
     lp.Q.value = 0.7;
     const tg = ctx.createGain();
     tg.gain.setValueAtTime(0, at);
-    tg.gain.linearRampToValueAtTime(t.gain, at + 0.008);
+    tg.gain.linearRampToValueAtTime(t.gain, at + (t.attack ?? 0.008));
     tg.gain.setValueAtTime(t.gain, at + t.hold);
     tg.gain.exponentialRampToValueAtTime(0.0001, at + t.hold + t.release);
     o.connect(lp).connect(tg).connect(master);

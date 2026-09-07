@@ -54,6 +54,7 @@ let master: GainNode | null = null;
 let noise: AudioBuffer | null = null;
 let on = true;
 let touched = false;            // no audio at all until the visitor has touched something
+let stale = false;              // the context has been through an interruption or a spell in the background: it is replaced at the next chance
 
 if (typeof window !== "undefined") {
   try {
@@ -82,7 +83,12 @@ if (typeof window !== "undefined") {
   // through it, which is what unlocks it for good.
   const wake = () => {
     if (!on) return;
-    const c = start();
+    // A context that has been interrupted (the phone locked, a call, another
+    // app playing, Safari sent to the back) is not to be trusted after it
+    // comes back: on an iPhone it often says it is running and plays
+    // nothing. It is closed and a fresh one opened, here, inside the touch,
+    // where a phone lets a context start.
+    const c = stale ? fresh() : start();
     if (!c || c.state === "running") return;
     c.resume().catch(() => undefined);
     unlock(c);
@@ -91,6 +97,19 @@ if (typeof window !== "undefined") {
   window.addEventListener("pointerup", wake, true);
   window.addEventListener("click", wake, true);
   window.addEventListener("keydown", wake, true);
+  // Coming back from another app or a locked screen: the context is marked
+  // for replacement, and one resume is tried straight away for the browsers
+  // that allow it.
+  const back = () => {
+    stale = true;
+    if (on && ctx && ctx.state !== "running") ctx.resume().catch(() => undefined);
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") back();
+  });
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) back();
+  });
   // Opening the context takes the browser a moment, long enough to hold up
   // whatever the first tap was meant to do, so it is opened ahead of time,
   // once the page has settled, and simply waits, silent, for the first sound.
@@ -143,6 +162,23 @@ function unlock(c: AudioContext) {
   }
 }
 
+/** The context closed and a new one opened in its place. */
+function fresh(): AudioContext | null {
+  stale = false;
+  const old = ctx;
+  ctx = null;
+  master = null;
+  noise = null;
+  if (old) {
+    try {
+      old.close().catch(() => undefined);
+    } catch {
+      /* already gone */
+    }
+  }
+  return start();
+}
+
 function start(): AudioContext | null {
   if (ctx) return ctx;
   if (typeof window === "undefined") return null;
@@ -151,6 +187,11 @@ function start(): AudioContext | null {
   try {
     session("playback");
     ctx = new Ctor();
+    // an iPhone interrupts a context for a call or another app's sound and
+    // does not always bring it back whole: once interrupted, it is replaced
+    ctx.addEventListener("statechange", () => {
+      if (ctx && (ctx.state as string) === "interrupted") stale = true;
+    });
     master = ctx.createGain();
     master.gain.value = 0.75;
     master.connect(ctx.destination);
@@ -202,7 +243,7 @@ function fire(s: Shape, at: number) {
 /** Make one of the deck's noises, if the deck is making them. */
 export function play(voice: keyof typeof VOICES) {
   if (!on || !touched) return;
-  let c = start();
+  let c = stale ? fresh() : start();
   if (!c) return;
   if (c.state === "closed") {
     // a context the browser has shut (a phone reclaiming it): a fresh one

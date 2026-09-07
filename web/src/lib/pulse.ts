@@ -26,14 +26,14 @@ const LAYER = "transportation";
 const CLASSES = ["minor", "service", "primary", "secondary", "tertiary", "trunk", "path", "track", "residential", "unclassified", "living_street", "pedestrian"];
 const SNAP = 2;          // m: points this close are one node
 const NEAR = 400;        // m: the pin must be this close to a street for the streets to light
-const SPEED = 600;       // m/s: how fast a line runs, once under way
+const SPEED = 820;       // m/s: how fast a line runs, once under way
 const WAVE = 3.2;        // s: between waves leaving the pin
-const BRIGHT = 260;      // m: the front of a line, at full strength
-const TAIL = 1100;       // m: over which it dies away behind that
+const BRIGHT = 380;      // m: the front of a line, at full strength
+const TAIL = 2000;       // m: over which it dies away behind that
 const STEPS = 28;        // the dying away is drawn in this many steps, fine enough to read as one fade
 const BRANCH = 0.3;      // the chance a side street is taken at a junction near the pin, besides the way on
 const FRESH = 5;         // waves: a street taken by one wave is kept off for this many after
-const ALIVE = 32;        // lines alive in one wave, at most
+const ALIVE = 36;        // lines alive in one wave, at most
 const WIDTH = 3;         // px: a line at its front; it thins towards its tail
 const SPARK = 0.45;      // s: the small flash where a line branches
 
@@ -151,9 +151,10 @@ export class StreetPulse {
 
   start() {
     const el = this.map.getContainer();
-    // the light runs out past the edge of the view, well across the city
+    // the light runs well out past the edge of the view, across the city:
+    // farther than the corner of the screen from the pin, whatever the zoom
     const mpp = this.metresPerPixel();
-    this.reach = Math.min(6500, Math.max(2500, Math.hypot(el.clientWidth, el.clientHeight) * 0.85 * mpp));
+    this.reach = Math.min(14000, Math.max(4500, Math.hypot(el.clientWidth, el.clientHeight) * 1.15 * mpp));
     // the graph is built a moment after the key press, so the press itself is not held up
     this.retry = window.setTimeout(() => this.build(), 40);
     this.map.on("idle", this.onIdle);
@@ -444,7 +445,7 @@ export class StreetPulse {
         s: 0,
         L: this.eL[e],
         d: stub,
-        rMax: this.reach * (0.5 + Math.random() * 0.5),
+        rMax: this.reach * (0.7 + Math.random() * 0.3),
         v: SPEED * (0.85 + Math.random() * 0.3),
         born: t + Math.random() * 0.25,
         trail: [0, 0, 0, this.xs[s], this.ys[s], stub],
@@ -541,7 +542,7 @@ export class StreetPulse {
               s: over,
               L: eL[e],
               d: tr.d,
-              rMax: this.reach * (0.4 + Math.random() * 0.5),
+              rMax: this.reach * (0.55 + Math.random() * 0.4),
               v: SPEED * (0.85 + Math.random() * 0.3),
               born: t,
               trail: [xs[n], ys[n], dn],

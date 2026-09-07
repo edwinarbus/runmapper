@@ -202,7 +202,6 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
               className="pbtn"
               disabled={actions.gif.busy}
               aria-busy={actions.gif.busy}
-              data-pressed={actions.gif.busy ? "" : undefined}
               title={
                 actions.canShare
                   ? actions.gifReady

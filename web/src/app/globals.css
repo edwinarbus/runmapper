@@ -1498,8 +1498,10 @@ details[open] > .disclose svg {
     background: #fff;
   }
 }
+/* pressed under a finger, or held down while it works (a GIF rendering) */
 .pbtn:active,
-.pbtn[data-pressed] {
+.pbtn[data-pressed],
+.pbtn[aria-busy="true"] {
   transform: translateY(4px);
   background: linear-gradient(180deg, #cfcbc0, #ebe8e0);
   box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.38), inset 2px 0 3px -2px rgba(0, 0, 0, 0.2), inset -2px 0 3px -2px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(23, 23, 26, 0.25), inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(23, 23, 26, 0.28);

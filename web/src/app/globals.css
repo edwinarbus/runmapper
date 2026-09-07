@@ -120,10 +120,12 @@ body {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--ink-3);
-  /* debossed like the step headings: the cut's upper wall a line of shade
-     along the top of each letter, its lower lip a thread of light below */
-  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.12);
+  /* cut into the deck and left unpainted: the letters a shade darker than
+     the deck around them, the cut's upper wall a line of shade along the
+     top of each letter, its lower lip a thread of light below. Quiet: it
+     is found, not read. */
+  color: #45454b;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.95), 0 1px 0 rgba(255, 255, 255, 0.13);
 }
 .foot a {
   color: inherit;

@@ -164,6 +164,32 @@ if (typeof window !== "undefined") {
   window.addEventListener("pageshow", (e) => {
     if (e.persisted) back();
   });
+  window.addEventListener("focus", () => {
+    if (on && ctx && ctx.state !== "running") ctx.resume().catch(() => undefined);
+  });
+  // A Mac closed and opened again says nothing to the page: the tab stays
+  // visible, the context still says it is running, and it plays nothing,
+  // its clock stopped. So a watchdog ticks once a second and marks the
+  // context for replacement when a tick comes seconds late (the machine
+  // slept, or the tab was put to sleep) or when a context that says it is
+  // running has not moved its clock since the last tick.
+  let lastTick = performance.now();
+  let lastClock = -1;
+  window.setInterval(() => {
+    const now = performance.now();
+    const late = now - lastTick > 4000;
+    lastTick = now;
+    if (late) {
+      stale = true;
+      lastClock = -1;
+      return;
+    }
+    if (ctx && ctx.state === "running") {
+      const clock = ctx.currentTime;
+      if (lastClock >= 0 && clock === lastClock) stale = true;
+      lastClock = clock;
+    } else lastClock = -1;
+  }, 1000);
   // Opening the context takes the browser a moment, long enough to hold up
   // whatever the first tap was meant to do, so it is opened ahead of time,
   // once the page has settled, and simply waits, silent, for the first sound.

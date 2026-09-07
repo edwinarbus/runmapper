@@ -1596,15 +1596,16 @@ details[open] > .disclose svg {
 .pin {
   position: absolute;
   z-index: 2;
-  width: 46px;
-  height: 19px;
+  width: 38px;
+  height: 16px;
   pointer-events: none;
   filter: drop-shadow(1px 2px 1.5px rgba(0, 0, 0, 0.5));
 }
-.pin-tl { left: -14px; top: -5px; transform: rotate(45deg); }
-.pin-tr { right: -14px; top: -5px; transform: rotate(-45deg) scaleX(-1); }
-.pin-bl { left: -14px; bottom: -5px; transform: rotate(-45deg); }
-.pin-br { right: -14px; bottom: -5px; transform: rotate(45deg) scaleX(-1); }
+/* each pin a few degrees off true (--tilt, set per pin), as pins are */
+.pin-tl { left: -11px; top: -4px; transform: rotate(calc(45deg + var(--tilt, 0deg))); }
+.pin-tr { right: -11px; top: -4px; transform: rotate(calc(-45deg + var(--tilt, 0deg))) scaleX(-1); }
+.pin-bl { left: -11px; bottom: -4px; transform: rotate(calc(-45deg + var(--tilt, 0deg))); }
+.pin-br { right: -11px; bottom: -4px; transform: rotate(calc(45deg + var(--tilt, 0deg))) scaleX(-1); }
 @keyframes bib-settle {
   0% { opacity: 0; transform: translateY(-10px) rotate(-1.5deg); }
   50% { opacity: 1; transform: translateY(0) rotate(0.8deg); }

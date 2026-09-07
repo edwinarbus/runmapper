@@ -56,8 +56,10 @@ function awayLabel(o: PlanOption, units: Units) {
  *  round wire is, light along its top and dark beneath. */
 function SafetyPin({ corner }: { corner: "tl" | "tr" | "bl" | "br" }) {
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
+  // no two pins go in quite straight: each sits up to five degrees askew, its own way
+  const [tilt] = useState(() => (Math.random() * 10 - 5).toFixed(1));
   return (
-    <svg className={`pin pin-${corner}`} viewBox="0 0 48 20" aria-hidden="true">
+    <svg className={`pin pin-${corner}`} style={{ "--tilt": `${tilt}deg` } as CSSProperties} viewBox="0 0 48 20" aria-hidden="true">
       <defs>
         <linearGradient id={`wire-${id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#f4f4f6" />

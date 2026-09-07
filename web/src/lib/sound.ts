@@ -44,6 +44,18 @@ const VOICES: Record<string, Shape> = {
   flap: { freq: 5800, q: 1.3, gain: 0.22, decay: 0.013, ring: { freq: 7900, q: 12, gain: 0.12, decay: 0.045 } },
   // a bib pulled out of the pile, or thrown aside
   paper: { freq: 900, q: 0.7, gain: 0.11, decay: 0.14, to: 2800 },
+  // a sliding selector (Words / Draw / Image, the style, the map): the thumb
+  // brushing along its slot, lower and softer than a key, and a light
+  // click as it seats at the far end
+  slide: {
+    freq: 700,
+    q: 1.1,
+    gain: 0.13,
+    decay: 0.055,
+    to: 2100,
+    body: { freq: 260, gain: 0.07, decay: 0.045 },
+    then: { freq: 2500, q: 1.6, gain: 0.11, decay: 0.018 },
+  },
 };
 
 const STORE = "drawmyrun.sound";

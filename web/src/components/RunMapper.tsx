@@ -188,10 +188,12 @@ export default function RunMapper() {
       if (!key) return;
       key.dataset.pressed = "";
       // The deck's noises: the start key knocks and clacks back up, a switch
-      // makes its own snap when it goes over, everything else ticks.
+      // makes its own snap when it goes over, a sliding selector brushes
+      // along its slot and seats, everything else ticks.
       const big = key.classList.contains("go");
       const sw = key.classList.contains("switch");
-      if (!sw) play(big ? "go" : "key");
+      const seg = key.classList.contains("seg-btn") || key.classList.contains("map-btn");
+      if (!sw) play(big ? "go" : seg ? "slide" : "key");
       const t0 = performance.now();
       const up = () => {
         window.removeEventListener("pointerup", up);

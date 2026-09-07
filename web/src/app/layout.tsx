@@ -17,11 +17,11 @@ const site = process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_PROJECT_PRO
 
 export const metadata: Metadata = {
   title: "drawmy.run",
-  description: "Type a word or upload a logo, pick a spot, and get a running route whose GPS trace draws it.",
+  description: "Create GPS art based on your words, scribbles, or images. Follow the route during your workout and show off your creations on Strava.",
   metadataBase: new URL(site),
   openGraph: {
     title: "drawmy.run",
-    description: "Type a word. Run it. A running route whose GPS trace draws it, as a GPX for your watch.",
+    description: "Create GPS art based on your words, scribbles, or images. Follow the route during your workout and show off your creations on Strava.",
     type: "website",
     siteName: "drawmy.run",
     // The card with a real run drawing itself in: Slack and Messages play it;
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "drawmy.run",
-    description: "Type a word. Run it. A running route whose GPS trace draws it.",
+    description: "Create GPS art based on your words, scribbles, or images. Follow the route during your workout and show off your creations on Strava.",
     images: ["/og.png"],
   },
 };

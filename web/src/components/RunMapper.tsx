@@ -577,11 +577,14 @@ export default function RunMapper() {
   };
   const makeGif = async () => {
     if (!shown || gif.busy) return;
+    setGif({ busy: true, pct: 0 });   // held down from the tap itself: the module loads before the render can say so
     try {
       const { saveBlob } = await import("@/lib/gif");
       saveBlob(await theGif(), `${stem}.gif`);
     } catch (e) {
       console.error("GIF export failed", e);
+    } finally {
+      setGif({ busy: false, pct: 0 });
     }
   };
 
@@ -592,6 +595,7 @@ export default function RunMapper() {
   // ready, and the next tap opens the sheet.
   const shareGif = async () => {
     if (!shown || gif.busy) return;
+    setGif({ busy: true, pct: 0 });
     try {
       const blob = await theGif();
       const file = new File([blob], `${stem}.gif`, { type: "image/gif" });
@@ -604,6 +608,8 @@ export default function RunMapper() {
       }
     } catch (e) {
       console.error("Share GIF failed", e);
+    } finally {
+      setGif({ busy: false, pct: 0 });
     }
   };
 

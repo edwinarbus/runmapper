@@ -104,7 +104,8 @@ export default function RunMapper() {
   const [off, setOff] = useState(false);
   useEffect(() => {
     const going = Boolean(startedAt) && status === "planning";
-    const t = window.setTimeout(() => setOff(going), going ? 2800 : 0);
+    // the starter's "Go!" shows at 1.9 s on the stopwatch's clock: the light leaves the pin with it
+    const t = window.setTimeout(() => setOff(going), going ? 1900 : 0);
     return () => window.clearTimeout(t);
   }, [startedAt, status]);
   const [held, setHeld] = useState<"" | "down" | "away">("");   // the start key after a hit: held down, then fading away under the stopwatch

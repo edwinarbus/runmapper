@@ -144,6 +144,8 @@ body {
   }
 }
 /* The key that quiets the deck, in the header beside the wordmark. */
+/* The mute key: the same small, quiet key as My location in the start
+   field (a dimmer face, two pixels of lit wall), standing in the header. */
 .mute {
   display: grid;
   place-items: center;
@@ -151,21 +153,22 @@ body {
   height: 26px;
   flex: none;
   border: 0;
-  border-radius: 7px;
-  background: var(--key);
+  border-radius: 5px;
+  background: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #34343d 0%, #2b2b33 50%, #27272e 100%);
   color: var(--ink-3);
-  box-shadow: var(--key-hi), var(--skirt-3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.26), inset 1px 0 0 rgba(255, 255, 255, 0.05), inset -1px 0 0 rgba(0, 0, 0, 0.4), 0 1px 0 #35353e, 0 2px 0 #2a2a31, 0 3px 1px rgba(0, 0, 0, 0.7), 0 4px 5px rgba(0, 0, 0, 0.4);
   cursor: pointer;
-  transition: color 0.15s, transform 0.12s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.12s;
+  transition: color 0.15s, transform 0.14s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.14s, background 0.12s;
 }
 .mute[aria-pressed="true"] {
   color: var(--ink-2);
 }
 .mute:active,
 .mute[data-pressed] {
-  transform: translateY(3px);
-  box-shadow: var(--sunk);
-  transition-duration: 0.06s;
+  transform: translateY(2px);
+  background: var(--key-down);
+  box-shadow: inset 0 3px 5px -1px rgba(0, 0, 0, 0.85), inset 1px 0 2px -1px rgba(0, 0, 0, 0.6), inset -1px 0 2px -1px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px #000;
+  transition-duration: 0.05s;
 }
 .mute svg {
   width: 14px;

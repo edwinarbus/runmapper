@@ -46,6 +46,7 @@
   --orange-key-hover: var(--grain-key), radial-gradient(70% 60% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(130% 170% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.14) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
   --orange-hi: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.22), inset 1px 0 0 rgba(255, 255, 255, 0.15), inset -1px 0 0 rgba(0, 0, 0, 0.2);
   --orange-skirt-3: 0 1px 0 #e65a14, 0 2px 0 #d65210, 0 3px 0 #c64a0c, 0 4px 1px rgba(0, 0, 0, 0.55), 0 6px 8px rgba(0, 0, 0, 0.4), 0 12px 18px rgba(252, 82, 0, 0.22);
+  --orange-skirt-4: 0 1px 0 #e85c15, 0 2px 0 #df560f, 0 3px 0 #d4500d, 0 4px 0 #c8490b, 0 5px 1px rgba(0, 0, 0, 0.6), 0 8px 10px rgba(0, 0, 0, 0.45), 0 16px 22px -8px rgba(0, 0, 0, 0.45), 0 6px 22px rgba(252, 82, 0, 0.12);
   --orange-skirt-7: 0 1px 0 #e85c15, 0 2px 0 #e35912, 0 3px 0 #dd5510, 0 4px 0 #d6510e, 0 5px 0 #cf4d0c, 0 6px 0 #c7490b, 0 7px 0 #bf450a, 0 8px 1px rgba(0, 0, 0, 0.6), 0 11px 14px rgba(0, 0, 0, 0.45), 0 24px 40px -12px rgba(0, 0, 0, 0.5), 0 10px 34px rgba(252, 82, 0, 0.12);
   --skirt-7: 0 1px 0 #3d3d46, 0 2px 0 #3a3a43, 0 3px 0 #36363f, 0 4px 0 #32323b, 0 5px 0 #2e2e36, 0 6px 0 #2a2a32, 0 7px 0 #26262d, 0 8px 1px rgba(0, 0, 0, 0.8), 0 11px 14px rgba(0, 0, 0, 0.45), 0 24px 40px -12px rgba(0, 0, 0, 0.5);
   --orange-skirt-4: 0 1px 0 #e85c15, 0 2px 0 #db5511, 0 3px 0 #cd4d0d, 0 4px 0 #bf460a, 0 5px 1px rgba(0, 0, 0, 0.55), 0 7px 9px rgba(0, 0, 0, 0.4), 0 13px 18px rgba(252, 82, 0, 0.22);
@@ -1807,65 +1808,34 @@ details[open] > .disclose svg {
    round), on a wall that shows below it as a crescent, lit on the left and
    in shade on the right, seated on the map by a tight contact shadow and a
    soft cast one. */
+/* The play key: the start key's own build at a quarter the size (the same
+   orange face and lit rim, a lit wall under it, sunk into its socket when
+   down), squared off, so the two read as one family. */
 .map-round {
   position: relative;
   z-index: 0;
   display: grid;
   place-items: center;
-  width: 44px;                   /* a round key a size up from the square ones, not a dome */
-  height: 44px;
+  width: 46px;
+  height: 40px;
   border: 0;
-  border-radius: 50%;
-  background: none;
+  border-radius: 9px;
+  background: var(--orange-key);
+  box-shadow: var(--orange-hi), var(--orange-skirt-4);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 1.5, 0.4, 1);
-}
-.map-round::before,
-.map-round::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  transition: bottom 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 0.2s cubic-bezier(0.2, 1.5, 0.4, 1), background 0.12s;
-}
-.map-round::before {
-  z-index: -2;
-  top: 0;
-  right: 0;
-  bottom: -5px;
-  left: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.35) 100%), linear-gradient(90deg, #d84a00 0%, #b83d00 45%, #8f2e00 100%);
-  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.5), 0 8px 14px rgba(0, 0, 0, 0.4), 0 18px 30px -6px rgba(0, 0, 0, 0.5);
-}
-.map-round::after {
-  z-index: -1;
-  inset: 0;
-  background: var(--grain-key), radial-gradient(75% 65% at 35% 22%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.22) 100%), linear-gradient(180deg, #ff7c38 0%, #fd5e12 60%, #f65104 100%);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), inset 0 -3px 4px -1px rgba(0, 0, 0, 0.3), inset 2px 0 2px -1px rgba(255, 255, 255, 0.14), inset -2px 0 3px -1px rgba(0, 0, 0, 0.2), inset 0 0 0 1px rgba(90, 30, 0, 0.28);
+  transition: transform 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), box-shadow 0.18s cubic-bezier(0.2, 1.6, 0.4, 1), background 0.12s;
 }
 @media (hover: hover) {
-  .map-round:hover:not(:disabled)::after {
-    background: var(--grain-key), radial-gradient(75% 65% at 35% 22%, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 100%), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(180deg, #ff8846 0%, #ff6a20 60%, #fb580c 100%);
+  .map-round:hover:not(:disabled) {
+    background: var(--orange-key-hover);
   }
 }
 .map-round:active:not(:disabled),
 .map-round[data-pressed]:not(:disabled) {
   transform: translateY(4px);
-  transition-duration: 0.06s;
-  transition-timing-function: ease-out;
-}
-.map-round:active:not(:disabled)::before,
-.map-round[data-pressed]:not(:disabled)::before {
-  bottom: -1px;
-  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
-  transition-duration: 0.06s;
-  transition-timing-function: ease-out;
-}
-.map-round:active:not(:disabled)::after,
-.map-round[data-pressed]:not(:disabled)::after {
-  background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #c94200 0%, #e85000 35%, #ff6a22 100%);
-  box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
-  transition-duration: 0.06s;
+  background: var(--orange-down);
+  box-shadow: var(--sunk-orange);
+  transition-duration: 0.05s;
   transition-timing-function: ease-out;
 }
 /* While the run plays, the key stays down: latched, its face in the socket's
@@ -1877,16 +1847,8 @@ details[open] > .disclose svg {
 .map-round:disabled,
 .map-round[data-down] {
   transform: translateY(4px);
-}
-.map-round:disabled::before,
-.map-round[data-down]::before {
-  bottom: -1px;
-  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(0, 0, 0, 0.6), 0 2px 3px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 0, 0, 0.5);
-}
-.map-round:disabled::after,
-.map-round[data-down]::after {
-  background: var(--grain-key), radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.25) 100%), linear-gradient(180deg, #b93c00 0%, #d64a00 35%, #ef5f1c 100%);
-  box-shadow: inset 0 6px 8px -3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(60, 20, 0, 0.4);
+  background: var(--orange-down);
+  box-shadow: var(--sunk-orange);
 }
 /* The transport, beside the play key while a replay runs: one fitting, a
    tray let into the glass, with a small speed key set into its left end and
@@ -1901,7 +1863,7 @@ details[open] > .disclose svg {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;                  /* the play key's height, and its bottom on the play key's */
+  height: 40px;                  /* the play key's height, and its bottom on the play key's */
   padding: 0 7px;
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(10, 10, 12, 0.94) 0%, rgba(16, 16, 19, 0.94) 60%, rgba(22, 22, 26, 0.94) 100%);
@@ -1962,7 +1924,7 @@ details[open] > .disclose svg {
 }
 .scrub-cap {
   position: absolute;
-  top: 7px;
+  top: 5px;
   left: 0;
   width: 22px;
   height: 30px;

@@ -685,7 +685,7 @@ export default function MapView(props: MapViewProps) {
           on the play key's line while the key is latched down, which is four
           pixels lower than it stands. */}
       {hasRoute && drawing && (
-        <div className="transport left-3" style={{ right: "calc(0.75rem + 44px + 0.5rem)", bottom: "calc(0.75rem - 4px + env(safe-area-inset-bottom))" }}>
+        <div className="transport left-3" style={{ right: "calc(0.75rem + 46px + 0.5rem)", bottom: "calc(0.75rem - 4px + env(safe-area-inset-bottom))" }}>
           <button type="button" className="map-btn map-speed" onClick={nextSpeed} aria-label={`Speed: ${speedShown} times. Press for the next.`} title="Speed">
             {speedShown}×
           </button>

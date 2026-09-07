@@ -52,7 +52,7 @@ const FLY_ZOOM = 16.4;
 // the start, the finish and the tip are close to the camera and would loom:
 // they are drawn smaller than on the flat map.
 const FLY_THICK = 2;
-const FLY_DOTS = 0.85;
+const FLY_DOTS = 1.25;
 // The speed key cycles through these, a press at a time.
 const SPEEDS = [1, 2, 2.5, 3];
 const CAP = 22;   // the fader's cap's width, in px: see .scrub-cap
@@ -418,6 +418,13 @@ export default function MapView(props: MapViewProps) {
     };
     const begin = () => {
       if (!anim.current || anim.current.token !== token) return;
+      if (fly) {
+        // The run takes the camera over exactly where the landing left it:
+        // the same heading and the same height, whatever the ground had in
+        // by then, so the first frame of the run is no move at all.
+        bearing = m.getBearing();
+        elev = m.getCenterElevation();
+      }
       last = performance.now();
       anim.current = { raf: requestAnimationFrame(frame), token };
     };

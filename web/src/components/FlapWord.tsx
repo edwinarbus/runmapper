@@ -62,7 +62,7 @@ function Tile({ ch, still, order, batch }: { ch: string; still?: boolean; order:
   const cur = seq[Math.min(step, last)];
   const next = seq[Math.min(step + 1, last)];
   return (
-    <span className="flap" aria-hidden="true">
+    <span className={`flap${done ? "" : " flap-turning"}`} aria-hidden="true">
       <span className="flap-half flap-top">
         <i>{done ? cur : next}</i>
       </span>

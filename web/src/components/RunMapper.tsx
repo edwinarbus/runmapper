@@ -955,6 +955,14 @@ export default function RunMapper() {
           </div>
         )}
 
+        {/* The maker's mark, at the foot of the panel above the finish line */}
+        <p className="foot">
+          Another silly project from{" "}
+          <a href="https://edwinarb.us" target="_blank" rel="noopener noreferrer">
+            edwinarb.us
+          </a>
+          .
+        </p>
         {/* The finish line: a chequered strip along the foot of the panel, held at its bottom edge as it scrolls. */}
         <div className="checker" aria-hidden="true" />
       </aside>

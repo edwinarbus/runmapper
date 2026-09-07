@@ -329,7 +329,8 @@ export async function estimate(text: string, bucket: Bucket, loop: boolean, styl
  *  and the city, e.g. RUN-3.40mi-San-Francisco. */
 export function runFileStem(word: string, distanceMi: number, units: Units, city = ""): string {
   const clean = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
-  const dist = units === "mi" ? `${distanceMi.toFixed(2)}mi` : `${(distanceMi * 1.609344).toFixed(2)}km`;
+  // the length rounded up to a whole unit (7.57 mi is "8mi"): no dot in a file name
+  const dist = units === "mi" ? `${Math.ceil(distanceMi)}mi` : `${Math.ceil(distanceMi * 1.609344)}km`;
   return [clean(word).toUpperCase() || "ROUTE", dist, clean(city)].filter(Boolean).join("-");
 }
 

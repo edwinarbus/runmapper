@@ -528,7 +528,7 @@ export default function RunMapper() {
     () => (shown && !shown.route.loop && shown.route.coords.length > 1 ? shown.route.coords[shown.route.coords.length - 1] : null),
     [shown],
   );
-  // File names say which run this is: RUN-3.40mi-San-Francisco.
+  // File names say which run this is: RUN-4mi-San-Francisco (the length rounded up).
   const stem = shown
     ? runFileStem(shown.drawing.kind === "text" ? shown.drawing.label : isDrawing(shown.drawing.label) ? "drawing" : "logo", shown.route.distance_mi, units, city)
     : "route";

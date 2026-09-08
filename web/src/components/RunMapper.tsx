@@ -15,7 +15,6 @@ import {
   type Units,
   PlanError,
   checkHealth,
-  detectUnits,
   downloadGpx,
   estimate,
   fmtDist,
@@ -31,7 +30,7 @@ import { DAY_STYLE } from "@/lib/basemaps";
 import { DRAW_FILE, type Pt, drawingSvg, isDrawing } from "@/lib/drawing";
 import { type Place, reverseCity, reversePlace, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
-import { TILE, bucketTile } from "@/lib/labels";
+import { bucketTile, tileParts } from "@/lib/labels";
 import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
@@ -93,7 +92,15 @@ export default function RunMapper() {
   const [query, setQuery] = useState("");
   const [places, setPlaces] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
-  const [units, setUnits] = useState<Units>("km");
+  const [units, setUnits] = useState<Units>("km");   // kilometres unless the runner flips the switch; remembered
+  const setUnitsPref = (u: Units) => {
+    setUnits(u);
+    try {
+      window.localStorage.setItem("drawmyrun.units", u);
+    } catch {
+      /* nothing to remember it by */
+    }
+  };
   const [sound, setSoundState] = useState(true);
   const [engine, setEngine] = useState<"checking" | "online" | "offline">("checking");
   const [canShare, setCanShare] = useState(false);
@@ -163,6 +170,8 @@ export default function RunMapper() {
       if (STYLES.some((x) => x.key === s)) setStyle(s as Style);
       const lp = q.get("loop");
       if (lp === "0" || lp === "1") setLoop(lp === "1");
+      const u = q.get("u");
+      if (u === "mi" || u === "km") setUnits(u);
       if (hasPin) {
         setPin({ lat, lon });
         setPinLabel(`${lat.toFixed(5)}, ${lon.toFixed(5)}`);
@@ -190,7 +199,14 @@ export default function RunMapper() {
   // Miles only where people actually use them; everyone else gets kilometres.
   useEffect(() => {
     const t0 = setTimeout(() => setSoundState(soundOn()), 0);
-    const t = setTimeout(() => setUnits(detectUnits()), 0);
+    const t = setTimeout(() => {
+      try {
+        const u = window.localStorage.getItem("drawmyrun.units");
+        if (u === "mi" || u === "km") setUnits(u);
+      } catch {
+        /* kilometres it is */
+      }
+    }, 0);
     return () => {
       clearTimeout(t0);
       clearTimeout(t);
@@ -894,7 +910,29 @@ export default function RunMapper() {
                   <span>How far</span>
                 </div>
                 {/* The switch plate: the Loop toggle mounted through a plate screwed to the deck, its legend engraved in it and lit when on */}
-                <div className="plate" role="group" aria-label="Loop">
+                <div className="plate" role="group" aria-label="Units and loop">
+                  {/* Miles or kilometres: a two-way switch, the legend on its live side lit */}
+                  <div className="uswitch">
+                    <span className={`plate-lab${units === "mi" ? " plate-lab-on" : ""}`}>MI</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={units === "km"}
+                      aria-label="Kilometres"
+                      title="Miles or kilometres"
+                      className="switch switch-units"
+                      onClick={() => {
+                        play("snap");
+                        setUnitsPref(units === "km" ? "mi" : "km");
+                      }}
+                    >
+                      <span className="knob" aria-hidden="true">
+                        <i className="knob-led" />
+                      </span>
+                    </button>
+                    <span className={`plate-lab${units === "km" ? " plate-lab-on" : ""}`}>KM</span>
+                  </div>
+                  <span className="plate-gap" aria-hidden="true" />
                   <div className="uswitch">
                     <button
                       type="button"
@@ -933,7 +971,10 @@ export default function RunMapper() {
                       }
                       onClick={() => setBucket(b.key)}
                     >
-                      <span className="big-label font-display">{TILE[b.key]}</span>
+                      <span className="big-label font-display unit">
+                        <span>{tileParts(b.key, units).num}</span>
+                        <span className="tile-unit">{units}</span>
+                      </span>
                     </button>
                   );
                 })}
@@ -948,7 +989,7 @@ export default function RunMapper() {
                       : `Your own distance, ${units === "mi" ? `${CUSTOM_MIN_MI} to ${CUSTOM_MAX_MI} miles` : `${Math.round(CUSTOM_MIN_MI * 1.609344)} to ${Math.round(CUSTOM_MAX_MI * 1.609344)} km`}`
                   }
                 >
-                  <span className="big-label font-display">
+                  <span className="big-label font-display unit">
                     <input
                       ref={customEl}
                       type="text"

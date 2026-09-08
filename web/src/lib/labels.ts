@@ -14,13 +14,19 @@ export const VERDICT: Record<string, { label: string; word: string; ink: string 
 export const verdictOf = (v: string) => VERDICT[v] ?? VERDICT.rough;
 
 /** Labels for the distance tiles: the Longer bucket tops out around a half marathon. */
-export const TILE: Partial<Record<Bucket, string>> = { "5k": "5K", "10k": "10K", long: "Half" };
+/** The three set distances as their keys read, in the runner's units: 3.1 / 6.2 / 13.1 mi, or 5 / 10 / 21.1 km. */
+export const TILE_NUM: Record<Units, Record<"5k" | "10k" | "long", string>> = {
+  mi: { "5k": "3.1", "10k": "6.2", long: "13.1" },
+  km: { "5k": "5", "10k": "10", long: "21.1" },
+};
+export function tileParts(key: Bucket, units: Units): { num: string; unit: string } {
+  return { num: key === "custom" ? "" : TILE_NUM[units][key], unit: units };
+}
 
 /** The distance a run was asked for, as its key reads: 5K, 10K, Half, or a
  *  custom distance in the runner's own units ("7.5 mi", "12 km"). */
 export function bucketTile(b: { key: Bucket; label: string; cap_mi: number; target_mi?: number | null }, units: Units): string {
-  const fixed = TILE[b.key];
-  if (fixed) return fixed;
+  if (b.key !== "custom") return `${TILE_NUM[units][b.key]} ${units}`;
   const mi = b.target_mi ?? b.cap_mi / CUSTOM_OVER;
   const n = units === "mi" ? mi : mi * 1.609344;
   return `${n.toFixed(1).replace(/\.0$/, "")} ${units}`;

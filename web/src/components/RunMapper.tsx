@@ -971,9 +971,9 @@ export default function RunMapper() {
                       }
                       onClick={() => setBucket(b.key)}
                     >
-                      <span className="big-label font-display unit">
+                      <span className={`big-label font-display${units === "mi" ? " unit" : ""}`}>
                         <span>{tileParts(b.key, units).num}</span>
-                        <span className="tile-unit">{units}</span>
+                        {units === "mi" && <span className="tile-unit">mi</span>}
                       </span>
                     </button>
                   );

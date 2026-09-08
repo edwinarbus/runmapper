@@ -23,12 +23,15 @@ import {
   planRun,
   resumeRun,
   runFileStem,
+  CUSTOM_MIN_MI,
+  CUSTOM_MAX_MI,
+  CUSTOM_OVER,
 } from "@/lib/api";
 import { DAY_STYLE } from "@/lib/basemaps";
 import { DRAW_FILE, type Pt, drawingSvg, isDrawing } from "@/lib/drawing";
 import { type Place, reverseCity, reversePlace, searchPlaces } from "@/lib/geocode";
 import { prepareUpload } from "@/lib/image";
-import { TILE } from "@/lib/labels";
+import { TILE, bucketTile } from "@/lib/labels";
 import DrawPad from "./DrawPad";
 import FlapWord from "./FlapWord";
 import PaceBand from "./PaceBand";
@@ -73,6 +76,8 @@ export default function RunMapper() {
   const [located, setLocated] = useState(false);          // the pin is the visitor's own place: the location key is lit
   const [focus, setFocus] = useState<(LatLon & { zoom?: number; key: number }) | null>(null);
   const [bucket, setBucket] = useState<Bucket>("5k");
+  const [custom, setCustom] = useState("");           // the runner's own distance, as typed, in their units
+  const customEl = useRef<HTMLInputElement>(null);
   const [loop, setLoop] = useState(false);
   const [style, setStyle] = useState<Style>("auto");
   const [status, setStatus] = useState<Status>("idle");
@@ -150,6 +155,10 @@ export default function RunMapper() {
       }
       const d = q.get("d");
       if (BUCKETS.some((b) => b.key === d)) setBucket(d as Bucket);
+      else if (d && /^\d{1,2}([.,]\d)?$/.test(d)) {
+        setBucket("custom");
+        setCustom(d);
+      }
       const s = q.get("s");
       if (STYLES.some((x) => x.key === s)) setStyle(s as Style);
       const lp = q.get("loop");
@@ -193,7 +202,7 @@ export default function RunMapper() {
   useEffect(() => {
     const down = (e: PointerEvent) => {
       if (e.button > 0) return;
-      const key = (e.target as HTMLElement | null)?.closest?.("button:not(:disabled)") as HTMLElement | null;
+      const key = (e.target as HTMLElement | null)?.closest?.("button:not(:disabled), .tile-custom") as HTMLElement | null;
       if (!key) return;
       key.dataset.pressed = "";
       // The deck's noises: the start key knocks and clacks back up, a switch
@@ -277,7 +286,7 @@ export default function RunMapper() {
         setEst(null);
         return;
       }
-      estimate(text, bucket, loop, style).then(setEst).catch(() => setEst(null));
+      estimate(text, bucket === "custom" ? "long" : bucket, loop, style).then(setEst).catch(() => setEst(null));
     }, 250);
     return () => clearTimeout(t);
   }, [text, bucket, loop, mode, style]);
@@ -364,12 +373,21 @@ export default function RunMapper() {
   // Which distances the word fits. A key it does not fit is disabled, and if
   // the chosen key is one of those the shortest that fits stands in for it;
   // the choice itself is kept, and comes back when the word gets shorter.
-  const fits = mode === "text" && est?.fits ? est.fits : null;
+  // The runner's own distance: typed in their units, checked in miles.
+  const customNum = parseFloat(custom.replace(",", "."));
+  const customMi = Number.isFinite(customNum) ? (units === "mi" ? customNum : customNum / 1.609344) : 0;
+  const customOk = customMi >= CUSTOM_MIN_MI && customMi <= CUSTOM_MAX_MI;
+  const fits = mode === "text" && est?.fits ? { ...est.fits, custom: !customOk || (est.need_mi ?? 0) <= customMi * CUSTOM_OVER } : null;
   const fitting = fits ? BUCKETS.filter((b) => fits[b.key]).map((b) => b.key) : BUCKETS.map((b) => b.key);
-  const effective: Bucket = fits && !fits[bucket] ? (fitting[0] ?? bucket) : bucket;
-  const textOk = mode === "text" && text.trim().length > 0 && text.trim().length <= MAX_CHARS && (est ? (fits ? fitting.length > 0 : est.ok) : true);
+  const effective: Bucket = bucket === "custom" ? "custom" : fits && !fits[bucket] ? (fitting[0] ?? bucket) : bucket;
+  const textOk =
+    mode === "text" &&
+    text.trim().length > 0 &&
+    text.trim().length <= MAX_CHARS &&
+    (est ? (bucket === "custom" ? Boolean(fits?.custom) : fits ? fitting.length > 0 : est.ok) : true);
+  const distOk = bucket !== "custom" || customOk;
   const canGo =
-    pin !== null && status !== "planning" && ((mode === "text" && textOk) || (mode === "draw" && draw.length > 0) || (mode === "image" && image !== null));
+    pin !== null && status !== "planning" && distOk && ((mode === "text" && textOk) || (mode === "draw" && draw.length > 0) || (mode === "image" && image !== null));
 
   const go = async (useBucket: Bucket = effective) => {
     if (!pin) return;
@@ -401,7 +419,16 @@ export default function RunMapper() {
     document.addEventListener("visibilitychange", onVisibility);
     // A drawing travels as a stroked SVG, which the engine reads as line art.
     const upload = mode === "image" ? image : mode === "draw" ? new File([drawingSvg(draw)], DRAW_FILE, { type: "image/svg+xml" }) : null;
-    const input = { text: mode === "text" ? text : undefined, image: upload, lat: pin.lat, lon: pin.lon, bucket: useBucket, loop, style: mode === "draw" ? ("auto" as Style) : style };
+    const input = {
+      text: mode === "text" ? text : undefined,
+      image: upload,
+      lat: pin.lat,
+      lon: pin.lon,
+      bucket: useBucket,
+      customMi: useBucket === "custom" ? Math.round(customMi * 100) / 100 : undefined,
+      loop,
+      style: mode === "draw" ? ("auto" as Style) : style,
+    };
     const onProgress = (p: ProgressEvent) => {
       setProgress(p);
       if (p.stage === "place") setLaps((n) => n + 1);   // one placement scan per spot: a lap
@@ -535,7 +562,7 @@ export default function RunMapper() {
     : "route";
   const showResult = Boolean(result && shown && !editing);
   const drawingLabel = shown ? (shown.drawing.kind === "text" ? `“${shown.drawing.label}”` : isDrawing(shown.drawing.label) ? "your drawing" : "your image") : "";
-  const summary = shown ? [drawingLabel, TILE[shown.bucket.key] ?? shown.bucket.label, shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
+  const summary = shown ? [drawingLabel, bucketTile(shown.bucket, units), shown.route.loop ? "Loop" : "One way"].join(" · ") : "";
   const caption = useMemo(
     () => ({
       word: shown ? (shown.drawing.kind === "text" ? shown.drawing.label : isDrawing(shown.drawing.label) ? "Drawing" : "Logo run") : "",
@@ -889,7 +916,7 @@ export default function RunMapper() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Distance">
+              <div className="grid grid-cols-4 gap-2" role="group" aria-label="Distance">
                 {BUCKETS.map((b) => {
                   const short = Boolean(fits && !fits[b.key]);
                   return (
@@ -910,6 +937,36 @@ export default function RunMapper() {
                     </button>
                   );
                 })}
+                {/* The fourth key: a distance of your own, typed into the key's face, the unit beside it */}
+                <label
+                  className="tile tile-custom"
+                  data-on={effective === "custom" ? "" : undefined}
+                  data-short={bucket === "custom" && fits && !fits.custom ? "" : undefined}
+                  title={
+                    bucket === "custom" && fits && !fits.custom
+                      ? `Too short for this word${est?.need_mi ? `: it needs about ${fmtDist(est.need_mi, units)}` : ""}`
+                      : `Your own distance, ${units === "mi" ? `${CUSTOM_MIN_MI} to ${CUSTOM_MAX_MI} miles` : `${Math.round(CUSTOM_MIN_MI * 1.609344)} to ${Math.round(CUSTOM_MAX_MI * 1.609344)} km`}`
+                  }
+                >
+                  <span className="big-label font-display">
+                    <input
+                      ref={customEl}
+                      type="text"
+                      inputMode="decimal"
+                      value={custom}
+                      placeholder="8"
+                      maxLength={4}
+                      style={{ width: `calc(${Math.max(1, custom.length || 1)}ch + 0.1em)` }}
+                      aria-label={`Your own distance, in ${units === "mi" ? "miles" : "kilometres"}`}
+                      onFocus={() => setBucket("custom")}
+                      onChange={(e) => {
+                        setCustom(e.target.value.replace(/[^0-9.,]/g, "").slice(0, 4));
+                        setBucket("custom");
+                      }}
+                    />
+                    <span className="tile-unit">{units}</span>
+                  </span>
+                </label>
               </div>
             </section>
             <div className="rule" />

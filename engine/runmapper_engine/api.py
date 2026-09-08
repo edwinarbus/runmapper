@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import __version__, font
-from .pipeline import (BUCKETS, INFLATION, OUTLINE_TYPICAL_BLOCK_FT, UNIT_MIN_FT, PlanError, PlanRequest,
+from .pipeline import (BUCKETS, INFLATION, OUTLINE_TYPICAL_BLOCK_FT, UNIT_MIN_FT, PlanError, PlanRequest, bucket_for,
                        plan_run, prepare_text)
 from .geo import FT_PER_MI
 
@@ -255,13 +255,15 @@ def create_app(cache_dir=None):
         bucket: str = "10k"
         loop: bool = True
         style: str = "auto"
+        custom_mi: float = 0.0
 
     @app.post("/api/estimate")
     def estimate(e: Estimate):
         """Cheap feasibility check for typed text, no street data needed."""
-        b = BUCKETS.get(e.bucket)
-        if b is None:
-            raise HTTPException(400, "unknown bucket")
+        try:
+            b = bucket_for(e.bucket, e.custom_mi)
+        except PlanError as ex:
+            raise HTTPException(400, str(ex))
         try:
             rep = prepare_text(e.text, e.loop, "outline" if e.style == "outline" else "line")
         except font.FontError as ex:
@@ -272,6 +274,7 @@ def create_app(cache_dir=None):
             width = max(width, OUTLINE_TYPICAL_BLOCK_FT * rep["units_per_width"])
         need_mi = width * (rep["ink_norm"] + rep["conn_norm"]) * INFLATION / FT_PER_MI
         fits = {k: need_mi <= v["cap_mi"] for k, v in BUCKETS.items()}
+        fits["custom"] = need_mi <= b["cap_mi"] if e.bucket == "custom" else True
         # The strokes themselves (normalised, y down) so the page can show
         # the word the way it will be run.
         strokes = [dict(pts=[[round(float(x), 3), round(float(-y), 3)] for x, y in s.pts],
@@ -283,7 +286,7 @@ def create_app(cache_dir=None):
     @app.post("/api/plan")
     async def plan(text: str = Form(""), lat: float = Form(...), lon: float = Form(...),
                    bucket: str = Form("10k"), loop: bool = Form(True), name: str = Form(""),
-                   style: str = Form("auto"), job: str = Form(""),
+                   style: str = Form("auto"), job: str = Form(""), custom_mi: float = Form(0.0),
                    image: UploadFile | None = File(None)):
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise HTTPException(400, "bad coordinates")
@@ -295,7 +298,7 @@ def create_app(cache_dir=None):
             if len(data) > MAX_IMAGE_BYTES:
                 raise HTTPException(413, "image too large (6 MB max)")
             fname = image.filename
-        req = PlanRequest(lat=lat, lon=lon, bucket=bucket, loop=loop, name=name,
+        req = PlanRequest(lat=lat, lon=lon, bucket=bucket, loop=loop, name=name, custom_mi=custom_mi,
                           text=text.strip() or None, image_bytes=data, image_name=fname,
                           style=style if style in ("auto", "line", "outline") else "auto")
         rec = open_record(job) if job else None

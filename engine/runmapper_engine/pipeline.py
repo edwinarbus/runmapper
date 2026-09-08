@@ -89,6 +89,7 @@ class PlanRequest:
     image_name: str = ""
     name: str = ""
     style: str = "auto"       # auto | line | outline
+    custom_mi: float = 0.0    # with bucket "custom": the distance asked for, in miles
     extra: dict = field(default_factory=dict)
 
 
@@ -99,6 +100,27 @@ class PlanError(ValueError):
     def __init__(self, message, suggest=None):
         super().__init__(message)
         self.suggest = suggest
+
+
+CUSTOM_MIN_MI, CUSTOM_MAX_MI = 1.0, 40.0
+CUSTOM_OVER = 1.06        # a custom distance's cap: a little over what was asked
+
+
+def bucket_for(key, custom_mi=0.0):
+    """The distance for a request: one of the three keys, or "custom" with a
+    distance of the runner's own in miles, capped a little over it."""
+    if key == "custom":
+        try:
+            mi = float(custom_mi or 0.0)
+        except (TypeError, ValueError):
+            mi = 0.0
+        if not (CUSTOM_MIN_MI <= mi <= CUSTOM_MAX_MI):
+            raise PlanError(f"Pick a distance between {CUSTOM_MIN_MI:g} and {CUSTOM_MAX_MI:g} miles.")
+        return dict(cap_mi=round(mi * CUSTOM_OVER, 3), label=f"{mi:g} mi", target_mi=mi)
+    b = BUCKETS.get(key)
+    if b is None:
+        raise PlanError("Pick a distance: 5K, 10K, half, or your own.")
+    return b
 
 
 def _progress(cb, stage, pct, msg):
@@ -446,7 +468,8 @@ def image_size_candidates(rep, cap_ft, r0):
 
 def suggest_bucket(need_ft, current):
     """The smallest bucket whose cap covers `need_ft`, if any bigger one does."""
-    for key in BUCKET_ORDER[BUCKET_ORDER.index(current) + 1:]:
+    start = BUCKET_ORDER.index(current) + 1 if current in BUCKET_ORDER else 0
+    for key in BUCKET_ORDER[start:]:
         if need_ft <= BUCKETS[key]["cap_mi"] * FT_PER_MI * ALIGNED_OVER_CAP:
             return key
     return None
@@ -509,9 +532,7 @@ def plan_run(req: PlanRequest, progress=None, cache_dir=None, log=None, on_optio
     caller can show routes one by one; the return value carries them all."""
     t_start = time.time()
     progress = _monotone(progress)
-    bucket = BUCKETS.get(req.bucket)
-    if bucket is None:
-        raise PlanError("Pick a distance: 5k, 10k or long.")
+    bucket = bucket_for(req.bucket, req.custom_mi)
     cap_ft = bucket["cap_mi"] * FT_PER_MI
 
     _progress(progress, "strokes", 3, "Reading the shape")
@@ -1409,7 +1430,7 @@ def _finish(g, proj, best, choice, req, bucket):
                    n_points=int(len(ll))),
         drawing=dict(kind=choice["kind"], style=choice.get("style") or choice["kind"], label=label,
                      lines=int(best["cand"]["size"].get("lines", 1)), strokes=len(best["ideal"]), ideal=ideal_ll),
-        bucket=dict(key=req.bucket, label=bucket["label"], cap_mi=bucket["cap_mi"]),
+        bucket=dict(key=req.bucket, label=bucket["label"], cap_mi=bucket["cap_mi"], target_mi=bucket.get("target_mi")),
         cues=cues,
         gpx=gpx_string(ll, prof["ele"] if prof["gain"] is not None else None, name=name, desc=desc),
         name=name,

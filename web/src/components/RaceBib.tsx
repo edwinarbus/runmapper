@@ -4,7 +4,7 @@ import { type CSSProperties, type PointerEvent as ReactPointerEvent, useEffect, 
 import type { Bucket, PlanOption, Units } from "@/lib/api";
 import { BUCKETS, fmtDist } from "@/lib/api";
 import { isDrawing } from "@/lib/drawing";
-import { TILE, compass, verdictOf } from "@/lib/labels";
+import { bucketTile, compass, verdictOf } from "@/lib/labels";
 import { play } from "@/lib/sound";
 import Icon from "./Icon";
 import Wordmark from "./Wordmark";
@@ -158,7 +158,7 @@ function Paper({ o, units, actions, live }: { o: PlanOption; units: Units; actio
           <span className="bib-unit">{units}</span>
         </div>
         <div className="bib-sub font-display">
-          {distSecondary} · {o.route.loop ? "loop" : "one way"} · {TILE[o.bucket.key] ?? o.bucket.label}
+          {distSecondary} · {o.route.loop ? "loop" : "one way"} · {bucketTile(o.bucket, units)}
           {climb ? ` · ${climb}` : ""}
         </div>
         <div className="bib-name font-display">

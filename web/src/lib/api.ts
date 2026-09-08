@@ -22,7 +22,11 @@ export async function checkHealth(timeoutMs = 6000): Promise<boolean> {
   }
 }
 
-export type Bucket = "5k" | "10k" | "long";
+export type Bucket = "5k" | "10k" | "long" | "custom";
+// A distance of the runner's own: between these, capped a little over what was asked (mirrors pipeline.py).
+export const CUSTOM_MIN_MI = 1;
+export const CUSTOM_MAX_MI = 40;
+export const CUSTOM_OVER = 1.06;
 
 // Distance caps mirror BUCKETS in engine/runmapper_engine/pipeline.py.
 export const BUCKETS: { key: Bucket; label: string; cap_mi: number }[] = [
@@ -105,7 +109,7 @@ export interface PlanResult {
     n_points: number;
   };
   drawing: { kind: string; style?: string; label: string; lines?: number; strokes: number; ideal: [number, number][][] };
-  bucket: { key: Bucket; label: string; cap_mi: number };
+  bucket: { key: Bucket; label: string; cap_mi: number; target_mi?: number | null };
   cues: Cue[];
   gpx: string;
   name: string;
@@ -127,6 +131,7 @@ export interface PlanInput {
   lat: number;
   lon: number;
   bucket: Bucket;
+  customMi?: number;   // with bucket "custom": the distance asked for, in miles
   loop: boolean;
   style?: Style;
 }
@@ -210,6 +215,7 @@ export async function planRun(
   fd.set("lat", String(input.lat));
   fd.set("lon", String(input.lon));
   fd.set("bucket", input.bucket);
+  if (input.bucket === "custom") fd.set("custom_mi", String(input.customMi ?? 0));
   fd.set("loop", input.loop ? "true" : "false");
   fd.set("style", input.style ?? "auto");
   if (job) fd.set("job", job.id);

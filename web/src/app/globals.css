@@ -758,6 +758,55 @@ body {
   font-size: 1.8rem;
   line-height: 1;
 }
+/* The fourth distance key: a number of your own typed into the key's face,
+   the unit small beside it. It presses and sinks like the others (data-on
+   is its chosen state), and dims like a disabled key when the word will
+   not fit the distance typed. */
+.tile-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: text;
+}
+.tile-custom .big-label {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.14em;
+}
+.tile-custom input {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  text-align: right;
+  outline: none;
+  caret-color: var(--orange);
+}
+.tile-custom input::placeholder {
+  color: currentColor;
+  opacity: 0.3;
+}
+.tile-custom .tile-unit {
+  font-size: 0.5em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.tile[data-on] {
+  transform: translateY(5px);
+  background: var(--white-down);
+  color: var(--paper-ink);
+  text-shadow: var(--cut-light);
+  box-shadow: var(--sunk-white);
+}
+.tile[data-short] {
+  opacity: 0.45;
+}
 /* Where the browser can trim a line to the face's cap height (Safari 18.2,
    Chrome 133), the label becomes exactly the height of its capitals and the
    key centres it, with no metric arithmetic at all. */

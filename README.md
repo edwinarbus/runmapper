@@ -3,7 +3,7 @@
 Type a word or upload a logo, drop a pin anywhere in the world, pick a distance, and get a running route whose GPS trace draws it. Load the GPX into Strava, Garmin or your watch, run the line, and the orange map in your activity is the drawing.
 
 ```
-  words / image  +  a spot on the map  +  ~5K / ~10K / longer
+  words / image  +  a spot on the map  +  ~5K / ~10K / half / your own distance
                           │
                           ▼
    strokes → sized to the local blocks → laid onto real streets → scored → GPX

@@ -112,7 +112,8 @@ export default function RunMapper() {
   // and "set", and the gun on "go", on the stopwatch's own clock.
   useEffect(() => {
     if (!startedAt || status !== "planning") return;
-    const ts = [window.setTimeout(() => play("marks"), 0), window.setTimeout(() => play("set"), 1000), window.setTimeout(() => play("gun"), 1900)];
+    // the first pip waits for the start key's own knock to die away, so the two never sound together
+    const ts = [window.setTimeout(() => play("marks"), 320), window.setTimeout(() => play("set"), 1000), window.setTimeout(() => play("gun"), 1900)];
     return () => ts.forEach((t) => window.clearTimeout(t));
   }, [startedAt, status]);
   const [held, setHeld] = useState<"" | "down" | "away">("");   // the start key after a hit: held down, then fading away under the stopwatch
@@ -737,7 +738,7 @@ export default function RunMapper() {
                 <a href="http://www.workoutdoors.net/Routes.html" target="_blank" rel="noopener noreferrer" className="text-[var(--ink-2)] underline underline-offset-2">
                   WorkOutDoors
                 </a>
-                . Run the line; the map in your activity is the drawing.
+                .
               </p>
             </section>
           </div>
